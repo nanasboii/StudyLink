@@ -1,11 +1,7 @@
-import { api, requireSession, setMessage } from '../api.js';
+import { api, requireRoleSession, setMessage } from '../api.js';
 import { mountNav } from '../nav.js';
-import { PAGES } from '../routes.js';
 
-const user = requireSession();
-if (user && user.role !== 'admin') {
-  window.location.href = PAGES.resources;
-}
+requireRoleSession('admin');
 
 mountNav('adminVerifications');
 

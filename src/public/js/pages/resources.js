@@ -1,4 +1,4 @@
-import { api, getToken, requireSession } from '../api.js';
+import { api, debounce, getToken, requireSession, showToast } from '../api.js';
 import { mountNav } from '../nav.js';
 
 requireSession();
@@ -6,6 +6,9 @@ mountNav('resources');
 
 let selectedType = '';
 const resourceRatings = new Map();
+const RESOURCE_PAGE_SIZE = 12;
+let allVisibleResources = [];
+let visibleResourceCount = RESOURCE_PAGE_SIZE;
 const suggestedCarousel = document.getElementById('suggestedCarousel');
 const uploadPanel = document.getElementById('uploadPanel');
 const uploadForm = document.getElementById('resourceUploadForm');
@@ -27,6 +30,56 @@ const filterState = {
   sources: new Set(),
   minRating: 0
 };
+
+function showSkeletonList(container, count = 3) {
+  container.innerHTML = '';
+  for (let i = 0; i < count; i += 1) {
+    const skeleton = document.createElement('div');
+    skeleton.className = 'skeleton-item';
+    container.appendChild(skeleton);
+  }
+}
+
+function ensureLoadMoreButton() {
+  let button = document.getElementById('resourceLoadMoreBtn');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'resourceLoadMoreBtn';
+    button.className = 'chip';
+    button.type = 'button';
+    button.textContent = 'Load more resources';
+    button.addEventListener('click', () => {
+      visibleResourceCount += RESOURCE_PAGE_SIZE;
+      renderResourcesSection();
+    });
+    const list = document.getElementById('resourceList');
+    list.insertAdjacentElement('afterend', button);
+  }
+  return button;
+}
+
+function renderResourcesSection() {
+  const list = document.getElementById('resourceList');
+  list.innerHTML = '';
+
+  if (!allVisibleResources.length) {
+    list.innerHTML = '<div class="empty-state">No resources found yet. Upload your first note or try another filter.</div>';
+    const btn = ensureLoadMoreButton();
+    btn.classList.add('hidden');
+    return;
+  }
+
+  allVisibleResources
+    .slice(0, visibleResourceCount)
+    .forEach((resource) => list.appendChild(renderItem(resource)));
+
+  const loadMoreBtn = ensureLoadMoreButton();
+  if (visibleResourceCount < allVisibleResources.length) {
+    loadMoreBtn.classList.remove('hidden');
+  } else {
+    loadMoreBtn.classList.add('hidden');
+  }
+}
 
 function setUploadMessage(text, isOk = false) {
   uploadMessage.textContent = text;
@@ -371,8 +424,9 @@ function renderItem(resource) {
 
 async function loadResources() {
   const list = document.getElementById('resourceList');
-  list.innerHTML = '';
+  showSkeletonList(list, 4);
   suggestedCarousel.innerHTML = '';
+  showSkeletonList(suggestedCarousel, 2);
 
   try {
     const search = resourceSearch.value.trim();
@@ -398,14 +452,12 @@ async function loadResources() {
       suggestedCarousel.innerHTML = '<div class="empty-state">No suggestions yet. Upload or rate resources to populate this feed.</div>';
     }
 
-    if (!filteredResources.length) {
-      list.innerHTML = '<div class="empty-state">No resources found yet. Upload your first note or try another filter.</div>';
-      return;
-    }
-
-    filteredResources.forEach((resource) => list.appendChild(renderItem(resource)));
+    allVisibleResources = filteredResources;
+    renderResourcesSection();
   } catch (error) {
     list.innerHTML = `<div class="empty-state">Unable to load resources: ${error.message}</div>`;
+    const btn = ensureLoadMoreButton();
+    btn.classList.add('hidden');
   }
 }
 
@@ -414,8 +466,25 @@ uploadForm.addEventListener('submit', async (event) => {
   setUploadMessage('');
 
   const formData = new FormData(uploadForm);
+  const title = String(formData.get('title') || '').trim();
+  const resourceType = String(formData.get('resourceType') || '').trim();
   const resourceFile = formData.get('resourceFile');
   const resourceLink = String(formData.get('resourceLink') || '').trim();
+
+  if (title.length < 4) {
+    setUploadMessage('Title should be at least 4 characters long.');
+    return;
+  }
+
+  if (!resourceType) {
+    setUploadMessage('Please select a resource type.');
+    return;
+  }
+
+  if (resourceLink && !/^https?:\/\//i.test(resourceLink)) {
+    setUploadMessage('Resource link must start with http:// or https://');
+    return;
+  }
 
   if (!resourceFile || resourceFile.size === 0) {
     formData.delete('resourceFile');
@@ -445,7 +514,9 @@ uploadForm.addEventListener('submit', async (event) => {
     }
 
     setUploadMessage('Resource published. You earned 15 Learning Points.', true);
+    showToast('Resource published successfully.', true);
     uploadForm.reset();
+    visibleResourceCount = RESOURCE_PAGE_SIZE;
     await loadResources();
   } catch (error) {
     setUploadMessage(error.message);
@@ -467,10 +538,12 @@ resourceFilterModal.addEventListener('click', (event) => {
 applyFilterBtn.addEventListener('click', async () => {
   syncFilterStateFromInputs();
   closeFilterModal();
+  visibleResourceCount = RESOURCE_PAGE_SIZE;
   await loadResources();
 });
 resetFilterBtn.addEventListener('click', async () => {
   resetPopupFilters();
+  visibleResourceCount = RESOURCE_PAGE_SIZE;
   await loadResources();
 });
 minRatingFilter.addEventListener('input', () => {
@@ -480,15 +553,25 @@ updateMinRatingUI();
 resourceSearch.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
+    visibleResourceCount = RESOURCE_PAGE_SIZE;
     loadResources();
   }
 });
+
+resourceSearch.addEventListener(
+  'input',
+  debounce(() => {
+    visibleResourceCount = RESOURCE_PAGE_SIZE;
+    loadResources();
+  }, 350)
+);
 
 typeChips.forEach((chip) => {
   chip.addEventListener('click', () => {
     typeChips.forEach((c) => c.classList.remove('chip-active'));
     chip.classList.add('chip-active');
     selectedType = chip.dataset.type || '';
+    visibleResourceCount = RESOURCE_PAGE_SIZE;
     loadResources();
   });
 });

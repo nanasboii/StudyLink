@@ -8,6 +8,9 @@
   session: '/ui/pages/session.html',
   verification: '/ui/pages/verification.html',
   adminVerifications: '/ui/pages/admin-verifications.html',
+  adminResources: '/ui/pages/admin-resources.html',
+  adminAnalytics: '/ui/pages/admin-analytics.html',
+  adminActivity: '/ui/pages/admin-activity.html',
   notifications: '/ui/pages/notifications.html',
   achievements: '/ui/pages/achievements.html',
   profile: '/ui/pages/profile.html'

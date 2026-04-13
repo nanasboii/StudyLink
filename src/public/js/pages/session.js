@@ -9,6 +9,7 @@ const bookingForm = document.getElementById('bookingForm');
 const bookingList = document.getElementById('bookingList');
 const recentTutorsCard = document.getElementById('recentTutorsCard');
 const recentTutorsList = document.getElementById('recentTutorsList');
+let bookingsState = [];
 
 if (user.role === 'tutor') {
   availabilityForm.classList.remove('hidden');
@@ -70,6 +71,15 @@ function buildActionButton(label, handler) {
   return button;
 }
 
+function showSkeletonList(container, count = 3) {
+  container.innerHTML = '';
+  for (let i = 0; i < count; i += 1) {
+    const skeleton = document.createElement('div');
+    skeleton.className = 'skeleton-item';
+    container.appendChild(skeleton);
+  }
+}
+
 function tutorPreviewCard(tutor) {
   const div = document.createElement('div');
   div.className = 'item';
@@ -99,7 +109,7 @@ async function loadRecentTutors() {
     return;
   }
 
-  recentTutorsList.innerHTML = '';
+  showSkeletonList(recentTutorsList, 2);
   try {
     const data = await api('/tutors');
     if (!data.tutors.length) {
@@ -130,17 +140,34 @@ function bookingCard(booking) {
 
   const actions = div.querySelector('.actions');
 
+  const runOptimistic = async (nextStatus, requestFn) => {
+    const previousStatus = booking.status;
+    booking.status = nextStatus;
+    renderBookingState();
+
+    try {
+      await requestFn();
+      await loadBookings();
+    } catch (error) {
+      booking.status = previousStatus;
+      renderBookingState();
+      setMessage('sessionMessage', error.message || 'Action failed.');
+    }
+  };
+
   if (user.role === 'tutor' && booking.status === 'pending') {
     actions.appendChild(
       buildActionButton('Accept', async () => {
-        await api(`/bookings/${booking.id}/decision`, 'POST', { decision: 'accepted' });
-        loadBookings();
+        await runOptimistic('accepted', () =>
+          api(`/bookings/${booking.id}/decision`, 'POST', { decision: 'accepted' })
+        );
       })
     );
     actions.appendChild(
       buildActionButton('Reject', async () => {
-        await api(`/bookings/${booking.id}/decision`, 'POST', { decision: 'rejected' });
-        loadBookings();
+        await runOptimistic('rejected', () =>
+          api(`/bookings/${booking.id}/decision`, 'POST', { decision: 'rejected' })
+        );
       })
     );
   }
@@ -148,8 +175,18 @@ function bookingCard(booking) {
   if (user.role === 'tutor' && booking.status === 'accepted') {
     actions.appendChild(
       buildActionButton('Complete', async () => {
-        await api(`/bookings/${booking.id}/complete`, 'POST');
-        loadBookings();
+        await runOptimistic('completed', () => api(`/bookings/${booking.id}/complete`, 'POST'));
+      })
+    );
+  }
+
+  if (
+    (user.role === 'tutee' || user.role === 'tutor') &&
+    ['pending', 'accepted'].includes(booking.status)
+  ) {
+    actions.appendChild(
+      buildActionButton('Cancel', async () => {
+        await runOptimistic('cancelled', () => api(`/bookings/${booking.id}/cancel`, 'POST'));
       })
     );
   }
@@ -157,18 +194,24 @@ function bookingCard(booking) {
   return div;
 }
 
-async function loadBookings() {
+function renderBookingState() {
   bookingList.innerHTML = '';
+
+  if (!bookingsState.length) {
+    bookingList.innerHTML = '<div class="empty-state">No session requests yet.</div>';
+    return;
+  }
+
+  bookingsState.forEach((booking) => bookingList.appendChild(bookingCard(booking)));
+}
+
+async function loadBookings() {
+  showSkeletonList(bookingList, 3);
 
   try {
     const data = await api('/bookings/inbox');
-
-    if (!data.bookings.length) {
-      bookingList.innerHTML = '<div class="empty-state">No session requests yet.</div>';
-      return;
-    }
-
-    data.bookings.forEach((booking) => bookingList.appendChild(bookingCard(booking)));
+    bookingsState = Array.isArray(data.bookings) ? data.bookings : [];
+    renderBookingState();
   } catch (error) {
     bookingList.innerHTML = `<div class="empty-state">Unable to load sessions: ${error.message}</div>`;
   }

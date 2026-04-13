@@ -95,6 +95,25 @@ const verificationUpload = multer({
   }
 });
 
+const allowedResourceMimeTypes = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'audio/mpeg',
+  'audio/wav',
+  'video/mp4',
+  'video/quicktime',
+  'application/zip'
+]);
+
 const resourceUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, resourceUploadDir),
@@ -106,6 +125,13 @@ const resourceUpload = multer({
   }),
   limits: {
     fileSize: 25 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    if (allowedResourceMimeTypes.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('File type not allowed. Supported: PDF, DOC, XLS, PPT, TXT, images, audio, video, ZIP'));
   }
 });
 
@@ -137,9 +163,12 @@ function sanitizeUser(row) {
     studentId: row.student_id,
     fullName: row.full_name,
     email: row.email,
+    phoneNumber: row.phone_number,
     role: row.role,
     major: row.major,
     yearOfStudy: row.year_of_study,
+    targetSubjects: row.target_subjects,
+    expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
@@ -153,6 +182,14 @@ async function createNotification(client, recipientId, message) {
     `INSERT INTO notifications (recipient_id, message)
      VALUES ($1, $2)`,
     [recipientId, message]
+  );
+}
+
+async function logAdminAction(client, adminId, action, targetType, targetId, details = null) {
+  await client.query(
+    `INSERT INTO admin_activity_logs (admin_id, action, target_type, target_id, details)
+     VALUES ($1, $2, $3, $4, $5::jsonb)`,
+    [adminId, action, targetType, targetId, details ? JSON.stringify(details) : null]
   );
 }
 
@@ -226,11 +263,28 @@ async function awardPoints(client, userId, points, reason) {
     return;
   }
 
+  const normalizedReason = (() => {
+    const text = String(reason || '').toLowerCase();
+    if (text.includes('uploaded resource')) return 'resource_upload';
+    if (text.includes('verification')) return 'tutor_verification';
+    if (text.includes('rated a resource')) return 'resource_review';
+    if (text.includes('leaderboard')) return 'leaderboard_rank';
+    if (text.includes('booking') || text.includes('session')) return 'booking_progress';
+    if (text.includes('profile')) return 'profile_update';
+    return 'general';
+  })();
+
   await client.query(
     `UPDATE users
      SET total_points = total_points + $2
      WHERE id = $1`,
     [userId, points]
+  );
+
+  await client.query(
+    `INSERT INTO user_points_log (user_id, points, reason)
+     VALUES ($1, $2, $3)`,
+    [userId, points, normalizedReason]
   );
 
   await createNotification(
@@ -314,12 +368,23 @@ async function initializeDatabase() {
         role VARCHAR(20) NOT NULL CHECK (role IN ('tutee', 'tutor', 'admin')),
         major VARCHAR(120),
         year_of_study INTEGER,
+        target_subjects TEXT,
+        expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
         bio TEXT,
         is_verified BOOLEAN NOT NULL DEFAULT FALSE,
         rating NUMERIC(4,2) NOT NULL DEFAULT 0,
         total_points INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS phone_number VARCHAR(30);
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS target_subjects TEXT;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
@@ -419,6 +484,24 @@ async function initializeDatabase() {
         recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         message TEXT NOT NULL,
         is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS user_points_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        points INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS admin_activity_logs (
+        id SERIAL PRIMARY KEY,
+        admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        action VARCHAR(80) NOT NULL,
+        target_type VARCHAR(80) NOT NULL,
+        target_id INTEGER,
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -525,8 +608,19 @@ app.get('/health', async (req, res) => {
 });
 
 app.post('/auth/register', async (req, res) => {
-  const { studentId, fullName, email, phoneNumber, password, role, major, yearOfStudy } =
-    req.body;
+  const {
+    studentId,
+    fullName,
+    email,
+    phoneNumber,
+    password,
+    role,
+    major,
+    yearOfStudy,
+    targetSubjects,
+    expertise,
+    bio
+  } = req.body;
 
   if (!fullName || !email || !password || !role) {
     return res.status(400).json({
@@ -543,8 +637,8 @@ app.post('/auth/register', async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO users
-       (student_id, full_name, email, phone_number, password_hash, role, major, year_of_study, is_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (student_id, full_name, email, phone_number, password_hash, role, major, year_of_study, target_subjects, expertise, bio, is_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         studentId || null,
@@ -555,6 +649,11 @@ app.post('/auth/register', async (req, res) => {
         role,
         major || null,
         yearOfStudy || null,
+        targetSubjects || null,
+        role === 'tutor' && Array.isArray(expertise)
+          ? expertise.filter((item) => String(item).trim()).map((item) => String(item).trim())
+          : [],
+        bio || null,
         role === 'tutee'
       ]
     );
@@ -627,7 +726,12 @@ app.get('/me', requireAuth, async (req, res) => {
 });
 
 app.put('/me/profile', requireAuth, async (req, res) => {
-  const { fullName, phoneNumber, major, yearOfStudy, bio } = req.body;
+  const { fullName, phoneNumber, major, yearOfStudy, targetSubjects, expertise, bio } = req.body;
+
+  const normalizedExpertise =
+    req.auth.user.role === 'tutor' && Array.isArray(expertise)
+      ? expertise.filter((item) => String(item).trim()).map((item) => String(item).trim())
+      : null;
 
   try {
     const { rows } = await pool.query(
@@ -636,10 +740,21 @@ app.put('/me/profile', requireAuth, async (req, res) => {
            phone_number = COALESCE($3, phone_number),
            major = COALESCE($4, major),
            year_of_study = COALESCE($5, year_of_study),
-           bio = COALESCE($6, bio)
+           target_subjects = COALESCE($6, target_subjects),
+           expertise = COALESCE($7, expertise),
+           bio = COALESCE($8, bio)
        WHERE id = $1
        RETURNING *`,
-      [req.auth.user.id, fullName, phoneNumber, major, yearOfStudy, bio]
+      [
+        req.auth.user.id,
+        fullName,
+        phoneNumber,
+        major,
+        yearOfStudy,
+        targetSubjects,
+        normalizedExpertise,
+        bio
+      ]
     );
 
     await awardPoints(pool, req.auth.user.id, 5, 'Profile updated');
@@ -711,7 +826,8 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
               u.total_points,
               u.is_verified,
               COALESCE(u.rating, 0) AS rating,
-              COALESCE(rc.reviews_received, 0) AS reviews_received
+              COALESCE(rc.reviews_received, 0) AS reviews_received,
+              COALESCE(ua.total_achievements, 0) AS total_achievements
        FROM users u
        LEFT JOIN (
          SELECT reviewed_user_id, COUNT(*)::int AS reviews_received
@@ -728,7 +844,15 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
            AND reviewed.reviewed_user_id IS NOT NULL
          GROUP BY reviewed.reviewed_user_id
        ) rc ON rc.reviewed_user_id = u.id
-       ORDER BY u.total_points DESC, COALESCE(rc.reviews_received, 0) DESC, u.full_name ASC
+       LEFT JOIN (
+         SELECT user_id, COUNT(*)::int AS total_achievements
+         FROM user_achievements
+         GROUP BY user_id
+       ) ua ON ua.user_id = u.id
+       ORDER BY COALESCE(ua.total_achievements, 0) DESC,
+                u.total_points DESC,
+                COALESCE(rc.reviews_received, 0) DESC,
+                u.full_name ASC
        LIMIT 20`
     );
     return res.json({ leaderboard: rows });
@@ -792,6 +916,7 @@ app.get('/tutors', requireAuth, async (req, res) => {
               u.full_name,
               u.major,
               u.year_of_study,
+              u.expertise,
               u.bio,
               u.rating,
               u.total_points,
@@ -1060,6 +1185,108 @@ app.post('/bookings/:id/review', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/bookings/:id/reviews', requireAuth, async (req, res) => {
+  const bookingId = Number(req.params.id);
+
+  try {
+    const bookingResult = await pool.query(
+      `SELECT *
+       FROM bookings
+       WHERE id = $1`,
+      [bookingId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Booking not found.' });
+    }
+
+    const booking = bookingResult.rows[0];
+    if (
+      req.auth.user.role !== 'admin' &&
+      ![booking.tutor_id, booking.tutee_id].includes(req.auth.user.id)
+    ) {
+      return res.status(403).json({ message: 'Not allowed to view these reviews.' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT br.id,
+              br.booking_id,
+              br.reviewer_id,
+              br.rating,
+              br.comment,
+              br.created_at,
+              u.full_name AS reviewer_name,
+              u.role AS reviewer_role
+       FROM booking_reviews br
+       JOIN users u ON u.id = br.reviewer_id
+       WHERE br.booking_id = $1
+       ORDER BY br.created_at DESC`,
+      [bookingId]
+    );
+
+    return res.json({ reviews: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/bookings/:id/cancel', requireAuth, async (req, res) => {
+  const bookingId = Number(req.params.id);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const lookup = await client.query(
+      `SELECT *
+       FROM bookings
+       WHERE id = $1`,
+      [bookingId]
+    );
+
+    if (lookup.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Booking not found.' });
+    }
+
+    const booking = lookup.rows[0];
+    const isParticipant = [booking.tutor_id, booking.tutee_id].includes(req.auth.user.id);
+    if (!isParticipant && req.auth.user.role !== 'admin') {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Not allowed to cancel this booking.' });
+    }
+
+    if (!['pending', 'accepted'].includes(booking.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Only pending or accepted bookings can be cancelled.' });
+    }
+
+    const updated = await client.query(
+      `UPDATE bookings
+       SET status = 'cancelled'
+       WHERE id = $1
+       RETURNING *`,
+      [bookingId]
+    );
+
+    const otherPartyId =
+      req.auth.user.id === booking.tutor_id ? booking.tutee_id : booking.tutor_id;
+    await createNotification(
+      client,
+      otherPartyId,
+      `Booking #${bookingId} was cancelled by ${req.auth.user.fullName}.`
+    );
+
+    await client.query('COMMIT');
+    return res.json({ booking: updated.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/resources', requireAuth, async (req, res) => {
   const { courseCode, title, resourceType, fileUrl, metadata } = req.body;
 
@@ -1311,6 +1538,109 @@ app.post('/resources/:id/reviews', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/resources/:id', requireAuth, async (req, res) => {
+  const resourceId = Number(req.params.id);
+  const { title, resourceType, courseCode, metadata } = req.body;
+
+  try {
+    const ownerCheck = await pool.query(
+      `SELECT id, contributor_id
+       FROM resources
+       WHERE id = $1`,
+      [resourceId]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Resource not found.' });
+    }
+
+    const resource = ownerCheck.rows[0];
+    const canEdit =
+      req.auth.user.role === 'admin' ||
+      Number(resource.contributor_id) === Number(req.auth.user.id);
+
+    if (!canEdit) {
+      return res.status(403).json({ message: 'Only the contributor or admin can edit this resource.' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE resources
+       SET title = COALESCE($2, title),
+           resource_type = COALESCE($3, resource_type),
+           course_code = COALESCE($4, course_code),
+           metadata = COALESCE($5::jsonb, metadata)
+       WHERE id = $1
+       RETURNING *`,
+      [resourceId, title || null, resourceType || null, courseCode || null, metadata ? JSON.stringify(metadata) : null]
+    );
+
+    if (req.auth.user.role === 'admin') {
+      await logAdminAction(pool, req.auth.user.id, 'resource_updated', 'resource', resourceId, {
+        title: rows[0]?.title || null,
+        resourceType: rows[0]?.resource_type || null
+      });
+    }
+
+    return res.json({ resource: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/resources/:id', requireAuth, async (req, res) => {
+  const resourceId = Number(req.params.id);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const lookup = await client.query(
+      `SELECT id, contributor_id, file_url
+       FROM resources
+       WHERE id = $1`,
+      [resourceId]
+    );
+
+    if (lookup.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Resource not found.' });
+    }
+
+    const resource = lookup.rows[0];
+    const canDelete =
+      req.auth.user.role === 'admin' ||
+      Number(resource.contributor_id) === Number(req.auth.user.id);
+
+    if (!canDelete) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Only the contributor or admin can delete this resource.' });
+    }
+
+    await client.query('DELETE FROM resources WHERE id = $1', [resourceId]);
+
+    if (req.auth.user.role === 'admin') {
+      await logAdminAction(client, req.auth.user.id, 'resource_deleted', 'resource', resourceId, {
+        fileUrl: resource.file_url || null
+      });
+    }
+
+    if (String(resource.file_url || '').startsWith('/uploads/resources/')) {
+      const filename = path.basename(resource.file_url);
+      const absolutePath = path.join(resourceUploadDir, filename);
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.json({ message: 'Resource deleted.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.post(
   '/uploads/verification',
   requireAuth,
@@ -1487,6 +1817,19 @@ app.post(
         `Verification update: application #${application.id} was ${decision}.`
       );
 
+      await logAdminAction(
+        client,
+        req.auth.user.id,
+        'verification_decision',
+        'tutor_verification',
+        application.id,
+        {
+          decision,
+          tutorId: application.tutor_id,
+          reviewNotes: reviewNotes || null
+        }
+      );
+
       await client.query('COMMIT');
       return res.json({ application });
     } catch (error) {
@@ -1497,6 +1840,189 @@ app.post(
     }
   }
 );
+
+app.get('/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id,
+              student_id,
+              full_name,
+              email,
+              role,
+              major,
+              year_of_study,
+              is_verified,
+              rating,
+              total_points,
+              created_at
+       FROM users
+       ORDER BY created_at DESC`
+    );
+
+    return res.json({ users: rows.map((row) => sanitizeUser(row)) });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.patch('/admin/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const userId = Number(req.params.id);
+  const { isVerified, role } = req.body;
+
+  if (role && !['tutor', 'tutee', 'admin'].includes(role)) {
+    return res.status(400).json({ message: 'role must be tutor, tutee, or admin.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE users
+       SET is_verified = COALESCE($2, is_verified),
+           role = COALESCE($3, role)
+       WHERE id = $1
+       RETURNING *`,
+      [userId, typeof isVerified === 'boolean' ? isVerified : null, role || null]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    await logAdminAction(pool, req.auth.user.id, 'user_updated', 'user', userId, {
+      role: rows[0].role,
+      isVerified: rows[0].is_verified
+    });
+
+    return res.json({ user: sanitizeUser(rows[0]) });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/admin/activity-logs', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT l.id,
+              l.action,
+              l.target_type,
+              l.target_id,
+              l.details,
+              l.created_at,
+              u.full_name AS admin_name,
+              u.email AS admin_email
+       FROM admin_activity_logs l
+       JOIN users u ON u.id = l.admin_id
+       ORDER BY l.created_at DESC
+       LIMIT 200`
+    );
+
+    return res.json({ logs: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/admin/resources', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.id,
+              r.title,
+              r.course_code,
+              r.resource_type,
+              r.created_at,
+              r.file_url,
+              r.link_url,
+              u.id AS uploader_id,
+              u.full_name AS uploader_name,
+              u.email AS uploader_email
+       FROM resources r
+       JOIN users u ON u.id = r.contributor_id
+       ORDER BY r.created_at DESC`
+    );
+
+    return res.json({ resources: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    // Get total users
+    const { rows: totalUsersResult } = await pool.query('SELECT COUNT(*) as count FROM users');
+    const totalUsers = totalUsersResult[0]?.count || 0;
+
+    // Get verified tutors
+    const { rows: verifiedTutorsResult } = await pool.query(
+      `SELECT COUNT(*) as count FROM users WHERE role = 'tutor' AND is_verified = true`
+    );
+    const verifiedTutors = verifiedTutorsResult[0]?.count || 0;
+
+    // Get active bookings (pending or accepted)
+    const { rows: activeBookingsResult } = await pool.query(
+      `SELECT COUNT(*) as count FROM bookings WHERE status IN ('pending', 'accepted')`
+    );
+    const activeBookings = activeBookingsResult[0]?.count || 0;
+
+    // Get total resources
+    const { rows: totalResourcesResult } = await pool.query('SELECT COUNT(*) as count FROM resources');
+    const totalResources = totalResourcesResult[0]?.count || 0;
+
+    // Get total points distributed
+    const { rows: totalPointsResult } = await pool.query('SELECT COALESCE(SUM(total_points), 0) as total FROM users');
+    const totalPoints = totalPointsResult[0]?.total || 0;
+
+    // Get total badges unlocked
+    const { rows: totalBadgesResult } = await pool.query(
+      `SELECT COUNT(DISTINCT user_id) as count FROM user_achievements WHERE unlocked_at IS NOT NULL`
+    );
+    const totalBadges = totalBadgesResult[0]?.count || 0;
+
+    // Get top contributors (users with most resources)
+    const { rows: topContributors } = await pool.query(
+      `SELECT u.full_name as name,
+              u.email,
+              COUNT(r.id) as resourceCount
+       FROM users u
+       LEFT JOIN resources r ON r.contributor_id = u.id
+       GROUP BY u.id, u.full_name, u.email
+       HAVING COUNT(r.id) > 0
+       ORDER BY resourceCount DESC
+       LIMIT 5`
+    );
+
+    // Get points distribution by source
+    const { rows: pointsData } = await pool.query(
+      `SELECT 
+        SUM(CASE WHEN reason = 'resource_upload' THEN points ELSE 0 END) as resource_upload,
+        SUM(CASE WHEN reason = 'tutor_verification' THEN points ELSE 0 END) as tutor_verification,
+        SUM(CASE WHEN reason = 'resource_review' THEN points ELSE 0 END) as resource_review,
+        SUM(CASE WHEN reason = 'leaderboard_rank' THEN points ELSE 0 END) as leaderboard_rank
+       FROM user_points_log`
+    );
+
+    const pointsDistribution = {
+      resource_upload: pointsData[0]?.resource_upload || 0,
+      tutor_verification: pointsData[0]?.tutor_verification || 0,
+      resource_review: pointsData[0]?.resource_review || 0,
+      leaderboard_rank: pointsData[0]?.leaderboard_rank || 0
+    };
+
+    return res.json({
+      analytics: {
+        totalUsers,
+        verifiedTutors,
+        activeBookings,
+        totalResources,
+        totalPoints,
+        totalBadges,
+        topContributors,
+        pointsDistribution
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
 
 app.get('/notifications', requireAuth, async (req, res) => {
   try {
