@@ -26,6 +26,9 @@ async function loadAnalytics() {
     // Render points distribution
     renderPointsDistribution(analytics.pointsDistribution || {});
 
+    // Render short-term trends
+    renderTrends(analytics.trends || {});
+
     setMessage('adminMessage', '', false);
   } catch (error) {
     setMessage('adminMessage', `Error loading analytics: ${error.message}`);
@@ -84,6 +87,44 @@ function renderPointsDistribution(distribution) {
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${percentage}%; background: ${source.color};"></div>
       </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function trendDeltaLabel(current, previous) {
+  const delta = current - previous;
+  const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${delta} (${direction})`;
+}
+
+function renderTrends(trends) {
+  const container = document.getElementById('trendsList');
+  container.innerHTML = '';
+
+  const rows = [
+    {
+      label: 'Bookings (last 7 days)',
+      current: Number(trends.bookingsLast7Days || 0),
+      previous: Number(trends.bookingsPrev7Days || 0)
+    },
+    {
+      label: 'Resources uploaded (last 7 days)',
+      current: Number(trends.resourcesLast7Days || 0),
+      previous: Number(trends.resourcesPrev7Days || 0)
+    }
+  ];
+
+  rows.forEach((row) => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `
+      <div>
+        <div class="item-label">${row.label}</div>
+        <div style="font-size: 12px; color: #999; margin-top: 2px;">Previous 7 days: ${row.previous}</div>
+      </div>
+      <div class="item-value">${row.current} <span style="font-size: 12px; color: #666;">${trendDeltaLabel(row.current, row.previous)}</span></div>
     `;
     container.appendChild(item);
   });

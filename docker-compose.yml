@@ -3,9 +3,9 @@ services:
     build: .
     container_name: studylink-app
     ports:
-      - "3000:3000"
+      - "6767:6767"
     environment:
-      PORT: 3000
+      PORT: 6767
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: studylink

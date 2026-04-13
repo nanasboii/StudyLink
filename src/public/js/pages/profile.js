@@ -1,4 +1,4 @@
-import { api, clearSession, requireSession, setMessage } from '../api.js';
+import { api, clearSession, getToken, requireSession, setMessage } from '../api.js';
 import { mountNav } from '../nav.js';
 import { PAGES } from '../routes.js';
 
@@ -10,6 +10,38 @@ const passwordForm = document.getElementById('passwordForm');
 const deleteAccountBtn = document.getElementById('deleteAccountBtn');
 const targetSubjectsRow = document.getElementById('targetSubjectsRow');
 const expertiseRow = document.getElementById('expertiseRow');
+const editProfileBtn = document.getElementById('editProfileBtn');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
+const editActions = document.getElementById('editActions');
+const profilePictureInput = document.getElementById('profilePictureInput');
+const picUploadLabel = document.getElementById('picUploadLabel');
+const profilePicture = document.getElementById('profilePicture');
+const removePictureBtn = document.getElementById('removePictureBtn');
+const defaultProfilePicture =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+
+let isEditMode = false;
+let currentProfilePictureUrl = '';
+let removePictureRequested = false;
+const editableFields = ['fullName', 'phoneNumber', 'major', 'yearOfStudy', 'targetSubjects', 'expertise', 'bio'];
+
+function updatePictureControls() {
+  if (!isEditMode) {
+    removePictureBtn.classList.add('hidden');
+    return;
+  }
+
+  const hasCustomPicture =
+    Boolean(currentProfilePictureUrl) ||
+    Boolean(profilePictureInput.files?.[0]) ||
+    profilePicture.src !== defaultProfilePicture;
+
+  if (hasCustomPicture) {
+    removePictureBtn.classList.remove('hidden');
+  } else {
+    removePictureBtn.classList.add('hidden');
+  }
+}
 
 function applyRoleFields(role) {
   if (role === 'tutor') {
@@ -28,6 +60,30 @@ function applyRoleFields(role) {
   expertiseRow.classList.remove('hidden');
 }
 
+function setEditMode(enabled) {
+  isEditMode = enabled;
+  editableFields.forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (field) {
+      field.disabled = !enabled;
+    }
+  });
+
+  if (enabled) {
+    editActions.classList.remove('hidden');
+    picUploadLabel.classList.remove('hidden');
+    editProfileBtn.disabled = true;
+    editProfileBtn.style.opacity = '0.6';
+  } else {
+    editActions.classList.add('hidden');
+    picUploadLabel.classList.add('hidden');
+    editProfileBtn.disabled = false;
+    editProfileBtn.style.opacity = '1';
+  }
+
+  updatePictureControls();
+}
+
 function populateUser(user) {
   document.getElementById('studentId').value = user.studentId || '';
   document.getElementById('fullName').value = user.fullName || '';
@@ -44,7 +100,53 @@ function populateUser(user) {
   document.getElementById('totalPoints').textContent = String(user.totalPoints || 0);
   document.getElementById('rating').textContent = Number(user.rating || 0).toFixed(2);
   document.getElementById('isVerified').textContent = user.isVerified ? 'Yes' : 'No';
+  currentProfilePictureUrl = user.profilePictureUrl || '';
+  profilePicture.src = currentProfilePictureUrl || defaultProfilePicture;
+  removePictureRequested = false;
+  
+  if (user.createdAt) {
+    const date = new Date(user.createdAt);
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    document.getElementById('createdAt').textContent = `${month} ${year}`;
+  }
+
   applyRoleFields(user.role || '');
+  updatePictureControls();
+}
+
+async function uploadProfilePicture(file) {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Session expired. Please login again.');
+  }
+
+  const payload = new FormData();
+  payload.append('image', file);
+
+  const response = await fetch('/uploads/profile-picture', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    body: payload
+  });
+
+  const responseText = await response.text();
+  let result = {};
+  if (responseText) {
+    try {
+      result = JSON.parse(responseText);
+    } catch (error) {
+      result = { message: responseText };
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(result.message || 'Unable to upload profile picture. Please try again.');
+  }
+
+  return result.fileUrl;
 }
 
 async function loadProfile() {
@@ -55,6 +157,39 @@ async function loadProfile() {
     setMessage('profileMessage', error.message);
   }
 }
+
+editProfileBtn.addEventListener('click', () => {
+  setEditMode(true);
+});
+
+cancelEditBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  setEditMode(false);
+  loadProfile();
+});
+
+profilePictureInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  // Show preview immediately
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    profilePicture.src = e.target?.result || '';
+    removePictureRequested = false;
+    updatePictureControls();
+  };
+  reader.readAsDataURL(file);
+});
+
+removePictureBtn.addEventListener('click', () => {
+  removePictureRequested = true;
+  profilePictureInput.value = '';
+  profilePicture.src = defaultProfilePicture;
+  updatePictureControls();
+});
 
 profileForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -83,6 +218,14 @@ profileForm.addEventListener('submit', async (event) => {
   }
 
   try {
+    let profilePictureUrl = null;
+    const selectedPicture = profilePictureInput.files?.[0];
+    if (selectedPicture) {
+      profilePictureUrl = await uploadProfilePicture(selectedPicture);
+    }
+
+    const shouldRemoveProfilePicture = removePictureRequested && !selectedPicture;
+
     const response = await api('/me/profile', 'PUT', {
       fullName,
       phoneNumber: phoneNumber || null,
@@ -93,11 +236,16 @@ profileForm.addEventListener('submit', async (event) => {
           ? document.getElementById('targetSubjects').value.trim() || null
           : null,
       expertise: role === 'tutor' ? expertise : [],
-      bio: document.getElementById('bio').value.trim() || null
+      bio: document.getElementById('bio').value.trim() || null,
+      profilePictureUrl,
+      removeProfilePicture: shouldRemoveProfilePicture
     });
 
     populateUser(response.user || {});
-    setMessage('profileMessage', 'Profile updated.', true);
+    profilePictureInput.value = '';
+    removePictureRequested = false;
+    setEditMode(false);
+    setMessage('profileMessage', 'Profile updated successfully.', true);
   } catch (error) {
     setMessage('profileMessage', error.message);
   }

@@ -4,14 +4,29 @@ import { PAGES } from './routes.js';
 const NOTIFICATIONS_UPDATED_EVENT = 'studylink:notifications-updated';
 const NOTIFICATION_POLL_MS = 30000;
 
-const MAIN_NAV_ITEMS = [
-  { key: 'resources', label: 'Resources', href: PAGES.resources },
-  { key: 'tutors', label: 'Tutors', href: PAGES.tutors },
-  { key: 'review', label: 'Reviews', href: PAGES.review },
-  { key: 'leaderboards', label: 'Leaderboard', href: PAGES.leaderboards },
-  { key: 'session', label: 'Sessions', href: PAGES.session },
-  { key: 'achievements', label: 'Badges', href: PAGES.achievements }
-];
+const MAIN_NAV_ITEMS_BY_ROLE = {
+  admin: [
+    { key: 'resources', label: 'Resources', href: PAGES.resources },
+    { key: 'leaderboards', label: 'Leaderboard', href: PAGES.leaderboards },
+    { key: 'achievements', label: 'Achievements', href: PAGES.achievements }
+  ],
+  tutor: [
+    { key: 'resources', label: 'Resources', href: PAGES.resources },
+    { key: 'tutors', label: 'Tutors', href: PAGES.tutors },
+    { key: 'review', label: 'Reviews', href: PAGES.review },
+    { key: 'leaderboards', label: 'Leaderboard', href: PAGES.leaderboards },
+    { key: 'session', label: 'Sessions', href: PAGES.session },
+    { key: 'achievements', label: 'Achievements', href: PAGES.achievements }
+  ],
+  tutee: [
+    { key: 'resources', label: 'Resources', href: PAGES.resources },
+    { key: 'tutors', label: 'Tutors', href: PAGES.tutors },
+    { key: 'review', label: 'Reviews', href: PAGES.review },
+    { key: 'leaderboards', label: 'Leaderboard', href: PAGES.leaderboards },
+    { key: 'session', label: 'Sessions', href: PAGES.session },
+    { key: 'achievements', label: 'Achievements', href: PAGES.achievements }
+  ]
+};
 const LAST_NON_NOTIFICATION_PAGE_KEY = 'studylinkLastNonNotificationPage';
 
 function formatRoleLabel(role) {
@@ -32,6 +47,7 @@ function buildQuickAccessItems(user) {
       <a href="${PAGES.adminResources}" class="quick-access-item">Resource Mgmt</a>
       <a href="${PAGES.adminAnalytics}" class="quick-access-item">Analytics</a>
       <a href="${PAGES.adminActivity}" class="quick-access-item">Activity Logs</a>
+      <a href="${PAGES.adminErrors}" class="quick-access-item">Error Logs</a>
       <hr class="quick-access-divider" />
     `;
   }
@@ -51,8 +67,9 @@ function buildQuickAccessItems(user) {
   `;
 }
 
-function buildMainNav(activePage) {
-  return MAIN_NAV_ITEMS.map((item) => {
+function buildMainNav(activePage, role) {
+  const items = MAIN_NAV_ITEMS_BY_ROLE[role] || MAIN_NAV_ITEMS_BY_ROLE.tutee;
+  return items.map((item) => {
     const activeClass = activePage === item.key ? 'active' : '';
     return `<a href="${item.href}" class="${activeClass}">${item.label}</a>`;
   }).join('');
@@ -93,7 +110,7 @@ export function mountNav(activePage) {
     </button>
   `;
 
-  nav.innerHTML = buildMainNav(activePage);
+  nav.innerHTML = buildMainNav(activePage, user?.role);
 
   const quickAccessBtn = document.getElementById('quickAccessBtn');
   const quickAccessMenu = document.getElementById('quickAccessMenu');

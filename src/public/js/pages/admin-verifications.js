@@ -25,16 +25,38 @@ async function takeDecision(id, decision) {
   }
 }
 
+async function requestReupload(id) {
+  setMessage('adminMessage', '');
+  try {
+    const response = await api(`/admin/tutor-verifications/${id}/request-reupload`, 'POST', {});
+    setMessage(
+      'adminMessage',
+      response.message || `Re-upload request sent for application #${id}.`,
+      true
+    );
+  } catch (error) {
+    setMessage('adminMessage', error.message);
+  }
+}
+
 function renderCard(app) {
   const card = document.createElement('div');
   card.className = 'item';
+  const isProofMissing = app.has_proof_file === false;
+  const proofStatusText = isProofMissing ? 'Missing file on server' : 'Available';
+  const proofStatusClass = isProofMissing ? 'status-missing' : 'status-available';
+  const proofLink = isProofMissing
+    ? '<span class="proof-unavailable">Open uploaded proof</span>'
+    : `<a href="${app.proof_url}" target="_blank" rel="noopener noreferrer">Open uploaded proof</a>`;
+
   card.innerHTML = `
     <strong>#${app.id} - ${app.tutor_name}</strong>
     <div class="meta">Email: ${app.tutor_email}</div>
     <div class="meta">Course: ${app.course_code || 'N/A'}</div>
     <div class="meta">Status: ${toTitleCase(app.status)}</div>
+    <div class="meta">Proof Status: <span class="${proofStatusClass}">${proofStatusText}</span></div>
     <div class="meta">
-      File: <a href="${app.proof_url}" target="_blank" rel="noopener noreferrer">Open uploaded proof</a>
+      File: ${proofLink}
     </div>
     <div class="actions"></div>
   `;
@@ -53,6 +75,15 @@ function renderCard(app) {
     rejectBtn.addEventListener('click', () => takeDecision(app.id, 'rejected'));
 
     actions.append(approveBtn, rejectBtn);
+  }
+
+  if (isProofMissing) {
+    const requestBtn = document.createElement('button');
+    requestBtn.type = 'button';
+    requestBtn.textContent = 'Request Re-upload';
+    requestBtn.className = 'warn-btn';
+    requestBtn.addEventListener('click', () => requestReupload(app.id));
+    actions.appendChild(requestBtn);
   }
 
   return card;

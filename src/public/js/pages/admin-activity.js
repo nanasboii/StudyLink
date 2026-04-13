@@ -28,7 +28,7 @@ function renderLogs() {
   });
 
   if (!filtered.length) {
-    activityList.innerHTML = '<div class="empty-state">No activity logs found.</div>';
+    activityList.innerHTML = '<div class="empty-state">No activity logs found. Admin actions will appear here.</div>';
     return;
   }
 
@@ -52,8 +52,10 @@ async function loadLogs() {
     const response = await api('/admin/activity-logs');
     allLogs = Array.isArray(response.logs) ? response.logs : [];
     renderLogs();
+    setMessage('activityMessage', '', false);
   } catch (error) {
-    setMessage('activityMessage', error.message);
+    console.error('Failed to load activity logs:', error);
+    setMessage('activityMessage', `Error: ${error.message}`);
   }
 }
 

@@ -10,6 +10,7 @@ const bookingList = document.getElementById('bookingList');
 const recentTutorsCard = document.getElementById('recentTutorsCard');
 const recentTutorsList = document.getElementById('recentTutorsList');
 let bookingsState = [];
+let bookingSubmitInFlight = false;
 
 if (user.role === 'tutor') {
   availabilityForm.classList.remove('hidden');
@@ -47,19 +48,50 @@ availabilityForm.addEventListener('submit', async (event) => {
 bookingForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   setMessage('sessionMessage', '');
+  if (bookingSubmitInFlight) {
+    return;
+  }
+
   const data = new FormData(bookingForm);
+  const tutorId = String(data.get('tutorId') || '').trim();
+  const sessionTime = String(data.get('sessionTime') || '').trim();
+
+  if (!tutorId || !sessionTime) {
+    setMessage('sessionMessage', 'Tutor ID and session time are required.');
+    return;
+  }
+
+  if (new Date(sessionTime).getTime() <= Date.now()) {
+    setMessage('sessionMessage', 'Session time must be in the future.');
+    return;
+  }
+
+  const submitBtn = bookingForm.querySelector('button[type="submit"]');
+  bookingSubmitInFlight = true;
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.dataset.originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Submitting...';
+  }
 
   try {
     await api('/bookings', 'POST', {
-      tutorId: String(data.get('tutorId')).trim(),
+      tutorId,
       courseCode: data.get('courseCode') || null,
-      sessionTime: data.get('sessionTime')
+      sessionTime
     });
     setMessage('sessionMessage', 'Booking request sent.', true);
     bookingForm.reset();
     loadBookings();
   } catch (error) {
     setMessage('sessionMessage', error.message);
+  } finally {
+    bookingSubmitInFlight = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = submitBtn.dataset.originalText || 'Book Session';
+      delete submitBtn.dataset.originalText;
+    }
   }
 });
 
@@ -195,13 +227,23 @@ function bookingCard(booking) {
 }
 
 function renderBookingState() {
+  let counter = document.getElementById('bookingCounter');
+  if (!counter) {
+    counter = document.createElement('p');
+    counter.id = 'bookingCounter';
+    counter.className = 'meta';
+    bookingList.insertAdjacentElement('beforebegin', counter);
+  }
+
   bookingList.innerHTML = '';
 
   if (!bookingsState.length) {
-    bookingList.innerHTML = '<div class="empty-state">No session requests yet.</div>';
+    bookingList.innerHTML = '<div class="empty-state">No session requests yet. Create one from the booking form above.</div>';
+    counter.textContent = 'Showing 0 of 0 sessions';
     return;
   }
 
+  counter.textContent = `Showing ${bookingsState.length} of ${bookingsState.length} sessions`;
   bookingsState.forEach((booking) => bookingList.appendChild(bookingCard(booking)));
 }
 

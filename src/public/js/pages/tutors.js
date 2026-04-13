@@ -35,16 +35,38 @@ function ensureLoadMoreButton(list) {
   return button;
 }
 
+function ensureTutorCounter(list) {
+  let counter = document.getElementById('tutorCounter');
+  if (!counter) {
+    counter = document.createElement('p');
+    counter.id = 'tutorCounter';
+    counter.className = 'meta';
+    list.insertAdjacentElement('beforebegin', counter);
+  }
+  return counter;
+}
+
 function renderTutors(list) {
+  const counter = ensureTutorCounter(list);
   list.innerHTML = '';
 
   if (!allTutors.length) {
-    list.innerHTML = '<div class="empty-state">No tutors match this course yet.</div>';
+    list.innerHTML = '<div class="empty-state">No tutors match this course yet. <button id="clearTutorFilterBtn" type="button" class="chip">Clear filter</button></div>';
+    counter.textContent = 'Showing 0 of 0 tutors';
+    const clearFilterBtn = document.getElementById('clearTutorFilterBtn');
+    if (clearFilterBtn) {
+      clearFilterBtn.addEventListener('click', () => {
+        document.getElementById('tutorCourse').value = '';
+        visibleTutorCount = TUTOR_PAGE_SIZE;
+        loadTutors();
+      });
+    }
     ensureLoadMoreButton(list).classList.add('hidden');
     return;
   }
 
   allTutors.slice(0, visibleTutorCount).forEach((tutor) => list.appendChild(tutorCard(tutor)));
+  counter.textContent = `Showing ${Math.min(visibleTutorCount, allTutors.length)} of ${allTutors.length} tutors`;
   const loadMoreBtn = ensureLoadMoreButton(list);
   if (visibleTutorCount < allTutors.length) {
     loadMoreBtn.classList.remove('hidden');

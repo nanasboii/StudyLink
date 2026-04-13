@@ -7,11 +7,54 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-const defaultPort = Number(process.env.PORT || 4000);
+const defaultPort = Number(process.env.PORT || 6767);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const uploadBaseDir = path.join(__dirname, 'uploads');
+const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
 const resourceUploadDir = path.join(uploadBaseDir, 'resources');
+const profilePictureUploadDir = path.join(uploadBaseDir, 'profile-pictures');
+
+function findUploadedFilePath(folderName, filename) {
+  const safeName = path.basename(filename || '');
+  if (!safeName) {
+    return null;
+  }
+
+  const candidates = [
+    path.join(uploadBaseDir, folderName, safeName),
+    path.join(legacyUploadBaseDir, folderName, safeName)
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+async function removeProfilePictureFile(fileUrl) {
+  const filePath = String(fileUrl || '');
+  if (!filePath.startsWith('/uploads/profile-pictures/')) {
+    return;
+  }
+
+  const fileName = path.basename(filePath);
+  const absolutePath = findUploadedFilePath('profile-pictures', fileName);
+  if (!absolutePath) {
+    return;
+  }
+
+  try {
+    await fs.promises.unlink(absolutePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error('Profile picture cleanup failed:', error.message);
+    }
+  }
+}
 
 function startServer(preferredPort, attemptsLeft = 20) {
   const server = app.listen(preferredPort, () => {
@@ -50,6 +93,10 @@ if (!fs.existsSync(resourceUploadDir)) {
   fs.mkdirSync(resourceUploadDir, { recursive: true });
 }
 
+if (!fs.existsSync(profilePictureUploadDir)) {
+  fs.mkdirSync(profilePictureUploadDir, { recursive: true });
+}
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 5432),
@@ -61,6 +108,7 @@ const pool = new Pool({
 app.use(express.json({ limit: '2mb' }));
 app.use('/ui', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadBaseDir));
+app.use('/uploads', express.static(legacyUploadBaseDir));
 
 app.get('/ui/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -92,6 +140,35 @@ const verificationUpload = multer({
       return;
     }
     cb(new Error('Only PDF, DOC, DOCX, PNG, and JPEG files are allowed.'));
+  }
+});
+
+const allowedProfilePictureMimeTypes = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/gif',
+  'image/webp'
+]);
+
+const profilePictureUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, profilePictureUploadDir),
+    filename: (req, file, cb) => {
+      const extension = path.extname(file.originalname || '').toLowerCase();
+      const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+      cb(null, `profile-${req.auth.user.id}-${unique}${extension}`);
+    }
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    if (allowedProfilePictureMimeTypes.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Only PNG, JPEG, GIF, and WEBP images are allowed.'));
   }
 });
 
@@ -170,6 +247,7 @@ function sanitizeUser(row) {
     targetSubjects: row.target_subjects,
     expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
+    profilePictureUrl: row.profile_picture_url,
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
     totalPoints: Number(row.total_points || 0),
@@ -351,6 +429,62 @@ function requireRole(...roles) {
   };
 }
 
+function createRateLimiter({ windowMs, maxRequests, keyPrefix }) {
+  const hits = new Map();
+
+  return (req, res, next) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const key = `${keyPrefix}:${ip}`;
+    const now = Date.now();
+    const item = hits.get(key);
+
+    if (!item || now - item.startedAt > windowMs) {
+      hits.set(key, { count: 1, startedAt: now });
+      return next();
+    }
+
+    if (item.count >= maxRequests) {
+      return res.status(429).json({ message: 'Too many requests. Please try again shortly.' });
+    }
+
+    item.count += 1;
+    return next();
+  };
+}
+
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 12,
+  keyPrefix: 'auth'
+});
+
+const uploadRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 20,
+  keyPrefix: 'upload'
+});
+
+async function logServerError(req, error) {
+  try {
+    const requestBody = req.body && typeof req.body === 'object' ? req.body : null;
+    await pool.query(
+      `INSERT INTO server_error_logs (path, method, status_code, user_id, message, stack, request_body)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+      [
+        req.originalUrl || req.url || 'unknown',
+        req.method || 'UNKNOWN',
+        Number(error?.statusCode || error?.status || 500),
+        req.auth?.user?.id || null,
+        String(error?.message || 'Unexpected server error').slice(0, 1000),
+        String(error?.stack || '').slice(0, 4000),
+        requestBody ? JSON.stringify(requestBody).slice(0, 4000) : null
+      ]
+    );
+  } catch (loggingError) {
+    console.error('Failed to log server error:', loggingError.message);
+  }
+}
+
 async function initializeDatabase() {
   const client = await pool.connect();
 
@@ -371,6 +505,7 @@ async function initializeDatabase() {
         target_subjects TEXT,
         expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
         bio TEXT,
+        profile_picture_url TEXT,
         is_verified BOOLEAN NOT NULL DEFAULT FALSE,
         rating NUMERIC(4,2) NOT NULL DEFAULT 0,
         total_points INTEGER NOT NULL DEFAULT 0,
@@ -385,6 +520,9 @@ async function initializeDatabase() {
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
 
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
@@ -505,6 +643,18 @@ async function initializeDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS server_error_logs (
+        id BIGSERIAL PRIMARY KEY,
+        path TEXT NOT NULL,
+        method VARCHAR(12) NOT NULL,
+        status_code INTEGER NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        stack TEXT,
+        request_body JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS tutor_verifications (
         id SERIAL PRIMARY KEY,
         tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -607,7 +757,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.post('/auth/register', async (req, res) => {
+app.post('/auth/register', authRateLimiter, async (req, res) => {
   const {
     studentId,
     fullName,
@@ -670,7 +820,7 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/login', authRateLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -726,7 +876,30 @@ app.get('/me', requireAuth, async (req, res) => {
 });
 
 app.put('/me/profile', requireAuth, async (req, res) => {
-  const { fullName, phoneNumber, major, yearOfStudy, targetSubjects, expertise, bio } = req.body;
+  const {
+    fullName,
+    phoneNumber,
+    major,
+    yearOfStudy,
+    targetSubjects,
+    expertise,
+    bio,
+    profilePictureUrl,
+    removeProfilePicture
+  } = req.body;
+
+  const nextProfilePictureUrl =
+    typeof profilePictureUrl === 'string' && profilePictureUrl.trim()
+      ? profilePictureUrl.trim()
+      : null;
+  const wantsProfilePictureRemoval = Boolean(removeProfilePicture);
+
+  if (
+    nextProfilePictureUrl &&
+    !nextProfilePictureUrl.startsWith('/uploads/profile-pictures/')
+  ) {
+    return res.status(400).json({ message: 'Invalid profile picture URL.' });
+  }
 
   const normalizedExpertise =
     req.auth.user.role === 'tutor' && Array.isArray(expertise)
@@ -742,7 +915,12 @@ app.put('/me/profile', requireAuth, async (req, res) => {
            year_of_study = COALESCE($5, year_of_study),
            target_subjects = COALESCE($6, target_subjects),
            expertise = COALESCE($7, expertise),
-           bio = COALESCE($8, bio)
+           bio = COALESCE($8, bio),
+           profile_picture_url = CASE
+             WHEN $10 THEN NULL
+             WHEN $9::text IS NOT NULL THEN $9::text
+             ELSE profile_picture_url
+           END
        WHERE id = $1
        RETURNING *`,
       [
@@ -753,9 +931,20 @@ app.put('/me/profile', requireAuth, async (req, res) => {
         yearOfStudy,
         targetSubjects,
         normalizedExpertise,
-        bio
+        bio,
+        nextProfilePictureUrl,
+        wantsProfilePictureRemoval
       ]
     );
+
+    const previousProfilePictureUrl = req.auth.user.profile_picture_url;
+    const currentProfilePictureUrl = rows[0].profile_picture_url;
+    if (
+      previousProfilePictureUrl &&
+      previousProfilePictureUrl !== currentProfilePictureUrl
+    ) {
+      await removeProfilePictureFile(previousProfilePictureUrl);
+    }
 
     await awardPoints(pool, req.auth.user.id, 5, 'Profile updated');
 
@@ -764,9 +953,37 @@ app.put('/me/profile', requireAuth, async (req, res) => {
       user: sanitizeUser(rows[0])
     });
   } catch (error) {
+    if (nextProfilePictureUrl) {
+      await removeProfilePictureFile(nextProfilePictureUrl);
+    }
     return res.status(500).json({ message: error.message });
   }
 });
+
+app.post(
+  '/uploads/profile-picture',
+  uploadRateLimiter,
+  requireAuth,
+  (req, res, next) => {
+    profilePictureUpload.single('image')(req, res, (error) => {
+      if (error) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ message: 'Image is too large. Max size is 5MB.' });
+        }
+        return res.status(400).json({ message: error.message });
+      }
+      return next();
+    });
+  },
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'image file is required.' });
+    }
+
+    const fileUrl = `/uploads/profile-pictures/${req.file.filename}`;
+    return res.status(201).json({ fileUrl });
+  }
+);
 
 app.put('/me/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -1329,6 +1546,7 @@ app.post('/resources', requireAuth, async (req, res) => {
 
 app.post(
   '/resources/upload',
+  uploadRateLimiter,
   requireAuth,
   (req, res, next) => {
     resourceUpload.single('resourceFile')(req, res, (error) => {
@@ -1643,6 +1861,7 @@ app.delete('/resources/:id', requireAuth, async (req, res) => {
 
 app.post(
   '/uploads/verification',
+  uploadRateLimiter,
   requireAuth,
   requireRole('tutor'),
   (req, res, next) => {
@@ -1680,9 +1899,17 @@ app.post('/tutor-verifications', requireAuth, requireRole('tutor'), async (req, 
 
   const isLocalUpload =
     typeof proofUrl === 'string' && proofUrl.startsWith('/uploads/verifications/');
-  const uploadedFilePath = isLocalUpload
-    ? path.join(verificationUploadDir, path.basename(proofUrl))
+  const uploadedFileName = isLocalUpload ? path.basename(proofUrl) : null;
+  const uploadedFilePath = uploadedFileName
+    ? findUploadedFilePath('verifications', uploadedFileName)
     : null;
+
+  if (isLocalUpload && !uploadedFilePath) {
+    return res.status(400).json({
+      message:
+        'Uploaded verification file was not found on server. Please upload the document again before submitting.'
+    });
+  }
 
   if (normalizedCourseCode) {
     const courseCheck = await pool.query('SELECT 1 FROM courses WHERE code = $1', [
@@ -1761,9 +1988,86 @@ app.get(
          ORDER BY tv.created_at DESC`
       );
 
-      return res.json({ applications: rows });
+      const applications = rows.map((application) => {
+        const proofUrl = String(application.proof_url || '');
+        const isLocalVerificationProof = proofUrl.startsWith('/uploads/verifications/');
+        const proofFileName = isLocalVerificationProof ? path.basename(proofUrl) : null;
+        const hasProofFile = isLocalVerificationProof
+          ? Boolean(proofFileName && findUploadedFilePath('verifications', proofFileName))
+          : true;
+
+        return {
+          ...application,
+          has_proof_file: hasProofFile
+        };
+      });
+
+      return res.json({ applications });
     } catch (error) {
       return res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+app.post(
+  '/admin/tutor-verifications/:id/request-reupload',
+  requireAuth,
+  requireRole('admin'),
+  async (req, res) => {
+    const applicationId = Number(req.params.id);
+    const requestNote = String(req.body?.note || '').trim();
+
+    if (!Number.isInteger(applicationId) || applicationId < 1) {
+      return res.status(400).json({ message: 'Invalid application id.' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const lookup = await client.query(
+        `SELECT tv.id, tv.tutor_id, tv.status, tv.proof_url, u.full_name AS tutor_name
+         FROM tutor_verifications tv
+         JOIN users u ON u.id = tv.tutor_id
+         WHERE tv.id = $1`,
+        [applicationId]
+      );
+
+      if (lookup.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Application not found.' });
+      }
+
+      const application = lookup.rows[0];
+      const messageBase =
+        'Your tutor verification proof is unavailable or unclear. Please re-upload your verification document.';
+      const message = requestNote ? `${messageBase} Note: ${requestNote}` : messageBase;
+
+      await createNotification(client, application.tutor_id, message);
+
+      await logAdminAction(
+        client,
+        req.auth.user.id,
+        'verification_reupload_requested',
+        'tutor_verification',
+        application.id,
+        {
+          tutorId: application.tutor_id,
+          status: application.status,
+          proofUrl: application.proof_url,
+          note: requestNote || null
+        }
+      );
+
+      await client.query('COMMIT');
+      return res.json({
+        message: `Re-upload request sent to ${application.tutor_name}.`
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({ message: error.message });
+    } finally {
+      client.release();
     }
   }
 );
@@ -1900,6 +2204,16 @@ app.patch('/admin/users/:id', requireAuth, requireRole('admin'), async (req, res
 
 app.get('/admin/activity-logs', requireAuth, requireRole('admin'), async (req, res) => {
   try {
+    // Check if table exists first
+    const tableCheck = await pool.query(
+      `SELECT 1 FROM information_schema.tables 
+       WHERE table_name = 'admin_activity_logs'`
+    );
+    
+    if (tableCheck.rows.length === 0) {
+      return res.json({ logs: [] });
+    }
+
     const { rows } = await pool.query(
       `SELECT l.id,
               l.action,
@@ -1917,7 +2231,43 @@ app.get('/admin/activity-logs', requireAuth, requireRole('admin'), async (req, r
 
     return res.json({ logs: rows });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Error loading admin activity logs:', error.message);
+    return res.status(500).json({ message: `Database error: ${error.message}` });
+  }
+});
+
+app.get('/admin/error-logs', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    // Check if table exists first
+    const tableCheck = await pool.query(
+      `SELECT 1 FROM information_schema.tables 
+       WHERE table_name = 'server_error_logs'`
+    );
+    
+    if (tableCheck.rows.length === 0) {
+      return res.json({ logs: [] });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT l.id,
+              l.path,
+              l.method,
+              l.status_code,
+              l.message,
+              l.stack,
+              l.created_at,
+              u.full_name AS user_name,
+              u.email AS user_email
+       FROM server_error_logs l
+       LEFT JOIN users u ON u.id = l.user_id
+       ORDER BY l.created_at DESC
+       LIMIT 300`
+    );
+
+    return res.json({ logs: rows });
+  } catch (error) {
+    console.error('Error loading server error logs:', error.message);
+    return res.status(500).json({ message: `Database error: ${error.message}` });
   }
 });
 
@@ -2007,6 +2357,27 @@ app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) 
       leaderboard_rank: pointsData[0]?.leaderboard_rank || 0
     };
 
+    const { rows: trendRows } = await pool.query(
+      `SELECT
+         SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS bookings_last_7,
+         SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS bookings_prev_7
+       FROM bookings`
+    );
+
+    const { rows: resourceTrendRows } = await pool.query(
+      `SELECT
+         SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS resources_last_7,
+         SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS resources_prev_7
+       FROM resources`
+    );
+
+    const trends = {
+      bookingsLast7Days: Number(trendRows[0]?.bookings_last_7 || 0),
+      bookingsPrev7Days: Number(trendRows[0]?.bookings_prev_7 || 0),
+      resourcesLast7Days: Number(resourceTrendRows[0]?.resources_last_7 || 0),
+      resourcesPrev7Days: Number(resourceTrendRows[0]?.resources_prev_7 || 0)
+    };
+
     return res.json({
       analytics: {
         totalUsers,
@@ -2016,7 +2387,8 @@ app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) 
         totalPoints,
         totalBadges,
         topContributors,
-        pointsDistribution
+        pointsDistribution,
+        trends
       }
     });
   } catch (error) {
@@ -2093,6 +2465,8 @@ app.use((err, req, res, next) => {
   if (!err) {
     return next();
   }
+  logServerError(req, err);
+  console.error('Unhandled API error:', err);
   return res.status(500).json({ message: err.message || 'Unexpected server error.' });
 });
 

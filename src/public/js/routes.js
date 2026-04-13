@@ -11,6 +11,7 @@
   adminResources: '/ui/pages/admin-resources.html',
   adminAnalytics: '/ui/pages/admin-analytics.html',
   adminActivity: '/ui/pages/admin-activity.html',
+  adminErrors: '/ui/pages/admin-errors.html',
   notifications: '/ui/pages/notifications.html',
   achievements: '/ui/pages/achievements.html',
   profile: '/ui/pages/profile.html'

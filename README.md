@@ -13,8 +13,8 @@ Backend implementation of the StudyLink use cases from your UML/activity/sequenc
 
 ## Services
 
-- App: http://localhost:3000
-- UI: http://localhost:3000/ui/
+- App: http://localhost:6767
+- UI: http://localhost:6767/ui/
 - pgAdmin: http://localhost:5050
 - PostgreSQL: localhost:5432
 
@@ -67,7 +67,7 @@ Styling structure:
 docker compose up --build
 ```
 
-3. Open `http://localhost:3000/health` to verify the app can reach PostgreSQL.
+3. Open `http://localhost:6767/health` to verify the app can reach PostgreSQL.
 4. Open `http://localhost:5050` for pgAdmin.
 
 ## Implemented Feature Areas

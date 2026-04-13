@@ -58,12 +58,26 @@ function ensureLoadMoreButton() {
   return button;
 }
 
+function ensureResourceCounter() {
+  let counter = document.getElementById('resourceCounter');
+  if (!counter) {
+    counter = document.createElement('p');
+    counter.id = 'resourceCounter';
+    counter.className = 'meta';
+    const list = document.getElementById('resourceList');
+    list.insertAdjacentElement('beforebegin', counter);
+  }
+  return counter;
+}
+
 function renderResourcesSection() {
   const list = document.getElementById('resourceList');
+  const counter = ensureResourceCounter();
   list.innerHTML = '';
 
   if (!allVisibleResources.length) {
-    list.innerHTML = '<div class="empty-state">No resources found yet. Upload your first note or try another filter.</div>';
+    list.innerHTML = '<div class="empty-state">No resources found yet. Try another filter, or upload your first resource.</div>';
+    counter.textContent = 'Showing 0 of 0 resources';
     const btn = ensureLoadMoreButton();
     btn.classList.add('hidden');
     return;
@@ -72,6 +86,8 @@ function renderResourcesSection() {
   allVisibleResources
     .slice(0, visibleResourceCount)
     .forEach((resource) => list.appendChild(renderItem(resource)));
+
+  counter.textContent = `Showing ${Math.min(visibleResourceCount, allVisibleResources.length)} of ${allVisibleResources.length} resources`;
 
   const loadMoreBtn = ensureLoadMoreButton();
   if (visibleResourceCount < allVisibleResources.length) {
