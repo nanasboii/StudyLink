@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications - StudyLink</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/pages/notifications.css">
+</head>
+<body>
+  <div class="app-container">
+    <nav class="navbar" id="navbar"></nav>
+    
+    <main class="main-container">
+      <div class="container">
+        <div class="notifications-header">
+          <h1>Notifications</h1>
+          <button id="markAllReadBtn" class="btn btn-secondary">Mark all as read</button>
+        </div>
+
+        <div class="notifications-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="unread">Unread</button>
+        </div>
+
+        <div id="notificationsContainer" class="notifications-list">
+          <div class="loading">Loading notifications...</div>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+          <h3>No notifications yet</h3>
+          <p>You're all caught up!</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { nav } from '../js/nav.js';
+    import { requireAuth } from '../js/api.js';
+    import { showError } from '../js/api.js';
+
+    let allNotifications = [];
+    let currentFilter = 'all';
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch('/notifications', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = '/ui/pages/login.html';
+            return;
+          }
+          throw new Error('Failed to load notifications');
+        }
+
+        const data = await response.json();
+        allNotifications = data.notifications || [];
+        renderNotifications();
+      } catch (error) {
+        showError('Failed to load notifications: ' + error.message);
+      }
+    }
+
+    function renderNotifications() {
+      const container = document.getElementById('notificationsContainer');
+      const emptyState = document.getElementById('emptyState');
+
+      const filtered = currentFilter === 'all' 
+        ? allNotifications 
+        : allNotifications.filter(n => !n.isRead);
+
+      if (filtered.length === 0) {
+        container.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      container.style.display = 'block';
+      emptyState.style.display = 'none';
+
+      container.innerHTML = filtered.map(notification => `
+        <div class="notification-item ${notification.isRead ? 'read' : 'unread'}">
+          <div class="notification-content">
+            <p class="notification-message">${notification.message}</p>
+            <p class="notification-time">${new Date(notification.createdAt).toLocaleString()}</p>
+          </div>
+          <button class="btn btn-sm btn-secondary mark-read-btn" data-id="${notification.id}" 
+                  ${notification.isRead ? 'style="display: none;"' : ''}>
+            Mark as read
+          </button>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.mark-read-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => markAsRead(parseInt(e.target.dataset.id), e.target));
+      });
+    }
+
+    async function markAsRead(notificationId, button) {
+      try {
+        const response = await fetch(`/notifications/${notificationId}/read`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (response.ok) {
+          const notification = allNotifications.find(n => n.id === notificationId);
+          if (notification) {
+            notification.isRead = true;
+            button.style.display = 'none';
+            button.closest('.notification-item').classList.add('read');
+            button.closest('.notification-item').classList.remove('unread');
+          }
+        }
+      } catch (error) {
+        showError('Failed to mark as read: ' + error.message);
+      }
+    }
+
+    async function markAllAsRead() {
+      const unreadNotifications = allNotifications.filter(n => !n.isRead);
+      
+      for (const notification of unreadNotifications) {
+        await markAsRead(notification.id, document.querySelector(`[data-id="${notification.id}"]`));
+      }
+    }
+
+    document.getElementById('markAllReadBtn').addEventListener('click', markAllAsRead);
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentFilter = e.target.dataset.filter;
+        renderNotifications();
+      });
+    });
+
+    requireAuth();
+    nav();
+    loadNotifications();
+
+    setInterval(loadNotifications, 30000);
+  </script>
+</body>
+</html>

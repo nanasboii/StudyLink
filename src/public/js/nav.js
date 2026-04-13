@@ -23,6 +23,9 @@ export function mountNav(activePage) {
     <a href="${PAGES.review}" class="${activePage === 'review' ? 'active' : ''}">Review</a>
     <a href="${PAGES.leaderboards}" class="${activePage === 'leaderboards' ? 'active' : ''}">Leaderboard</a>
     <a href="${PAGES.session}" class="${activePage === 'session' ? 'active' : ''}">Session</a>
+      <a href="${PAGES.profile}" class="${activePage === 'profile' ? 'active' : ''}">Profile</a>
+      <a href="${PAGES.achievements}" class="${activePage === 'achievements' ? 'active' : ''}">Badges</a>
+      <a href="${PAGES.notifications}" class="${activePage === 'notifications' ? 'active' : ''}">Notifications</a>
     ${user && user.role === 'tutor' ? `<a href="${PAGES.verification}" class="${activePage === 'verification' ? 'active' : ''}">Verify</a>` : ''}
     ${user && user.role === 'admin' ? `<a href="${PAGES.adminVerifications}" class="${activePage === 'adminVerifications' ? 'active' : ''}">Admin</a>` : ''}
   `;

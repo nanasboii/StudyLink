@@ -1,4 +1,4 @@
-export const PAGES = {
+﻿export const PAGES = {
   login: '/ui/pages/login.html',
   register: '/ui/pages/register.html',
   resources: '/ui/pages/resources.html',
@@ -7,5 +7,8 @@ export const PAGES = {
   leaderboards: '/ui/pages/leaderboards.html',
   session: '/ui/pages/session.html',
   verification: '/ui/pages/verification.html',
-  adminVerifications: '/ui/pages/admin-verifications.html'
+  adminVerifications: '/ui/pages/admin-verifications.html',
+  notifications: '/ui/pages/notifications.html',
+  achievements: '/ui/pages/achievements.html',
+  profile: '/ui/pages/profile.html'
 };

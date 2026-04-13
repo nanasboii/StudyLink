@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Achievements & Badges - StudyLink</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/pages/achievements.css">
+</head>
+<body>
+  <div class="app-container">
+    <nav class="navbar" id="navbar"></nav>
+    
+    <main class="main-container">
+      <div class="container">
+        <div class="achievements-header">
+          <h1>Achievements & Badges</h1>
+          <div class="points-display">
+            <span class="points-label">Total Points:</span>
+            <span class="points-value" id="totalPoints">0</span>
+          </div>
+        </div>
+
+        <div class="achievements-section">
+          <h2>Your Badges</h2>
+          <div id="badgesContainer" class="badges-grid">
+            <div class="loading">Loading your badges...</div>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <h2>Available Badges</h2>
+          <div id="progressContainer" class="progress-list">
+            <div class="loading">Loading badge progress...</div>
+          </div>
+        </div>
+
+        <div class="how-to-earn">
+          <h2>How to Earn Points</h2>
+          <ul>
+            <li>Upload resources: Earn points when tutees rate your resources</li>
+            <li>Complete tutoring sessions: Earn points from bookings</li>
+            <li>Provide feedback: Share reviews and help the community</li>
+            <li>Reach milestones: Unlock badges at 25, 50, 100, and 250 points</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { nav } from '../js/nav.js';
+    import { requireAuth } from '../js/api.js';
+    import { showError } from '../js/api.js';
+
+    let userAchievements = [];
+    let userData = null;
+
+    async function loadAchievements() {
+      try {
+        const response = await fetch('/achievements/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = '/ui/pages/login.html';
+            return;
+          }
+          throw new Error('Failed to load achievements');
+        }
+
+        userAchievements = await response.json();
+        renderAchievements();
+      } catch (error) {
+        showError('Failed to load achievements: ' + error.message);
+      }
+    }
+
+    async function loadUserData() {
+      try {
+        const response = await fetch('/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (response.ok) {
+          userData = await response.json();
+          document.getElementById('totalPoints').textContent = userData.totalPoints || 0;
+        }
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+      }
+    }
+
+    function renderAchievements() {
+      const container = document.getElementById('badgesContainer');
+      const progressContainer = document.getElementById('progressContainer');
+
+      if (userAchievements.length === 0) {
+        container.innerHTML = '<p class="empty-message">No badges earned yet. Keep contributing to earn badges!</p>';
+      } else {
+        container.innerHTML = userAchievements.map(achievement => `
+          <div class="badge earned">
+            <img src="${achievement.iconUrl}" alt="${achievement.name}" class="badge-icon">
+            <h3>${achievement.name}</h3>
+            <p>${achievement.description}</p>
+            <p class="badge-points">${achievement.pointsRequired} pts</p>
+          </div>
+        `).join('');
+      }
+
+      const badges = [
+        {
+          name: 'Helping Hand',
+          description: 'Reached 25 points by supporting classmates.',
+          pointsRequired: 25,
+          iconUrl: '/ui/assets/badges/helping-hand.svg'
+        },
+        {
+          name: 'Rising Contributor',
+          description: 'Reached 50 points by helping peers.',
+          pointsRequired: 50,
+          iconUrl: '/ui/assets/badges/rising-contributor.svg'
+        },
+        {
+          name: 'Campus Mentor',
+          description: 'Reached 100 points through tutoring and sharing.',
+          pointsRequired: 100,
+          iconUrl: '/ui/assets/badges/campus-mentor.svg'
+        },
+        {
+          name: 'StudyLink Champion',
+          description: 'Reached 250 points as a top supporter.',
+          pointsRequired: 250,
+          iconUrl: '/ui/assets/badges/studylink-champion.svg'
+        }
+      ];
+
+      const currentPoints = userData?.totalPoints || 0;
+      progressContainer.innerHTML = badges.map(badge => {
+        const isEarned = userAchievements.some(a => a.pointsRequired === badge.pointsRequired);
+        const progress = Math.min((currentPoints / badge.pointsRequired) * 100, 100);
+
+        return `
+          <div class="progress-item ${isEarned ? 'earned' : ''}">
+            <div class="progress-info">
+              <h4>${badge.name}</h4>
+              <p>${badge.description}</p>
+              <p class="points-needed" ${isEarned ? 'style="display: none;"' : ''}>
+                ${badge.pointsRequired} points needed
+              </p>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+            <p class="progress-text">${currentPoints}/${badge.pointsRequired}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    requireAuth();
+    nav();
+    loadUserData();
+    loadAchievements();
+  </script>
+</body>
+</html>

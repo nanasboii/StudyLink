@@ -1,0 +1,234 @@
+.achievements-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.achievements-header h1 {
+  margin: 0;
+}
+
+.points-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--primary-color, #0066cc);
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.points-label {
+  opacity: 0.9;
+}
+
+.points-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.achievements-section,
+.progress-section,
+.how-to-earn {
+  margin-bottom: 3rem;
+}
+
+.achievements-section h2,
+.progress-section h2,
+.how-to-earn h2 {
+  margin-bottom: 1.5rem;
+  color: var(--text-primary, #000);
+}
+
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2rem;
+}
+
+.badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem;
+  border: 2px solid #ddd;
+  border-radius: 12px;
+  background: #f9f9f9;
+  transition: all 0.3s ease;
+  opacity: 0.5;
+}
+
+.badge.earned {
+  border-color: var(--primary-color, #0066cc);
+  background: #f0f7ff;
+  opacity: 1;
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.1);
+}
+
+.badge-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1rem;
+  object-fit: contain;
+}
+
+.badge h3 {
+  margin: 0.5rem 0;
+  font-size: 1rem;
+  color: var(--text-primary, #000);
+}
+
+.badge p {
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+  line-height: 1.4;
+}
+
+.badge-points {
+  margin-top: 1rem;
+  font-weight: 600;
+  color: var(--primary-color, #0066cc);
+}
+
+.progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.progress-item {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  padding: 1.5rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.progress-item.earned {
+  background: #f0f7ff;
+  border-color: var(--primary-color, #0066cc);
+}
+
+.progress-info {
+  flex: 1;
+}
+
+.progress-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary, #000);
+}
+
+.progress-info p {
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #666);
+}
+
+.points-needed {
+  font-weight: 600;
+  color: var(--primary-color, #0066cc);
+}
+
+.progress-bar {
+  flex: 0 0 200px;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color, #0066cc), #0052a3);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  flex: 0 0 80px;
+  text-align: right;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+  margin: 0;
+}
+
+.how-to-earn {
+  padding: 1.5rem;
+  border-left: 4px solid var(--primary-color, #0066cc);
+  background: #f0f7ff;
+  border-radius: 8px;
+}
+
+.how-to-earn h2 {
+  color: var(--text-primary, #000);
+  margin-top: 0;
+}
+
+.how-to-earn ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style-type: none;
+}
+
+.how-to-earn li {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+  color: var(--text-secondary, #666);
+  line-height: 1.6;
+}
+
+.how-to-earn li:before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--primary-color, #0066cc);
+  font-weight: bold;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary, #666);
+}
+
+.empty-message {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary, #666);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .achievements-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .badges-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+  }
+
+  .progress-item {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .progress-bar,
+  .progress-text {
+    width: 100%;
+    flex: 1;
+  }
+
+  .progress-text {
+    text-align: left;
+  }
+}

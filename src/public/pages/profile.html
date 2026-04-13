@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - StudyLink</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/pages/profile.css">
+</head>
+<body>
+  <div class="app-container">
+    <nav class="navbar" id="navbar"></nav>
+    
+    <main class="main-container">
+      <div class="container">
+        <div class="profile-header">
+          <h1>My Profile</h1>
+        </div>
+
+        <div class="profile-grid">
+          <!-- Profile Info Section -->
+          <div class="profile-section">
+            <h2>Profile Information</h2>
+            <form id="profileForm" class="profile-form">
+              <div class="form-group">
+                <label for="studentId">Student ID</label>
+                <input type="text" id="studentId" readonly class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="fullName">Full Name</label>
+                <input type="text" id="fullName" required class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" readonly class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="phoneNumber">Phone Number</label>
+                <input type="tel" id="phoneNumber" class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="role">Role</label>
+                <input type="text" id="role" readonly class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="major">Major</label>
+                <input type="text" id="major" class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="yearOfStudy">Year of Study</label>
+                <input type="number" id="yearOfStudy" min="1" max="6" class="form-control">
+              </div>
+
+              <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" rows="4" class="form-control" placeholder="Tell us about yourself..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+          </div>
+
+          <!-- Account Stats Section -->
+          <div class="profile-section">
+            <h2>Account Statistics</h2>
+            <div class="stats-container">
+              <div class="stat-item">
+                <span class="stat-label">Total Points</span>
+                <span class="stat-value" id="totalPoints">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Rating</span>
+                <span class="stat-value" id="rating">0.00</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Account Status</span>
+                <span class="stat-value" id="accountStatus">Active</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Member Since</span>
+                <span class="stat-value" id="joinDate">-</span>
+              </div>
+            </div>
+
+            <div id="tutorStats" style="display: none;">
+              <h3>Tutor Statistics</h3>
+              <div class="stat-item">
+                <span class="stat-label">Verification Status</span>
+                <span class="stat-value" id="verificationStatus">Pending</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Section -->
+        <div class="profile-section">
+          <h2>Security</h2>
+          <form id="passwordForm" class="password-form">
+            <div class="form-group">
+              <label for="currentPassword">Current Password</label>
+              <input type="password" id="currentPassword" required class="form-control">
+            </div>
+
+            <div class="form-group">
+              <label for="newPassword">New Password</label>
+              <input type="password" id="newPassword" required class="form-control">
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword">Confirm New Password</label>
+              <input type="password" id="confirmPassword" required class="form-control">
+            </div>
+
+            <button type="submit" class="btn btn-secondary">Update Password</button>
+          </form>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="profile-section danger-zone">
+          <h2>Danger Zone</h2>
+          <p>Deleting your account is permanent and cannot be undone.</p>
+          <button id="deleteAccountBtn" class="btn btn-danger">Delete Account</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { nav } from '../js/nav.js';
+    import { requireAuth, showError, showSuccess } from '../js/api.js';
+
+    let currentUser = null;
+
+    async function loadProfile() {
+      try {
+        const response = await fetch('/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = '/ui/pages/login.html';
+            return;
+          }
+          throw new Error('Failed to load profile');
+        }
+
+        currentUser = await response.json();
+        populateForm();
+      } catch (error) {
+        showError('Failed to load profile: ' + error.message);
+      }
+    }
+
+    function populateForm() {
+      if (!currentUser) return;
+
+      document.getElementById('studentId').value = currentUser.studentId || '';
+      document.getElementById('fullName').value = currentUser.fullName || '';
+      document.getElementById('email').value = currentUser.email || '';
+      document.getElementById('phoneNumber').value = currentUser.phoneNumber || '';
+      document.getElementById('role').value = currentUser.role || '';
+      document.getElementById('major').value = currentUser.major || '';
+      document.getElementById('yearOfStudy').value = currentUser.yearOfStudy || '';
+      document.getElementById('bio').value = currentUser.bio || '';
+      
+      document.getElementById('totalPoints').textContent = currentUser.totalPoints || 0;
+      document.getElementById('rating').textContent = (currentUser.rating || 0).toFixed(2);
+      document.getElementById('joinDate').textContent = new Date(currentUser.createdAt).toLocaleDateString();
+
+      if (currentUser.role === 'tutor') {
+        document.getElementById('tutorStats').style.display = 'block';
+        document.getElementById('verificationStatus').textContent = currentUser.isVerified ? 'Verified' : 'Pending';
+      }
+    }
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const updateData = {
+        fullName: document.getElementById('fullName').value,
+        phoneNumber: document.getElementById('phoneNumber').value,
+        major: document.getElementById('major').value,
+        yearOfStudy: parseInt(document.getElementById('yearOfStudy').value) || null,
+        bio: document.getElementById('bio').value
+      };
+
+      try {
+        const response = await fetch('/me/profile', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update profile');
+        }
+
+        const updated = await response.json();
+        currentUser = updated;
+        showSuccess('Profile updated successfully');
+      } catch (error) {
+        showError('Failed to update profile: ' + error.message);
+      }
+    });
+
+    document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (newPassword !== confirmPassword) {
+        showError('Passwords do not match');
+        return;
+      }
+
+      const updateData = {
+        currentPassword: document.getElementById('currentPassword').value,
+        newPassword: newPassword
+      };
+
+      try {
+        const response = await fetch('/me/password', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update password');
+        }
+
+        document.getElementById('passwordForm').reset();
+        showSuccess('Password updated successfully');
+      } catch (error) {
+        showError('Failed to update password: ' + error.message);
+      }
+    });
+
+    document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete your account? This action is permanent.')) {
+        return;
+      }
+
+      if (!confirm('This will permanently delete your account and all associated data. Are you absolutely sure?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/me', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete account');
+        }
+
+        localStorage.removeItem('token');
+        showSuccess('Account deleted successfully. Redirecting to login...');
+        setTimeout(() => {
+          window.location.href = '/ui/pages/login.html';
+        }, 2000);
+      } catch (error) {
+        showError('Failed to delete account: ' + error.message);
+      }
+    });
+
+    requireAuth();
+    nav();
+    loadProfile();
+  </script>
+</body>
+</html>
