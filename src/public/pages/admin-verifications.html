@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Admin Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/pages/admin-verifications.css" />
+  </head>
+  <body>
+    <main class="page-bg">
+      <section class="phone-shell">
+        <header id="topbar" class="topbar"></header>
+        <div class="view page active">
+          <div class="search-row">
+            <h2>Tutor Verification Review</h2>
+            <button id="refreshBtn" class="chip" type="button">Refresh</button>
+          </div>
+          <p id="adminMessage" class="message"></p>
+          <div id="applicationsList" class="list"></div>
+        </div>
+        <nav id="bottomNav" class="bottom-nav"></nav>
+      </section>
+    </main>
+    <script type="module" src="/ui/js/pages/admin-verifications.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+.auth-block {
+  margin-top: 56px;
+}
+
+.topbar {
+  grid-template-columns: 1fr;
+}
+
+.topbar h1 {
+  text-align: left;
+  overflow: visible;
+}

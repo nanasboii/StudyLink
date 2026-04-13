@@ -1,0 +1,15 @@
+.auth-block h2 {
+  font-size: 28px;
+}
+
+.topbar {
+  grid-template-columns: 1fr;
+}
+
+.topbar h1 {
+  text-align: left;
+  font-size: clamp(16px, 4vw, 34px);
+  white-space: nowrap;
+  overflow: visible;
+}
+

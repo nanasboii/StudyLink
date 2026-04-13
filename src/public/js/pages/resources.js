@@ -1,0 +1,496 @@
+import { api, getToken, requireSession } from '../api.js';
+import { mountNav } from '../nav.js';
+
+requireSession();
+mountNav('resources');
+
+let selectedType = '';
+const resourceRatings = new Map();
+const suggestedCarousel = document.getElementById('suggestedCarousel');
+const uploadPanel = document.getElementById('uploadPanel');
+const uploadForm = document.getElementById('resourceUploadForm');
+const uploadMessage = document.getElementById('resourceUploadMessage');
+const resourceSearch = document.getElementById('resourceSearch');
+const resourceFilterBtn = document.getElementById('resourceFilterBtn');
+const filterPopupBtn = document.getElementById('filterPopupBtn');
+const resourceFilterModal = document.getElementById('resourceFilterModal');
+const closeFilterModalBtn = document.getElementById('closeFilterModalBtn');
+const applyFilterBtn = document.getElementById('applyFilterBtn');
+const resetFilterBtn = document.getElementById('resetFilterBtn');
+const minRatingFilter = document.getElementById('minRatingFilter');
+const minRatingValue = document.getElementById('minRatingValue');
+const typeFilterChecks = Array.from(document.querySelectorAll('input[data-filter="type"]'));
+const sourceFilterChecks = Array.from(document.querySelectorAll('input[data-filter="source"]'));
+const typeChips = Array.from(document.querySelectorAll('#typeChips .chip'));
+const filterState = {
+  resourceTypes: new Set(),
+  sources: new Set(),
+  minRating: 0
+};
+
+function setUploadMessage(text, isOk = false) {
+  uploadMessage.textContent = text;
+  uploadMessage.style.color = isOk ? '#1f7a45' : '#bc2f2f';
+}
+
+function ratingLabel(rating) {
+  const value = Number(rating || 0).toFixed(1);
+  return `${value} out of 5 stars`;
+}
+
+function renderStars(rating) {
+  const value = Math.max(0, Math.min(5, Number(rating || 0)));
+  const fullStars = Math.floor(value);
+  const hasHalfStar = value - fullStars >= 0.5;
+  const stars = Array.from({ length: 5 }, (_, index) => {
+    if (index < fullStars) {
+      return '★';
+    }
+    if (index === fullStars && hasHalfStar) {
+      return '⯨';
+    }
+    return '☆';
+  }).join('');
+
+  return `<span class="rating-stars" aria-hidden="true">${stars}</span><span class="sr-only">${ratingLabel(value)}</span>`;
+}
+
+function resourcePreviewLabel(resource) {
+  const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
+  if (uploadKind === 'link') {
+    return resource.metadata?.externalLink || resource.file_url;
+  }
+  return resource.metadata?.originalName || resource.title;
+}
+
+function resourceCoverLabel(resource) {
+  return (resource.resource_type || 'resource').toString().trim() || 'resource';
+}
+
+function resourceTypeLabel(resource) {
+  const rawType = String(resource.resource_type || '').trim().toLowerCase();
+
+  if (rawType === 'past-year') {
+    return 'Past Year Paper';
+  }
+  if (rawType === 'lecture-note') {
+    return 'Lecture Note';
+  }
+  if (rawType === 'notes') {
+    return 'Notes';
+  }
+  if (rawType === 'slides') {
+    return 'Slides';
+  }
+  if (rawType === 'pdf') {
+    return 'PDF';
+  }
+  if (rawType === 'picture') {
+    return 'Picture';
+  }
+  if (rawType === 'archive') {
+    return 'Archive';
+  }
+  if (rawType === 'audio') {
+    return 'Audio';
+  }
+  if (rawType === 'video') {
+    return 'Video';
+  }
+  if (rawType === 'link' || resource.file_url?.startsWith('http')) {
+    return 'Link';
+  }
+
+  return resource.resource_type || 'Resource';
+}
+
+function renderSuggestedCard(resource) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'suggested-card';
+  card.innerHTML = `
+    <div class="suggested-media">
+      <span>${resourceCoverLabel(resource).slice(0, 1).toUpperCase()}</span>
+    </div>
+    <div class="suggested-body">
+      <div class="suggested-type">${resourceTypeLabel(resource)}</div>
+      <strong>${resource.title}</strong>
+      <div class="meta">${resource.course_code || 'General'} · ${resource.contributor_name}</div>
+      <div class="meta rating-line">${renderStars(resource.avg_rating)} <span>${Number(resource.avg_rating || 0).toFixed(1)}</span></div>
+    </div>
+  `;
+
+  card.addEventListener('click', () => {
+    window.open(resource.file_url, '_blank', 'noopener,noreferrer');
+  });
+
+  return card;
+}
+
+async function submitResourceRating(resourceId, rating) {
+  resourceRatings.set(resourceId, rating);
+  await api(`/resources/${resourceId}/reviews`, 'POST', {
+    rating,
+    comment: `Rated ${rating} star${rating === 1 ? '' : 's'}`
+  });
+  loadResources();
+}
+
+function updateStarState(container, selectedRating = 0, previewRating = 0) {
+  const buttons = Array.from(container.querySelectorAll('[data-rating]'));
+  const activeRating = previewRating || selectedRating;
+
+  buttons.forEach((button) => {
+    const rating = Number(button.dataset.rating);
+    const isActive = rating <= activeRating;
+    button.classList.toggle('is-active', rating <= selectedRating);
+    button.classList.toggle('is-previewed', previewRating ? isActive : false);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function wireStarPreview(container, resourceId) {
+  const buttons = Array.from(container.querySelectorAll('[data-rating]'));
+  const selectedRating = resourceRatings.get(resourceId) || 0;
+  let previewRating = 0;
+
+  const syncState = () => updateStarState(container, resourceRatings.get(resourceId) || 0, previewRating);
+
+  buttons.forEach((button) => {
+    const rating = Number(button.dataset.rating);
+    button.addEventListener('mouseenter', () => {
+      previewRating = rating;
+      syncState();
+    });
+    button.addEventListener('focus', () => {
+      previewRating = rating;
+      syncState();
+    });
+    button.addEventListener('click', async () => {
+      previewRating = rating;
+      button.classList.add('is-just-selected');
+      window.setTimeout(() => button.classList.remove('is-just-selected'), 180);
+      resourceRatings.set(resourceId, rating);
+      syncState();
+      await submitResourceRating(resourceId, rating);
+    });
+  });
+
+  container.addEventListener('mouseleave', () => {
+    previewRating = 0;
+    syncState();
+  });
+
+  container.addEventListener('focusout', (event) => {
+    if (!container.contains(event.relatedTarget)) {
+      previewRating = 0;
+      syncState();
+    }
+  });
+
+  updateStarState(container, selectedRating, 0);
+}
+
+document.getElementById('toggleUploadBtn').addEventListener('click', () => {
+  uploadPanel.classList.toggle('hidden');
+  document.getElementById('toggleUploadBtn').textContent = uploadPanel.classList.contains('hidden')
+    ? 'Upload Resource'
+    : 'Hide Upload';
+});
+
+function getActiveFilter() {
+  return selectedType || '';
+}
+
+function normalizeType(resourceType) {
+  const rawType = String(resourceType || '').trim().toLowerCase();
+  if (rawType === 'past year' || rawType === 'past paper' || rawType === 'past-year-paper') {
+    return 'past-year';
+  }
+  if (rawType === 'lecture note' || rawType === 'lecture-notes') {
+    return 'lecture-note';
+  }
+  return rawType;
+}
+
+function getResourceSource(resource) {
+  return resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
+}
+
+function matchesPopupFilters(resource) {
+  const normalizedType = normalizeType(resource.resource_type);
+  const source = getResourceSource(resource);
+  const rating = Number(resource.avg_rating || 0);
+
+  const selectedTypes = filterState.resourceTypes;
+  const wantsLinkType = selectedTypes.has('link');
+  const typeWithoutLink = new Set(Array.from(selectedTypes).filter((type) => type !== 'link'));
+
+  const linkTypePass = wantsLinkType && (normalizedType === 'link' || source === 'link');
+  const regularTypePass = typeWithoutLink.has(normalizedType);
+
+  const typePass =
+    !selectedTypes.size ||
+    linkTypePass ||
+    regularTypePass;
+  const sourcePass = !filterState.sources.size || filterState.sources.has(source);
+  const ratingPass = rating >= filterState.minRating;
+
+  return typePass && sourcePass && ratingPass;
+}
+
+function openFilterModal() {
+  resourceFilterModal.classList.remove('hidden');
+}
+
+function closeFilterModal() {
+  resourceFilterModal.classList.add('hidden');
+}
+
+function syncFilterStateFromInputs() {
+  filterState.resourceTypes = new Set(
+    typeFilterChecks.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value)
+  );
+  filterState.sources = new Set(
+    sourceFilterChecks.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value)
+  );
+  filterState.minRating = Number(minRatingFilter.value || 0);
+}
+
+function resetPopupFilters() {
+  typeFilterChecks.forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  sourceFilterChecks.forEach((checkbox) => {
+    checkbox.checked = false;
+  });
+  minRatingFilter.value = '0';
+  updateMinRatingUI();
+  syncFilterStateFromInputs();
+}
+
+function updateMinRatingUI() {
+  const value = Number(minRatingFilter.value || 0);
+  const min = Number(minRatingFilter.min || 0);
+  const max = Number(minRatingFilter.max || 5);
+  const range = max - min || 1;
+  const percentage = ((value - min) / range) * 100;
+  minRatingValue.textContent = value.toFixed(1);
+  minRatingFilter.style.setProperty('--slider-progress', `${percentage}%`);
+}
+
+async function resolveResourceUrl(rawUrl) {
+  const fileUrl = String(rawUrl || '').trim();
+  if (!fileUrl) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(fileUrl)) {
+    return fileUrl;
+  }
+
+  if (!fileUrl.startsWith('/')) {
+    return fileUrl;
+  }
+
+  try {
+    const response = await fetch(fileUrl, { method: 'HEAD' });
+    if (response.ok) {
+      return fileUrl;
+    }
+  } catch (error) {
+    // Fall back to docker app URL for uploaded files when local dev server cannot serve them.
+  }
+
+  if (fileUrl.startsWith('/uploads/') && window.location.port !== '3000') {
+    return `${window.location.protocol}//${window.location.hostname}:3000${fileUrl}`;
+  }
+
+  return fileUrl;
+}
+
+async function openDownload(resource) {
+  try {
+    const payload = await api(`/resources/${resource.id}/download`, 'POST');
+    const fileUrl = await resolveResourceUrl(payload?.resource?.file_url || resource.file_url);
+    if (!fileUrl) {
+      throw new Error('No downloadable file found for this resource.');
+    }
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  } catch (error) {
+    window.alert(`Download failed: ${error.message}`);
+  }
+}
+
+function renderItem(resource) {
+  const div = document.createElement('div');
+  div.className = 'item';
+  const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
+  const sourceLabel = uploadKind === 'link' ? 'Link' : 'File';
+  const fileLabel = resourcePreviewLabel(resource);
+  div.innerHTML = `
+    <div class="resource-cover">
+      <div class="resource-cover-tag">${resourceTypeLabel(resource)}</div>
+      <div class="resource-cover-copy">Uploaded by ${resource.contributor_name}</div>
+    </div>
+    <strong>${resource.course_code || 'General'} - ${resource.title}</strong>
+    <div class="meta resource-rating">${renderStars(resource.avg_rating)} <span>${Number(resource.avg_rating || 0).toFixed(1)}</span></div>
+    <div class="meta">${resourceTypeLabel(resource)}</div>
+    <div class="meta">By ${resource.contributor_name}</div>
+    <div class="meta">${sourceLabel}: ${fileLabel}</div>
+    <div class="actions">
+      <button data-action="open">Open Resource</button>
+      <button data-action="download">Download</button>
+      <div class="star-rating" role="group" aria-label="Rate this resource">
+        <button type="button" data-rating="1" aria-label="Rate 1 star">★</button>
+        <button type="button" data-rating="2" aria-label="Rate 2 stars">★</button>
+        <button type="button" data-rating="3" aria-label="Rate 3 stars">★</button>
+        <button type="button" data-rating="4" aria-label="Rate 4 stars">★</button>
+        <button type="button" data-rating="5" aria-label="Rate 5 stars">★</button>
+      </div>
+    </div>
+  `;
+
+  div.querySelector('[data-action="open"]').addEventListener('click', async () => {
+    const fileUrl = await resolveResourceUrl(resource.file_url);
+    if (!fileUrl) {
+      window.alert('Unable to open this resource because no file URL is available.');
+      return;
+    }
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  });
+
+  div.querySelector('[data-action="download"]').addEventListener('click', async () => {
+    await openDownload(resource);
+  });
+
+  wireStarPreview(div.querySelector('.star-rating'), resource.id);
+
+  return div;
+}
+
+async function loadResources() {
+  const list = document.getElementById('resourceList');
+  list.innerHTML = '';
+  suggestedCarousel.innerHTML = '';
+
+  try {
+    const search = resourceSearch.value.trim();
+    const params = new URLSearchParams();
+
+    if (search) {
+      params.set('q', search);
+    }
+    if (getActiveFilter()) {
+      params.set('resourceType', selectedType);
+    }
+
+    const query = params.toString();
+    const data = await api(query ? `/resources?${query}` : '/resources');
+    const filteredResources = data.resources.filter(matchesPopupFilters);
+    const suggestions = [...filteredResources]
+      .sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0) || new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 8);
+
+    if (suggestions.length) {
+      suggestions.forEach((resource) => suggestedCarousel.appendChild(renderSuggestedCard(resource)));
+    } else {
+      suggestedCarousel.innerHTML = '<div class="empty-state">No suggestions yet. Upload or rate resources to populate this feed.</div>';
+    }
+
+    if (!filteredResources.length) {
+      list.innerHTML = '<div class="empty-state">No resources found yet. Upload your first note or try another filter.</div>';
+      return;
+    }
+
+    filteredResources.forEach((resource) => list.appendChild(renderItem(resource)));
+  } catch (error) {
+    list.innerHTML = `<div class="empty-state">Unable to load resources: ${error.message}</div>`;
+  }
+}
+
+uploadForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setUploadMessage('');
+
+  const formData = new FormData(uploadForm);
+  const resourceFile = formData.get('resourceFile');
+  const resourceLink = String(formData.get('resourceLink') || '').trim();
+
+  if (!resourceFile || resourceFile.size === 0) {
+    formData.delete('resourceFile');
+  }
+
+  if (!resourceLink) {
+    formData.delete('resourceLink');
+  }
+
+  if (!formData.get('resourceFile') && !formData.get('resourceLink')) {
+    setUploadMessage('Add a file or a resource link before publishing.');
+    return;
+  }
+
+  try {
+    const response = await fetch('/resources/upload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${getToken()}`
+      },
+      body: formData
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || 'Upload failed');
+    }
+
+    setUploadMessage('Resource published. You earned 15 Learning Points.', true);
+    uploadForm.reset();
+    await loadResources();
+  } catch (error) {
+    setUploadMessage(error.message);
+  }
+});
+
+resourceFilterBtn.addEventListener('click', loadResources);
+filterPopupBtn.addEventListener('click', () => {
+  openFilterModal();
+});
+closeFilterModalBtn.addEventListener('click', () => {
+  closeFilterModal();
+});
+resourceFilterModal.addEventListener('click', (event) => {
+  if (event.target === resourceFilterModal) {
+    closeFilterModal();
+  }
+});
+applyFilterBtn.addEventListener('click', async () => {
+  syncFilterStateFromInputs();
+  closeFilterModal();
+  await loadResources();
+});
+resetFilterBtn.addEventListener('click', async () => {
+  resetPopupFilters();
+  await loadResources();
+});
+minRatingFilter.addEventListener('input', () => {
+  updateMinRatingUI();
+});
+updateMinRatingUI();
+resourceSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loadResources();
+  }
+});
+
+typeChips.forEach((chip) => {
+  chip.addEventListener('click', () => {
+    typeChips.forEach((c) => c.classList.remove('chip-active'));
+    chip.classList.add('chip-active');
+    selectedType = chip.dataset.type || '';
+    loadResources();
+  });
+});
+
+loadResources();

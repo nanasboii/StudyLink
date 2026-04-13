@@ -1,0 +1,8 @@
+#applicationsList .item {
+  border-left: 5px solid #325274;
+}
+
+#applicationsList .meta a {
+  color: #1e4e7c;
+  font-weight: 700;
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Josefin+Sans:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/pages/login.css" />
+  </head>
+  <body>
+    <main class="page-bg">
+      <section class="phone-shell">
+        <header class="topbar"><h1>StudyLink</h1></header>
+        <div class="view auth-view">
+          <div class="auth-block">
+            <h2>Sign in or create new account to continue</h2>
+            <form id="loginForm" class="stack">
+              <label>Email
+                <input type="email" name="email" required />
+              </label>
+              <label>Password
+                <input type="password" name="password" required />
+              </label>
+              <button class="primary" type="submit">Sign In</button>
+            </form>
+            <a class="link-btn" href="/ui/pages/register.html">No account? Create one now</a>
+            <p id="authMessage" class="message"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/ui/js/pages/login.js"></script>
+  </body>
+</html>
