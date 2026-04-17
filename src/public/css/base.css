@@ -47,7 +47,7 @@ body {
 .topbar {
   grid-row: 1;
   display: grid;
-  grid-template-columns: 140px 1fr 140px;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 16px 32px;
@@ -91,8 +91,55 @@ h1 {
   border-color: #667eea;
 }
 
+.topbar-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .topbar .icon-btn:last-child {
   justify-self: end;
+}
+
+.streak-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.streak-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #334b5b;
+}
+
+.streak-btn:hover svg {
+  color: #3f6f57;
+}
+
+.streak-btn-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #3f6f57;
+  color: #fff;
+  border: 2px solid #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .notify-btn {
@@ -142,6 +189,203 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+body.streak-modal-open {
+  overflow: hidden;
+}
+
+.streak-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 16, 22, 0.5);
+  backdrop-filter: blur(5px);
+}
+
+.streak-modal.hidden {
+  display: none;
+}
+
+.streak-panel {
+  position: relative;
+  width: min(520px, 100%);
+  border-radius: 22px;
+  border: 1px solid #d9e4dc;
+  background: #f8fbf8;
+  box-shadow: 0 18px 44px rgba(8, 19, 28, 0.18);
+  padding: 22px;
+  overflow: hidden;
+}
+
+.streak-panel::before {
+  content: '';
+  position: absolute;
+  inset: -20% auto auto -14%;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(63, 111, 87, 0.12), rgba(63, 111, 87, 0));
+}
+
+.streak-panel-head {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.streak-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.69rem;
+  font-weight: 700;
+  color: #3f6f57;
+}
+
+.streak-panel h3 {
+  font-size: clamp(24px, 2.4vw, 32px);
+  line-height: 1.08;
+  color: #183041;
+}
+
+.streak-message {
+  margin: 0;
+  color: #314c3f;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.streak-stats {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.streak-stat {
+  border-radius: 14px;
+  border: 1px solid #dbe6de;
+  background: #ffffff;
+  padding: 12px 14px;
+}
+
+.streak-stat-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #5a7463;
+}
+
+.streak-stat strong {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 1.15rem;
+  color: #183041;
+}
+
+.streak-calendar-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+  color: #6a7f75;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.streak-calendar-head span {
+  text-align: center;
+}
+
+.streak-calendar-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.streak-day {
+  min-height: 50px;
+  padding: 7px 8px 8px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e3ebe3;
+  display: grid;
+  gap: 4px;
+  align-content: space-between;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.streak-day.is-active {
+  background: #eef6f1;
+  border-color: #c8ddcf;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(63, 111, 87, 0.06);
+}
+
+.streak-day.is-today {
+  outline: 1px solid rgba(63, 111, 87, 0.18);
+  outline-offset: 0;
+}
+
+.streak-day-name {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.streak-day-number {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.streak-day.is-active .streak-day-name,
+.streak-day.is-active .streak-day-number {
+  color: #335545;
+  opacity: 1;
+}
+
+.streak-footnote {
+  position: relative;
+  margin: 14px 0 0;
+  color: #567065;
+  font-size: 0.84rem;
+}
+
+.streak-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(68, 94, 78, 0.1);
+  background: #ffffff;
+  color: #1f3140;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 12px rgba(14, 24, 18, 0.06);
+}
+
+.streak-close-btn:hover {
+  background: #fff;
 }
 
 /* Quick Access Menu */

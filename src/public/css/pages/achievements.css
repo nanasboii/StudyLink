@@ -94,6 +94,97 @@
   box-shadow: 0 8px 20px rgba(57, 92, 207, 0.18);
 }
 
+.achievement-card {
+  overflow: hidden;
+}
+
+.achievement-toggle {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.achievement-toggle:focus-visible {
+  outline: 3px solid rgba(57, 92, 207, 0.35);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.achievement-toggle--badge {
+  gap: 0.15rem;
+}
+
+.achievement-toggle--progress {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+}
+
+.achievement-toggle--progress .progress-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.achievement-toggle--progress .progress-bar {
+  flex: 0 0 160px;
+  margin-left: 0;
+}
+
+.achievement-toggle--progress .progress-text {
+  flex: 0 0 64px;
+  margin-left: 0;
+  text-align: right;
+}
+
+.achievement-toggle-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #56708a;
+}
+
+.badge.achievement-card.expanded,
+.progress-item.achievement-card.expanded {
+  border-color: #4d77e8;
+  box-shadow: 0 12px 28px rgba(57, 92, 207, 0.14);
+}
+
+.achievement-details {
+  border-top: 1px solid #dbe6f0;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 0.75rem 1rem 0.9rem;
+  text-align: left;
+}
+
+.achievement-detail-lead {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  color: #17344a;
+}
+
+.achievement-detail-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+  color: #40576a;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.achievement-detail-list strong {
+  color: #17344a;
+}
+
 .badge-icon {
   width: 64px;
   height: 64px;
@@ -127,10 +218,8 @@
 }
 
 .progress-item {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-  padding: 1rem;
+  display: block;
+  padding: 0.85rem 0.95rem;
   border: 1px solid #dce6ef;
   border-radius: 12px;
   background: #fff;
@@ -140,6 +229,36 @@
 .progress-item.earned {
   background: #f2f8ff;
   border-color: #6d8ae8;
+}
+
+.progress-item .achievement-toggle--progress {
+  width: 100%;
+}
+
+.progress-item .progress-info h4 {
+  margin-bottom: 0.25rem;
+}
+
+.progress-item .progress-info p {
+  margin: 0.15rem 0;
+}
+
+.progress-item .points-needed {
+  font-size: 0.9rem;
+}
+
+.progress-item .progress-bar {
+  height: 7px;
+}
+
+.progress-item .progress-text {
+  font-size: 0.82rem;
+}
+
+.progress-item .achievement-toggle-hint {
+  align-self: center;
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .progress-info {

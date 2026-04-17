@@ -251,8 +251,17 @@ function sanitizeUser(row) {
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
     totalPoints: Number(row.total_points || 0),
+    loginStreak: Number(row.login_streak || 0),
+    lastLoginAt: row.last_login_at,
     createdAt: row.created_at
   };
+}
+
+function formatLoginStreakMessage(streakCount) {
+  const safeCount = Math.max(1, Number(streakCount || 0));
+  return safeCount === 1
+    ? 'Your login streak starts today. Come back tomorrow to keep it growing.'
+    : `You are on a ${safeCount}-day login streak. Keep the momentum going.`;
 }
 
 async function createNotification(client, recipientId, message) {
@@ -509,6 +518,8 @@ async function initializeDatabase() {
         is_verified BOOLEAN NOT NULL DEFAULT FALSE,
         rating NUMERIC(4,2) NOT NULL DEFAULT 0,
         total_points INTEGER NOT NULL DEFAULT 0,
+        login_streak INTEGER NOT NULL DEFAULT 0,
+        last_login_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -523,6 +534,12 @@ async function initializeDatabase() {
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS login_streak INTEGER NOT NULL DEFAULT 0;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
@@ -672,10 +689,11 @@ async function initializeDatabase() {
     await client.query(
       `INSERT INTO achievements (code, name, description, points_required, icon_url)
        VALUES
-         ('POINTS_25', 'Helping Hand', 'Reached 25 points by supporting classmates.', 25, '/ui/assets/badges/helping-hand.svg'),
-         ('POINTS_50', 'Rising Contributor', 'Reached 50 points by helping peers.', 50, '/ui/assets/badges/rising-contributor.svg'),
-         ('POINTS_100', 'Campus Mentor', 'Reached 100 points through tutoring and sharing.', 100, '/ui/assets/badges/campus-mentor.svg'),
-         ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as a top supporter.', 250, '/ui/assets/badges/studylink-champion.svg')
+         ('POINTS_15', 'First Steps', 'Reached 15 points by getting active on StudyLink.', 15, '/ui/assets/badges/first-steps.svg'),
+         ('POINTS_50', 'Helping Hand', 'Reached 50 points by consistently helping classmates.', 50, '/ui/assets/badges/helping-hand.svg'),
+         ('POINTS_100', 'Campus Mentor', 'Reached 100 points through tutoring, reviews, and resource sharing.', 100, '/ui/assets/badges/campus-mentor.svg'),
+         ('POINTS_175', 'Community Builder', 'Reached 175 points by staying active across StudyLink.', 175, '/ui/assets/badges/community-builder.svg'),
+         ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as one of the most active members.', 250, '/ui/assets/badges/studylink-champion.svg')
        ON CONFLICT (code)
        DO UPDATE SET
          name = EXCLUDED.name,
@@ -822,43 +840,96 @@ app.post('/auth/register', authRateLimiter, async (req, res) => {
 
 app.post('/auth/login', authRateLimiter, async (req, res) => {
   const { email, password } = req.body;
+  let client;
 
   if (!email || !password) {
     return res.status(400).json({ message: 'email and password are required.' });
   }
 
   try {
-    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
       email.toLowerCase()
     ]);
 
     if (rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
     const user = rows[0];
     const valid = verifyPassword(password, user.password_hash);
     if (!valid) {
+      await client.query('ROLLBACK');
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
+
+    const now = new Date();
+    const previousLoginAt = user.last_login_at ? new Date(user.last_login_at) : null;
+    const previousLoginDate = previousLoginAt ? previousLoginAt.toDateString() : null;
+    const today = now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = yesterday.toDateString();
+    const previousStreak = Number(user.login_streak || 0);
+
+    let nextStreak = 1;
+    if (previousLoginDate === today) {
+      nextStreak = previousStreak || 1;
+    } else if (previousLoginDate === yesterdayDate) {
+      nextStreak = previousStreak + 1;
+    }
+
+    const shouldShowStreak = previousLoginDate !== today;
+
+    const { rows: updatedRows } = await client.query(
+      `UPDATE users
+       SET login_streak = $1,
+           last_login_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [nextStreak, now, user.id]
+    );
 
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
 
-    await pool.query(
+    await client.query(
       `INSERT INTO sessions (token, user_id, expires_at)
        VALUES ($1, $2, $3)`,
       [token, user.id, expiresAt]
     );
 
+    await client.query('COMMIT');
+
+    const updatedUser = updatedRows[0] || { ...user, login_streak: nextStreak, last_login_at: now };
+
     return res.json({
       message: 'Login successful.',
       token,
       expiresAt,
-      user: sanitizeUser(user)
+      loginStreak: {
+        count: nextStreak,
+        shouldShow: shouldShowStreak,
+        message: formatLoginStreakMessage(nextStreak)
+      },
+      user: sanitizeUser(updatedUser)
     });
   } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        // Ignore rollback failures and return the original error.
+      }
+    }
     return res.status(500).json({ message: error.message });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 });
 
