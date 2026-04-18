@@ -1,5 +1,6 @@
 import { api, debounce, getToken, requireSession, showToast } from '../api.js';
 import { mountNav } from '../nav.js';
+import { PAGES } from '../routes.js';
 
 requireSession();
 mountNav('resources');
@@ -21,15 +22,23 @@ const closeFilterModalBtn = document.getElementById('closeFilterModalBtn');
 const applyFilterBtn = document.getElementById('applyFilterBtn');
 const resetFilterBtn = document.getElementById('resetFilterBtn');
 const minRatingFilter = document.getElementById('minRatingFilter');
+const maxRatingFilter = document.getElementById('maxRatingFilter');
+const ratingRangeWrap = document.getElementById('ratingRangeWrap');
 const minRatingValue = document.getElementById('minRatingValue');
+const maxRatingValue = document.getElementById('maxRatingValue');
 const typeFilterChecks = Array.from(document.querySelectorAll('input[data-filter="type"]'));
 const sourceFilterChecks = Array.from(document.querySelectorAll('input[data-filter="source"]'));
 const typeChips = Array.from(document.querySelectorAll('#typeChips .chip'));
 const filterState = {
   resourceTypes: new Set(),
   sources: new Set(),
-  minRating: 0
+  minRating: 0,
+  maxRating: 5
 };
+
+function ratingKey(resourceId) {
+  return String(resourceId || '');
+}
 
 function showSkeletonList(container, count = 3) {
   container.innerHTML = '';
@@ -113,12 +122,12 @@ function renderStars(rating) {
   const hasHalfStar = value - fullStars >= 0.5;
   const stars = Array.from({ length: 5 }, (_, index) => {
     if (index < fullStars) {
-      return '★';
+      return '<span class="rating-star is-full">★</span>';
     }
     if (index === fullStars && hasHalfStar) {
-      return '⯨';
+      return '<span class="rating-star is-half">★</span>';
     }
-    return '☆';
+    return '<span class="rating-star is-empty">★</span>';
   }).join('');
 
   return `<span class="rating-stars" aria-hidden="true">${stars}</span><span class="sr-only">${ratingLabel(value)}</span>`;
@@ -134,6 +143,13 @@ function resourcePreviewLabel(resource) {
 
 function resourceCoverLabel(resource) {
   return (resource.resource_type || 'resource').toString().trim() || 'resource';
+}
+
+function openResourceDetails(resourceId) {
+  if (!resourceId) {
+    return;
+  }
+  window.location.href = `${PAGES.resourceDetail}?id=${encodeURIComponent(resourceId)}`;
 }
 
 function resourceTypeLabel(resource) {
@@ -190,14 +206,14 @@ function renderSuggestedCard(resource) {
   `;
 
   card.addEventListener('click', () => {
-    window.open(resource.file_url, '_blank', 'noopener,noreferrer');
+    openResourceDetails(resource.id);
   });
 
   return card;
 }
 
 async function submitResourceRating(resourceId, rating) {
-  resourceRatings.set(resourceId, rating);
+  resourceRatings.set(ratingKey(resourceId), rating);
   await api(`/resources/${resourceId}/reviews`, 'POST', {
     rating,
     comment: `Rated ${rating} star${rating === 1 ? '' : 's'}`
@@ -220,10 +236,11 @@ function updateStarState(container, selectedRating = 0, previewRating = 0) {
 
 function wireStarPreview(container, resourceId) {
   const buttons = Array.from(container.querySelectorAll('[data-rating]'));
-  const selectedRating = resourceRatings.get(resourceId) || 0;
+  const key = ratingKey(resourceId);
+  const selectedRating = resourceRatings.get(key) || 0;
   let previewRating = 0;
 
-  const syncState = () => updateStarState(container, resourceRatings.get(resourceId) || 0, previewRating);
+  const syncState = () => updateStarState(container, resourceRatings.get(key) || 0, previewRating);
 
   buttons.forEach((button) => {
     const rating = Number(button.dataset.rating);
@@ -239,7 +256,7 @@ function wireStarPreview(container, resourceId) {
       previewRating = rating;
       button.classList.add('is-just-selected');
       window.setTimeout(() => button.classList.remove('is-just-selected'), 180);
-      resourceRatings.set(resourceId, rating);
+      resourceRatings.set(key, rating);
       syncState();
       await submitResourceRating(resourceId, rating);
     });
@@ -303,7 +320,7 @@ function matchesPopupFilters(resource) {
     linkTypePass ||
     regularTypePass;
   const sourcePass = !filterState.sources.size || filterState.sources.has(source);
-  const ratingPass = rating >= filterState.minRating;
+  const ratingPass = rating >= filterState.minRating && rating <= filterState.maxRating;
 
   return typePass && sourcePass && ratingPass;
 }
@@ -324,6 +341,7 @@ function syncFilterStateFromInputs() {
     sourceFilterChecks.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value)
   );
   filterState.minRating = Number(minRatingFilter.value || 0);
+  filterState.maxRating = Number(maxRatingFilter.value || 5);
 }
 
 function resetPopupFilters() {
@@ -334,18 +352,58 @@ function resetPopupFilters() {
     checkbox.checked = false;
   });
   minRatingFilter.value = '0';
-  updateMinRatingUI();
+  maxRatingFilter.value = '5';
+  updateRatingRangeUI();
   syncFilterStateFromInputs();
 }
 
-function updateMinRatingUI() {
-  const value = Number(minRatingFilter.value || 0);
+function updateRatingRangeUI() {
+  const minValue = Number(minRatingFilter.value || 0);
+  const maxValue = Number(maxRatingFilter.value || 5);
   const min = Number(minRatingFilter.min || 0);
   const max = Number(minRatingFilter.max || 5);
   const range = max - min || 1;
-  const percentage = ((value - min) / range) * 100;
-  minRatingValue.textContent = value.toFixed(1);
-  minRatingFilter.style.setProperty('--slider-progress', `${percentage}%`);
+  const from = ((minValue - min) / range) * 100;
+  const to = ((maxValue - min) / range) * 100;
+  minRatingValue.textContent = sliderStarsLabel(minValue);
+  maxRatingValue.textContent = sliderStarsLabel(maxValue);
+  ratingRangeWrap.style.setProperty('--range-from', `${from}%`);
+  ratingRangeWrap.style.setProperty('--range-to', `${to}%`);
+}
+
+function sliderStarsLabel(value) {
+  const safeValue = Math.max(0, Math.min(5, Number(value || 0)));
+  const fullStars = Math.floor(safeValue);
+  const hasHalfStar = safeValue - fullStars >= 0.5;
+  const stars = Array.from({ length: 5 }, (_, index) => {
+    if (index < fullStars) {
+      return '★';
+    }
+    if (index === fullStars && hasHalfStar) {
+      return '⯨';
+    }
+    return '☆';
+  }).join('');
+
+  return stars;
+}
+
+function handleMinRatingInput() {
+  const minValue = Number(minRatingFilter.value || 0);
+  const maxValue = Number(maxRatingFilter.value || 5);
+  if (minValue > maxValue) {
+    minRatingFilter.value = String(maxValue);
+  }
+  updateRatingRangeUI();
+}
+
+function handleMaxRatingInput() {
+  const minValue = Number(minRatingFilter.value || 0);
+  const maxValue = Number(maxRatingFilter.value || 5);
+  if (maxValue < minValue) {
+    maxRatingFilter.value = String(minValue);
+  }
+  updateRatingRangeUI();
 }
 
 async function resolveResourceUrl(rawUrl) {
@@ -393,7 +451,16 @@ async function openDownload(resource) {
 
 function renderItem(resource) {
   const div = document.createElement('div');
-  div.className = 'item';
+  div.className = 'item resource-item-link';
+  div.tabIndex = 0;
+  div.setAttribute('role', 'button');
+  div.setAttribute('aria-label', `Open details for ${resource.title}`);
+  const selectedRating = resourceRatings.get(ratingKey(resource.id));
+  const hasSelectedRating = Number.isFinite(selectedRating) && selectedRating > 0;
+  const displayRating = hasSelectedRating ? selectedRating : Number(resource.avg_rating || 0);
+  const displayValueText = hasSelectedRating
+    ? `${displayRating.toFixed(1)} (You)`
+    : Number(resource.avg_rating || 0).toFixed(1);
   const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
   const sourceLabel = uploadKind === 'link' ? 'Link' : 'File';
   const fileLabel = resourcePreviewLabel(resource);
@@ -403,7 +470,7 @@ function renderItem(resource) {
       <div class="resource-cover-copy">Uploaded by ${resource.contributor_name}</div>
     </div>
     <strong>${resource.course_code || 'General'} - ${resource.title}</strong>
-    <div class="meta resource-rating">${renderStars(resource.avg_rating)} <span>${Number(resource.avg_rating || 0).toFixed(1)}</span></div>
+    <div class="meta resource-rating">${renderStars(displayRating)} <span>${displayValueText}</span></div>
     <div class="meta">${resourceTypeLabel(resource)}</div>
     <div class="meta">By ${resource.contributor_name}</div>
     <div class="meta">${sourceLabel}: ${fileLabel}</div>
@@ -420,20 +487,38 @@ function renderItem(resource) {
     </div>
   `;
 
-  div.querySelector('[data-action="open"]').addEventListener('click', async () => {
-    const fileUrl = await resolveResourceUrl(resource.file_url);
-    if (!fileUrl) {
-      window.alert('Unable to open this resource because no file URL is available.');
-      return;
-    }
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  div.querySelector('[data-action="open"]').addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openResourceDetails(resource.id);
   });
 
-  div.querySelector('[data-action="download"]').addEventListener('click', async () => {
+  div.querySelector('[data-action="download"]').addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     await openDownload(resource);
   });
 
-  wireStarPreview(div.querySelector('.star-rating'), resource.id);
+  div.addEventListener('click', () => {
+    openResourceDetails(resource.id);
+  });
+
+  div.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openResourceDetails(resource.id);
+    }
+  });
+
+  const starRatingEl = div.querySelector('.star-rating');
+  starRatingEl.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+  starRatingEl.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+  });
+
+  wireStarPreview(starRatingEl, resource.id);
 
   return div;
 }
@@ -562,10 +647,9 @@ resetFilterBtn.addEventListener('click', async () => {
   visibleResourceCount = RESOURCE_PAGE_SIZE;
   await loadResources();
 });
-minRatingFilter.addEventListener('input', () => {
-  updateMinRatingUI();
-});
-updateMinRatingUI();
+minRatingFilter.addEventListener('input', handleMinRatingInput);
+maxRatingFilter.addEventListener('input', handleMaxRatingInput);
+updateRatingRangeUI();
 resourceSearch.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();

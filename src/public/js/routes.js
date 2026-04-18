@@ -14,5 +14,7 @@
   adminErrors: '/ui/pages/admin-errors.html',
   notifications: '/ui/pages/notifications.html',
   achievements: '/ui/pages/achievements.html',
-  profile: '/ui/pages/profile.html'
+  profile: '/ui/pages/profile.html',
+  publicProfile: '/ui/pages/public-profile.html',
+  resourceDetail: '/ui/pages/resource-detail.html'
 };

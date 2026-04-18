@@ -23,7 +23,7 @@ form.addEventListener('submit', async (event) => {
     setSession(result.token, result.user);
     sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
 
-    if (result.loginStreak?.shouldShow) {
+    if (result.loginStreak) {
       sessionStorage.setItem(LOGIN_STREAK_STORAGE_KEY, JSON.stringify(result.loginStreak));
     }
 

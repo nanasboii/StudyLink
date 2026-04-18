@@ -1109,6 +1109,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT u.id,
+              u.student_id,
               u.full_name,
               u.role,
               u.total_points,
@@ -1144,6 +1145,66 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
        LIMIT 20`
     );
     return res.json({ leaderboard: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/users/:id/public', requireAuth, async (req, res) => {
+  const rawId = String(req.params.id || '').trim();
+  if (!rawId) {
+    return res.status(400).json({ message: 'User id is required.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.id,
+              u.student_id,
+              u.full_name,
+              u.role,
+              u.major,
+              u.year_of_study,
+              u.target_subjects,
+              u.expertise,
+              u.bio,
+              u.profile_picture_url,
+              u.is_verified,
+              u.total_points,
+              COALESCE(u.rating, 0) AS rating,
+              COALESCE(rc.reviews_received, 0) AS reviews_received,
+              COALESCE(ua.total_achievements, 0) AS total_achievements
+       FROM users u
+       LEFT JOIN (
+         SELECT reviewed_user_id, COUNT(*)::int AS reviews_received
+         FROM booking_reviews br
+         JOIN bookings b ON b.id = br.booking_id
+         JOIN users reviewer ON reviewer.id = br.reviewer_id
+         CROSS JOIN LATERAL (
+           SELECT CASE
+             WHEN reviewer.role = 'tutor' THEN b.tutee_id
+             WHEN reviewer.role = 'tutee' THEN b.tutor_id
+           END AS reviewed_user_id
+         ) reviewed
+         WHERE reviewer.role IN ('tutor', 'tutee')
+           AND reviewed.reviewed_user_id IS NOT NULL
+         GROUP BY reviewed.reviewed_user_id
+       ) rc ON rc.reviewed_user_id = u.id
+       LEFT JOIN (
+         SELECT user_id, COUNT(*)::int AS total_achievements
+         FROM user_achievements
+         GROUP BY user_id
+       ) ua ON ua.user_id = u.id
+       WHERE u.id::text = $1
+          OR u.student_id = $1
+       LIMIT 1`,
+      [rawId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.json({ user: rows[0] });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -1768,6 +1829,70 @@ app.get('/resources', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/resources/:id', requireAuth, async (req, res) => {
+  const resourceId = Number(req.params.id);
+  if (!resourceId) {
+    return res.status(400).json({ message: 'Invalid resource id.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.*, 
+              c.name AS course_name,
+              u.full_name AS contributor_name,
+              u.profile_picture_url AS contributor_profile_picture,
+              COALESCE(rc.review_count, 0) AS review_count
+       FROM resources r
+       LEFT JOIN courses c ON c.code = r.course_code
+       JOIN users u ON u.id = r.contributor_id
+       LEFT JOIN (
+         SELECT resource_id, COUNT(*)::int AS review_count
+         FROM resource_reviews
+         GROUP BY resource_id
+       ) rc ON rc.resource_id = r.id
+       WHERE r.id = $1
+       LIMIT 1`,
+      [resourceId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Resource not found.' });
+    }
+
+    return res.json({ resource: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.get('/resources/:id/reviews', requireAuth, async (req, res) => {
+  const resourceId = Number(req.params.id);
+  if (!resourceId) {
+    return res.status(400).json({ message: 'Invalid resource id.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT rr.id,
+              rr.rating,
+              rr.comment,
+              rr.created_at,
+              u.id AS reviewer_id,
+              u.full_name AS reviewer_name,
+              u.profile_picture_url AS reviewer_profile_picture
+       FROM resource_reviews rr
+       JOIN users u ON u.id = rr.reviewer_id
+       WHERE rr.resource_id = $1
+       ORDER BY rr.created_at DESC`,
+      [resourceId]
+    );
+
+    return res.json({ reviews: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.post('/resources/:id/download', requireAuth, async (req, res) => {
   const resourceId = Number(req.params.id);
 
@@ -2351,7 +2476,11 @@ app.get('/admin/resources', requireAuth, requireRole('admin'), async (req, res) 
               r.resource_type,
               r.created_at,
               r.file_url,
-              r.link_url,
+              CASE
+                WHEN COALESCE(r.metadata->>'uploadKind', '') = 'link' THEN r.file_url
+                WHEN r.file_url ~* '^https?://' THEN r.file_url
+                ELSE NULL
+              END AS link_url,
               u.id AS uploader_id,
               u.full_name AS uploader_name,
               u.email AS uploader_email
@@ -2394,7 +2523,7 @@ app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) 
 
     // Get total badges unlocked
     const { rows: totalBadgesResult } = await pool.query(
-      `SELECT COUNT(DISTINCT user_id) as count FROM user_achievements WHERE unlocked_at IS NOT NULL`
+      `SELECT COUNT(*)::int as count FROM user_achievements`
     );
     const totalBadges = totalBadgesResult[0]?.count || 0;
 

@@ -229,6 +229,7 @@ body.streak-modal-open {
   height: 140px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(63, 111, 87, 0.12), rgba(63, 111, 87, 0));
+  pointer-events: none;
 }
 
 .streak-panel-head {
@@ -371,6 +372,7 @@ body.streak-modal-open {
   position: absolute;
   top: 14px;
   right: 14px;
+  z-index: 3;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -601,6 +603,7 @@ button.primary:active {
 
 .page.active {
   display: grid;
+  align-content: start;
 }
 
 .search-row {

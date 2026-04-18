@@ -9,12 +9,19 @@ const bookingForm = document.getElementById('bookingForm');
 const bookingList = document.getElementById('bookingList');
 const recentTutorsCard = document.getElementById('recentTutorsCard');
 const recentTutorsList = document.getElementById('recentTutorsList');
+const sessionPageTitle = document.getElementById('sessionPageTitle');
 let bookingsState = [];
 let bookingSubmitInFlight = false;
 
 if (user.role === 'tutor') {
+  if (sessionPageTitle) {
+    sessionPageTitle.textContent = 'Manage Session';
+  }
   availabilityForm.classList.remove('hidden');
 } else {
+  if (sessionPageTitle) {
+    sessionPageTitle.textContent = 'Book a Session';
+  }
   bookingForm.classList.remove('hidden');
   recentTutorsCard.classList.remove('hidden');
 }

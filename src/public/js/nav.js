@@ -166,9 +166,12 @@ function buildQuickAccessItems(user) {
     return '';
   }
 
+  const settingsHref = `${PAGES.profile}?tab=settings`;
+
   if (user.role === 'admin') {
     return `
       <a href="${PAGES.profile}" class="quick-access-item">Profile</a>
+      <a href="${settingsHref}" class="quick-access-item">Settings</a>
       <hr class="quick-access-divider" />
       <a href="${PAGES.achievements}" class="quick-access-item">Achievements</a>
       <a href="${PAGES.adminVerifications}" class="quick-access-item">Verifications</a>
@@ -183,6 +186,7 @@ function buildQuickAccessItems(user) {
   if (user.role === 'tutor') {
     return `
       <a href="${PAGES.profile}" class="quick-access-item">Profile</a>
+      <a href="${settingsHref}" class="quick-access-item">Settings</a>
       <hr class="quick-access-divider" />
       <a href="${PAGES.review}" class="quick-access-item">Reviews</a>
       <a href="${PAGES.achievements}" class="quick-access-item">Achievements</a>
@@ -194,6 +198,7 @@ function buildQuickAccessItems(user) {
 
   return `
     <a href="${PAGES.profile}" class="quick-access-item">Profile</a>
+    <a href="${settingsHref}" class="quick-access-item">Settings</a>
     <hr class="quick-access-divider" />
     <a href="${PAGES.review}" class="quick-access-item">Reviews</a>
     <a href="${PAGES.achievements}" class="quick-access-item">Achievements</a>
@@ -273,7 +278,7 @@ export function mountNav(activePage) {
   const streakCalendarGrid = document.getElementById('streakCalendarGrid');
 
   const syncStreakModal = (streakData = {}) => {
-    const data = pendingLoginStreak && pendingLoginStreak.shouldShow ? pendingLoginStreak : streakData;
+    const data = pendingLoginStreak || streakData;
     const count = renderStreakModal(streakModal, user, data);
     if (streakBtn) {
       streakBtn.setAttribute('aria-label', `Open activity calendar (${count} day${count === 1 ? '' : 's'})`);
@@ -406,7 +411,9 @@ export function mountNav(activePage) {
     openStreakModal(streakModal);
   });
 
-  streakModalCloseBtn.addEventListener('click', closeStreak);
+  if (streakModalCloseBtn) {
+    streakModalCloseBtn.addEventListener('click', closeStreak);
+  }
   streakModal.addEventListener('click', (event) => {
     if (event.target === streakModal) {
       closeStreak();
@@ -419,7 +426,7 @@ export function mountNav(activePage) {
     }
   });
 
-  if (pendingLoginStreak?.shouldShow) {
+  if (pendingLoginStreak) {
     openStreakModal(streakModal);
   }
 

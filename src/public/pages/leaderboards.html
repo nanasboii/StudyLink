@@ -15,10 +15,19 @@
       <section class="phone-shell">
         <header id="topbar" class="topbar"></header>
         <div class="view page active">
-          <div class="search-row">
-            <h2>Total Achievement Leaderboard</h2>
+          <div class="leaderboard-header">
+            <div>
+              <p class="leaderboard-kicker">Community standings</p>
+              <h2>Total Achievement Leaderboard</h2>
+            </div>
             <button id="refreshBtn" class="chip" type="button">Refresh</button>
           </div>
+          <div class="leaderboard-tabs" id="leaderboardTabs" role="tablist" aria-label="Leaderboard type">
+            <button class="chip tab-btn is-active" type="button" role="tab" aria-selected="true" data-board="overall">Overall</button>
+            <button class="chip tab-btn" type="button" role="tab" aria-selected="false" data-board="tutor">Top Tutors</button>
+            <button class="chip tab-btn" type="button" role="tab" aria-selected="false" data-board="tutee">Top Tutees</button>
+          </div>
+          <p id="leaderboardSummary" class="leaderboard-summary">Loading current standings...</p>
           <div id="leaderboardList" class="list"></div>
         </div>
         <nav id="bottomNav" class="bottom-nav"></nav>

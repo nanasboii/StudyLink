@@ -15,106 +15,129 @@
       <section class="phone-shell">
         <header id="topbar" class="topbar"></header>
         <div class="view page active">
-          <div class="profile-header">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <h2>My Profile</h2>
+          <section class="card profile-hero" id="profilePictureCard">
+            <div class="profile-hero-top">
+              <div class="profile-pic-container">
+                <img id="profilePicture" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" alt="Profile Picture" class="profile-pic" />
+                <label class="pic-upload-label hidden" id="picUploadLabel">
+                  <input type="file" id="profilePictureInput" accept="image/*" style="display: none;" />
+                  <span>Change</span>
+                </label>
+                <button id="removePictureBtn" class="pic-remove-btn hidden" type="button">Remove</button>
+              </div>
+
+              <div class="profile-hero-meta">
+                <div>
+                  <h2 id="profileDisplayName">My Profile</h2>
+                  <p class="profile-sub" id="studentIdPreview">Student ID: -</p>
+                </div>
+                <span class="role-badge" id="role">-</span>
+              </div>
+            </div>
+
+            <div class="profile-stats-strip">
+              <div class="mini-stat-item">
+                <span class="mini-stat-label">Learning Points</span>
+                <span id="totalPoints" class="mini-stat-value">0</span>
+              </div>
+              <div class="mini-stat-item">
+                <span class="mini-stat-label">Rating</span>
+                <span id="rating" class="mini-stat-value">0.00</span>
+              </div>
+              <div class="mini-stat-item">
+                <span class="mini-stat-label">Verified</span>
+                <span id="isVerified" class="mini-stat-value">No</span>
+              </div>
+              <div class="mini-stat-item">
+                <span class="mini-stat-label">Member Since</span>
+                <span id="createdAt" class="mini-stat-value">-</span>
+              </div>
+            </div>
+
+          </section>
+
+          <section id="profilePanel" class="card profile-panel">
+            <div class="profile-header">
+              <h3>Profile Information</h3>
               <button id="editProfileBtn" class="chip" type="button">Edit Profile</button>
             </div>
-          </div>
 
-          <div class="card profile-picture-card" id="profilePictureCard">
-            <div class="profile-pic-container">
-              <img id="profilePicture" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" alt="Profile Picture" class="profile-pic" />
-              <label class="pic-upload-label hidden" id="picUploadLabel">
-                <input type="file" id="profilePictureInput" accept="image/*" style="display: none;" />
-                <span>Upload Photo</span>
+            <form id="profileForm" class="profile-form">
+              <div class="profile-field readonly-group">
+                <label class="field-label readonly-label">Student ID <span class="field-hint">(read-only)</span></label>
+                <input type="text" id="studentId" readonly class="readonly-field" />
+              </div>
+
+              <div class="profile-field">
+                <label class="field-label editable-label" id="fullNameLabel">Full Name <span class="field-hint">(editable)</span></label>
+                <input type="text" id="fullName" required disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field readonly-group">
+                <label class="field-label readonly-label">Email <span class="field-hint">(read-only)</span></label>
+                <input type="email" id="email" readonly class="readonly-field" />
+              </div>
+
+              <div class="profile-field">
+                <label class="field-label editable-label">Phone Number <span class="field-hint">(editable)</span></label>
+                <input type="tel" id="phoneNumber" disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field">
+                <label class="field-label editable-label">Major <span class="field-hint">(editable)</span></label>
+                <input type="text" id="major" disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field">
+                <label class="field-label editable-label">Year of Study <span class="field-hint">(editable)</span></label>
+                <input type="number" id="yearOfStudy" min="1" max="8" disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field" id="targetSubjectsRow">
+                <label class="field-label editable-label">Target Subjects (for tutee) <span class="field-hint">(editable)</span></label>
+                <input type="text" id="targetSubjects" placeholder="e.g. Database, Statistics" disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field" id="expertiseRow">
+                <label class="field-label editable-label">Expertise (for tutor) <span class="field-hint">(editable)</span></label>
+                <input type="text" id="expertise" placeholder="Comma separated skills" disabled class="editable-field" />
+              </div>
+
+              <div class="profile-field">
+                <label class="field-label editable-label">Bio <span class="field-hint">(editable)</span></label>
+                <textarea id="bio" rows="4" disabled class="editable-field"></textarea>
+              </div>
+
+              <div id="editActions" class="edit-actions hidden">
+                <button class="primary" type="submit">Save Changes</button>
+                <button id="cancelEditBtn" class="chip" type="button">Cancel</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="settingsPanel" class="card settings-panel hidden">
+            <h3>Settings</h3>
+
+            <form id="passwordForm" class="password-form stack">
+              <h4>Change Password</h4>
+              <label>Current Password
+                <input type="password" id="currentPassword" required />
               </label>
-              <button id="removePictureBtn" class="pic-remove-btn hidden" type="button">Remove</button>
-            </div>
-            <div>
-              <p class="stat-label" style="margin: 0;">Role</p>
-              <p class="stat-value" id="role" style="margin: 0; font-size: 18px;">-</p>
-            </div>
-          </div>
+              <label>New Password
+                <input type="password" id="newPassword" required />
+              </label>
+              <label>Confirm New Password
+                <input type="password" id="confirmPassword" required />
+              </label>
+              <button class="chip" type="submit">Update Password</button>
+            </form>
 
-          <form id="profileForm" class="card profile-form">
-            <div class="profile-field readonly-group">
-              <label class="field-label readonly-label">Student ID <span class="field-hint">(read-only)</span></label>
-              <input type="text" id="studentId" readonly class="readonly-field" />
+            <div class="danger-zone">
+              <h4>Delete Account</h4>
+              <p>This permanently removes your account and data.</p>
+              <button id="deleteAccountBtn" class="chip" type="button">Delete Account</button>
             </div>
-
-            <div class="profile-field">
-              <label class="field-label editable-label" id="fullNameLabel">Full Name <span class="field-hint">(editable)</span></label>
-              <input type="text" id="fullName" required disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field readonly-group">
-              <label class="field-label readonly-label">Email <span class="field-hint">(read-only)</span></label>
-              <input type="email" id="email" readonly class="readonly-field" />
-            </div>
-
-            <div class="profile-field">
-              <label class="field-label editable-label">Phone Number <span class="field-hint">(editable)</span></label>
-              <input type="tel" id="phoneNumber" disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field">
-              <label class="field-label editable-label">Major <span class="field-hint">(editable)</span></label>
-              <input type="text" id="major" disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field">
-              <label class="field-label editable-label">Year of Study <span class="field-hint">(editable)</span></label>
-              <input type="number" id="yearOfStudy" min="1" max="8" disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field" id="targetSubjectsRow">
-              <label class="field-label editable-label">Target Subjects (for tutee) <span class="field-hint">(editable)</span></label>
-              <input type="text" id="targetSubjects" placeholder="e.g. Database, Statistics" disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field" id="expertiseRow">
-              <label class="field-label editable-label">Expertise (for tutor) <span class="field-hint">(editable)</span></label>
-              <input type="text" id="expertise" placeholder="Comma separated skills" disabled class="editable-field" />
-            </div>
-
-            <div class="profile-field">
-              <label class="field-label editable-label">Bio <span class="field-hint">(editable)</span></label>
-              <textarea id="bio" rows="4" disabled class="editable-field"></textarea>
-            </div>
-
-            <div class="stats-container">
-              <div class="stat-item"><span class="stat-label">Points</span><span id="totalPoints" class="stat-value">0</span></div>
-              <div class="stat-item"><span class="stat-label">Rating</span><span id="rating" class="stat-value">0.00</span></div>
-              <div class="stat-item"><span class="stat-label">Verified</span><span id="isVerified" class="stat-value">No</span></div>
-              <div class="stat-item"><span class="stat-label">Member Since</span><span id="createdAt" class="stat-value">-</span></div>
-            </div>
-
-            <div id="editActions" class="edit-actions hidden">
-              <button class="primary" type="submit">Save Changes</button>
-              <button id="cancelEditBtn" class="chip" type="button">Cancel</button>
-            </div>
-          </form>
-
-          <form id="passwordForm" class="card password-form">
-            <h3>Change Password</h3>
-            <label>Current Password
-              <input type="password" id="currentPassword" required />
-            </label>
-            <label>New Password
-              <input type="password" id="newPassword" required />
-            </label>
-            <label>Confirm New Password
-              <input type="password" id="confirmPassword" required />
-            </label>
-            <button class="chip" type="submit">Update Password</button>
-          </form>
-
-          <div class="card danger-zone">
-            <h3>Danger Zone</h3>
-            <p>Deleting your account is permanent.</p>
-            <button id="deleteAccountBtn" class="chip" type="button">Delete Account</button>
-          </div>
+          </section>
 
           <p id="profileMessage" class="message"></p>
         </div>

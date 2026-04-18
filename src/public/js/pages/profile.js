@@ -13,6 +13,10 @@ const expertiseRow = document.getElementById('expertiseRow');
 const editProfileBtn = document.getElementById('editProfileBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const editActions = document.getElementById('editActions');
+const profilePanel = document.getElementById('profilePanel');
+const settingsPanel = document.getElementById('settingsPanel');
+const profileDisplayName = document.getElementById('profileDisplayName');
+const studentIdPreview = document.getElementById('studentIdPreview');
 const profilePictureInput = document.getElementById('profilePictureInput');
 const picUploadLabel = document.getElementById('picUploadLabel');
 const profilePicture = document.getElementById('profilePicture');
@@ -24,6 +28,22 @@ let isEditMode = false;
 let currentProfilePictureUrl = '';
 let removePictureRequested = false;
 const editableFields = ['fullName', 'phoneNumber', 'major', 'yearOfStudy', 'targetSubjects', 'expertise', 'bio'];
+
+function initialViewFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = String(params.get('tab') || '').toLowerCase();
+  return tab === 'settings' ? 'settings' : 'profile';
+}
+
+function setView(view) {
+  const isProfile = view === 'profile';
+  profilePanel.classList.toggle('hidden', !isProfile);
+  settingsPanel.classList.toggle('hidden', isProfile);
+
+  if (!isProfile && isEditMode) {
+    setEditMode(false);
+  }
+}
 
 function updatePictureControls() {
   if (!isEditMode) {
@@ -86,6 +106,8 @@ function setEditMode(enabled) {
 
 function populateUser(user) {
   document.getElementById('studentId').value = user.studentId || '';
+  profileDisplayName.textContent = user.fullName || 'My Profile';
+  studentIdPreview.textContent = `Student ID: ${user.studentId || '-'}`;
   document.getElementById('fullName').value = user.fullName || '';
   document.getElementById('email').value = user.email || '';
   document.getElementById('phoneNumber').value = user.phoneNumber || '';
@@ -182,6 +204,11 @@ profilePictureInput.addEventListener('change', async (event) => {
     updatePictureControls();
   };
   reader.readAsDataURL(file);
+});
+
+document.getElementById('fullName').addEventListener('input', (event) => {
+  const value = String(event.target.value || '').trim();
+  profileDisplayName.textContent = value || 'My Profile';
 });
 
 removePictureBtn.addEventListener('click', () => {
@@ -287,3 +314,4 @@ deleteAccountBtn.addEventListener('click', async () => {
 });
 
 loadProfile();
+setView(initialViewFromQuery());

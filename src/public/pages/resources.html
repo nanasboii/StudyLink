@@ -48,11 +48,14 @@
               </details>
 
               <details class="filter-section" open>
-                <summary>Minimum Rating</summary>
+                <summary>Rating Range</summary>
                 <div class="rating-filter-row">
-                  <span>0.0</span>
-                  <input id="minRatingFilter" type="range" min="0" max="5" step="0.5" value="0" />
-                  <span id="minRatingValue">0.0</span>
+                  <span id="minRatingValue" class="rating-filter-value">☆☆☆☆☆</span>
+                  <div id="ratingRangeWrap" class="rating-range-wrap" role="group" aria-label="Rating range">
+                    <input id="minRatingFilter" type="range" min="0" max="5" step="0.5" value="0" aria-label="Minimum rating" />
+                    <input id="maxRatingFilter" type="range" min="0" max="5" step="0.5" value="5" aria-label="Maximum rating" />
+                  </div>
+                  <span id="maxRatingValue" class="rating-filter-value">★★★★★</span>
                 </div>
               </details>
 
