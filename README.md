@@ -1,139 +1,249 @@
-# StudyLink App Backend
+# StudyLink
 
-Backend implementation of the StudyLink use cases from your UML/activity/sequence diagrams, including:
-
-- authentication and session management
-- profile management
-- tutor availability and booking
-- resource upload, browsing, download handoff, and rating
-- gamification (learning points + badges)
-- notifications
-- tutor verification workflow for admin
-- PostgreSQL + pgAdmin with Docker Compose
+StudyLink is a Node.js + Express + PostgreSQL tutoring platform with a multi-page frontend. It includes authentication, profiles, resources, booking/sessions, reviews, achievements, notifications, tutor verification, and admin monitoring tools.
 
 ## Services
 
-- App: http://localhost:6767
+- App/API: http://localhost:6767
 - UI: http://localhost:6767/ui/
 - pgAdmin: http://localhost:5050
 - PostgreSQL: localhost:5432
 
-## UI File Structure (Editable Per Page)
-
-Each page is now in its own file, with its own function file:
-
-- Login page: `src/public/pages/login.html` + `src/public/js/pages/login.js`
-- Register page: `src/public/pages/register.html` + `src/public/js/pages/register.js`
-- Resources page: `src/public/pages/resources.html` + `src/public/js/pages/resources.js`
-- Tutor page: `src/public/pages/tutors.html` + `src/public/js/pages/tutors.js`
-- Review page: `src/public/pages/review.html` + `src/public/js/pages/review.js`
-- Leaderboards page: `src/public/pages/leaderboards.html` + `src/public/js/pages/leaderboards.js`
-- Session page: `src/public/pages/session.html` + `src/public/js/pages/session.js`
-- Verification page: `src/public/pages/verification.html` + `src/public/js/pages/verification.js`
-
-Shared logic:
-
-- API/session helpers: `src/public/js/api.js`
-- Top/bottom navigation: `src/public/js/nav.js`
-- Central page routes: `src/public/js/routes.js`
-
-Styling structure:
-
-- Shared base styles: `src/public/css/base.css`
-- Page-level styles: `src/public/css/pages/*.css`
-- Compatibility stylesheet alias: `src/public/styles.css`
-
-## Default Credentials
-
-### Database
-- User: `studylink`
-- Password: `studylink`
-- Database: `studylink`
-
-### App Admin Seed
-- Email: `admin@studylink.local`
-- Password: `admin123`
-
-### pgAdmin
-- Email: `admin@studylink.com`
-- Password: `admin123`
-
-## Start
+## Quick Start
 
 1. Install Docker Desktop.
-2. From this folder, run:
+2. From the project root, run:
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
-3. Open `http://localhost:6767/health` to verify the app can reach PostgreSQL.
-4. Open `http://localhost:5050` for pgAdmin.
+3. Verify health:
 
-## Implemented Feature Areas
+```bash
+http://localhost:6767/health
+```
+
+## Current UI Pages
+
+- `src/public/pages/login.html`
+- `src/public/pages/register.html`
+- `src/public/pages/resources.html`
+- `src/public/pages/resource-detail.html`
+- `src/public/pages/tutors.html`
+- `src/public/pages/session.html`
+- `src/public/pages/review.html`
+- `src/public/pages/leaderboards.html`
+- `src/public/pages/achievements.html`
+- `src/public/pages/notifications.html`
+- `src/public/pages/profile.html`
+- `src/public/pages/public-profile.html`
+- `src/public/pages/verification.html`
+- `src/public/pages/admin-verifications.html`
+- `src/public/pages/admin-resources.html`
+- `src/public/pages/admin-analytics.html`
+- `src/public/pages/admin-activity.html`
+- `src/public/pages/admin-errors.html`
+
+Shared frontend modules:
+
+- `src/public/js/api.js`
+- `src/public/js/nav.js`
+- `src/public/js/routes.js`
+- `src/public/css/base.css`
+- `src/public/css/pages/*.css`
+
+## Key Features
+
+- Role-based UX for `tutee`, `tutor`, and `admin`
+- Resource upload (file/link), browse, detail view, download tracking, and reviews
+- Tutor discovery and booking lifecycle (request, decision, complete, cancel)
+- Booking reviews and public profile reviews
+- Leaderboards and achievements
+- Notifications with unread indicators
+- Tutor verification workflow and admin decision/reupload request
+- Admin analytics, admin activity logs, server error logs, and resource moderation views
+- Daily login streak + monthly activity calendar modal
+
+### Login Streak and Activity Calendar
+
+- Streak data is stored on `users.login_streak` and `users.last_login_at`
+- Per-day login history is stored in `user_login_history`
+- Calendar highlights real login dates, supports full-month view, and lets users navigate past months
+- Day boundary logic is timezone-aware via `STREAK_TIMEZONE`
+- If a user has streak data but no history rows yet, history is backfilled
+
+## API Endpoints
+
+### Public and System
+- `GET /`
+- `GET /health`
+- `GET /ui/*`
 
 ### Auth
 - `POST /auth/register`
 - `POST /auth/login`
 - `POST /auth/logout`
 
-### User Profile
+### User and Profile
 - `GET /me`
+- `GET /me/login-history`
 - `PUT /me/profile`
 - `PUT /me/password`
 - `DELETE /me`
+- `POST /uploads/profile-picture`
 
-### Courses and Leaderboard
+### Courses and Discovery
 - `GET /courses`
-- `GET /leaderboard`
+- `GET /tutors`
 
-### Tutor Discovery and Session Booking
-- `POST /availability` (tutor)
-- `GET /availability/me` (tutor)
-- `GET /tutors?courseCode=...`
-- `POST /bookings` (tutee)
+### Availability and Booking
+- `POST /availability`
+- `GET /availability/me`
+- `POST /bookings`
 - `GET /bookings/inbox`
-- `POST /bookings/:id/decision` (tutor accepts/rejects)
-- `POST /bookings/:id/complete` (tutor)
-- `POST /bookings/:id/review` (booking review)
+- `POST /bookings/:id/decision`
+- `POST /bookings/:id/complete`
+- `POST /bookings/:id/cancel`
+- `POST /bookings/:id/review`
+- `GET /bookings/:id/reviews`
 
-### Resource Sharing
+### Resources
 - `POST /resources`
-- `GET /resources?courseCode=...&resourceType=...`
+- `GET /resources`
+- `GET /resources/:id`
+- `PUT /resources/:id`
+- `DELETE /resources/:id`
+- `POST /resources/upload`
 - `POST /resources/:id/download`
+- `GET /resources/:id/reviews`
 - `POST /resources/:id/reviews`
 
-### Verification and Administration
-- `POST /tutor-verifications` (tutor applies)
-- `GET /admin/tutor-verifications` (admin)
-- `POST /admin/tutor-verifications/:id/decision` (admin)
+### Public Profiles and Leaderboard
+- `GET /leaderboard`
+- `GET /users/:id/public`
+- `GET /users/:id/public/reviews`
 
-### Gamification and Notifications
-- `GET /achievements/me`
+### Notifications and Achievements
 - `GET /notifications`
 - `POST /notifications/:id/read`
+- `GET /achievements/me`
 
-## Auth Usage
+### Tutor Verification
+- `POST /tutor-verifications`
+- `GET /tutor-verifications/me`
+- `POST /uploads/verification`
 
-Use bearer token from login response:
+### Admin
+- `GET /admin/users`
+- `PATCH /admin/users/:id`
+- `GET /admin/tutor-verifications`
+- `POST /admin/tutor-verifications/:id/decision`
+- `POST /admin/tutor-verifications/:id/request-reupload`
+- `GET /admin/resources`
+- `GET /admin/analytics`
+- `GET /admin/activity-logs`
+- `GET /admin/error-logs`
+
+## API Appendix (Method, Path, Auth)
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/` | Public | API status summary |
+| GET | `/health` | Public | DB connectivity check |
+| GET | `/ui/*` | Public | Serves frontend shell |
+| POST | `/auth/register` | Public | Create new account |
+| POST | `/auth/login` | Public | Issues token + streak payload |
+| POST | `/auth/logout` | Authenticated (`tutee`/`tutor`/`admin`) | Invalidates session token |
+| GET | `/me` | Authenticated (`tutee`/`tutor`/`admin`) | Current user profile |
+| GET | `/me/login-history` | Authenticated (`tutee`/`tutor`/`admin`) | Daily login dates for calendar |
+| PUT | `/me/profile` | Authenticated (`tutee`/`tutor`/`admin`) | Update own profile |
+| PUT | `/me/password` | Authenticated (`tutee`/`tutor`/`admin`) | Change own password |
+| DELETE | `/me` | Authenticated (`tutee`/`tutor`/`admin`) | Delete own account |
+| POST | `/uploads/profile-picture` | Authenticated (`tutee`/`tutor`/`admin`) | Upload avatar image |
+| GET | `/courses` | Authenticated (`tutee`/`tutor`/`admin`) | List courses |
+| GET | `/tutors` | Authenticated (`tutee`/`tutor`/`admin`) | Tutor discovery/filtering |
+| POST | `/availability` | Authenticated (`tutor`) | Set tutor schedule slots |
+| GET | `/availability/me` | Authenticated (`tutor`) | Get tutor's own availability |
+| POST | `/bookings` | Authenticated (`tutee`) | Create booking request |
+| GET | `/bookings/inbox` | Authenticated (`tutee`/`tutor`) | Booking list/inbox |
+| POST | `/bookings/:id/decision` | Authenticated (`tutor`) | Accept or reject booking |
+| POST | `/bookings/:id/complete` | Authenticated (`tutor`) | Mark session completed |
+| POST | `/bookings/:id/cancel` | Authenticated (`tutee`/`tutor`) | Cancel booking |
+| POST | `/bookings/:id/review` | Authenticated (`tutee`/`tutor`) | Submit booking review |
+| GET | `/bookings/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | View booking reviews |
+| POST | `/resources` | Authenticated (`tutee`/`tutor`/`admin`) | Create resource entry |
+| GET | `/resources` | Authenticated (`tutee`/`tutor`/`admin`) | Browse/search resources |
+| GET | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Resource detail |
+| PUT | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Update resource (owner/admin flow) |
+| DELETE | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Delete resource (owner/admin flow) |
+| POST | `/resources/upload` | Authenticated (`tutee`/`tutor`/`admin`) | Upload resource file |
+| POST | `/resources/:id/download` | Authenticated (`tutee`/`tutor`/`admin`) | Track download action |
+| GET | `/resources/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | List resource ratings/comments |
+| POST | `/resources/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | Add resource rating/comment |
+| GET | `/leaderboard` | Authenticated (`tutee`/`tutor`/`admin`) | Points/ranking data |
+| GET | `/users/:id/public` | Authenticated (`tutee`/`tutor`/`admin`) | Public profile summary |
+| GET | `/users/:id/public/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | Public-facing review list |
+| GET | `/notifications` | Authenticated (`tutee`/`tutor`/`admin`) | User notifications |
+| POST | `/notifications/:id/read` | Authenticated (`tutee`/`tutor`/`admin`) | Mark notification read |
+| GET | `/achievements/me` | Authenticated (`tutee`/`tutor`/`admin`) | User badges/achievements |
+| POST | `/tutor-verifications` | Authenticated (`tutor`) | Submit verification request |
+| GET | `/tutor-verifications/me` | Authenticated (`tutor`) | Own verification status/history |
+| POST | `/uploads/verification` | Authenticated (`tutor`) | Upload verification document |
+| GET | `/admin/users` | Authenticated (`admin`) | User management list |
+| PATCH | `/admin/users/:id` | Authenticated (`admin`) | Update user role/verification |
+| GET | `/admin/tutor-verifications` | Authenticated (`admin`) | Review verification queue |
+| POST | `/admin/tutor-verifications/:id/decision` | Authenticated (`admin`) | Approve/reject verification |
+| POST | `/admin/tutor-verifications/:id/request-reupload` | Authenticated (`admin`) | Request new proof upload |
+| GET | `/admin/resources` | Authenticated (`admin`) | Admin resource moderation list |
+| GET | `/admin/analytics` | Authenticated (`admin`) | KPI/trend dashboard data |
+| GET | `/admin/activity-logs` | Authenticated (`admin`) | Admin action audit trail |
+| GET | `/admin/error-logs` | Authenticated (`admin`) | Server error monitoring feed |
+
+## Environment Variables
+
+Application:
+
+- `PORT` (default: `6767`)
+- `SESSION_DURATION_HOURS` (default: `24`)
+- `STREAK_TIMEZONE` (default: `Asia/Kuala_Lumpur`)
+- `ADMIN_EMAIL` (default: `admin@studylink.local`)
+- `ADMIN_PASSWORD` (default: `admin123`)
+
+Database:
+
+- `DB_HOST` (default: `localhost`)
+- `DB_PORT` (default: `5432`)
+- `DB_USER` (default: `studylink`)
+- `DB_PASSWORD` (default: `studylink`)
+- `DB_NAME` (default: `studylink`)
+
+## Default Credentials
+
+Database:
+
+- User: `studylink`
+- Password: `studylink`
+- Database: `studylink`
+
+Seed admin account:
+
+- Email: `admin@studylink.local`
+- Password: `admin123`
+
+pgAdmin:
+
+- Email: `admin@studylink.com`
+- Password: `admin123`
+
+## Auth Header
+
+Use bearer token for protected routes:
 
 `Authorization: Bearer <token>`
 
 ## Notes
 
-- This is an API-first implementation. You can connect React, Vue, or mobile clients to these endpoints.
-- File upload is represented by `fileUrl` + metadata for now, so you can later plug in local/object storage.
-- On first startup, the server auto-creates tables and seeds default courses, achievements, and an admin account.
-
-## pgAdmin Connection
-
-Create a new server in pgAdmin with:
-
-- Name: `StudyLink PostgreSQL`
-- Host name/address: `postgres`
-- Port: `5432`
-- Maintenance database: `studylink`
-- Username: `studylink`
-- Password: `studylink`
-
-If you run pgAdmin outside Docker, use `localhost` instead of `postgres`.
+- Tables and seed data are auto-created on first startup.
+- Uploaded files are served from `/uploads`.
+- Integration flow tests are available at `tests/critical-flows.integration.test.mjs`.
