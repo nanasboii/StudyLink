@@ -9,6 +9,7 @@ require('dotenv').config();
 const app = express();
 const defaultPort = Number(process.env.PORT || 6767);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
+const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const uploadBaseDir = path.join(__dirname, 'uploads');
 const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
@@ -262,6 +263,22 @@ function formatLoginStreakMessage(streakCount) {
   return safeCount === 1
     ? 'Your login streak starts today. Come back tomorrow to keep it growing.'
     : `You are on a ${safeCount}-day login streak. Keep the momentum going.`;
+}
+
+function dateKeyInTimeZone(dateValue, timeZone = streakTimeZone) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return formatter.format(date);
 }
 
 async function createNotification(client, recipientId, message) {
@@ -540,6 +557,15 @@ async function initializeDatabase() {
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+
+      CREATE TABLE IF NOT EXISTS user_login_history (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        login_date DATE NOT NULL,
+        login_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (user_id, login_date)
+      );
 
       CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
@@ -868,11 +894,11 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
 
     const now = new Date();
     const previousLoginAt = user.last_login_at ? new Date(user.last_login_at) : null;
-    const previousLoginDate = previousLoginAt ? previousLoginAt.toDateString() : null;
-    const today = now.toDateString();
+    const previousLoginDate = previousLoginAt ? dateKeyInTimeZone(previousLoginAt) : '';
+    const today = dateKeyInTimeZone(now);
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayDate = yesterday.toDateString();
+    const yesterdayDate = dateKeyInTimeZone(yesterday);
     const previousStreak = Number(user.login_streak || 0);
 
     let nextStreak = 1;
@@ -883,6 +909,24 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
     }
 
     const shouldShowStreak = previousLoginDate !== today;
+
+    if (previousLoginDate) {
+      await client.query(
+        `INSERT INTO user_login_history (user_id, login_date, login_at)
+         VALUES ($1, $2::date, $3)
+         ON CONFLICT (user_id, login_date)
+         DO UPDATE SET login_at = EXCLUDED.login_at`,
+        [user.id, previousLoginDate, previousLoginAt || now]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO user_login_history (user_id, login_date, login_at)
+       VALUES ($1, $2::date, $3)
+       ON CONFLICT (user_id, login_date)
+       DO UPDATE SET login_at = EXCLUDED.login_at`,
+      [user.id, today, now]
+    );
 
     const { rows: updatedRows } = await client.query(
       `UPDATE users
@@ -902,6 +946,15 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
       [token, user.id, expiresAt]
     );
 
+    const { rows: historyRows } = await client.query(
+      `SELECT login_date::text AS login_date
+       FROM user_login_history
+       WHERE user_id = $1
+       ORDER BY login_date DESC
+       LIMIT 120`,
+      [user.id]
+    );
+
     await client.query('COMMIT');
 
     const updatedUser = updatedRows[0] || { ...user, login_streak: nextStreak, last_login_at: now };
@@ -913,7 +966,9 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
       loginStreak: {
         count: nextStreak,
         shouldShow: shouldShowStreak,
-        message: formatLoginStreakMessage(nextStreak)
+        message: formatLoginStreakMessage(nextStreak),
+        lastLoginAt: now,
+        historyDates: historyRows.map((row) => row.login_date)
       },
       user: sanitizeUser(updatedUser)
     });
@@ -944,6 +999,70 @@ app.post('/auth/logout', requireAuth, async (req, res) => {
 
 app.get('/me', requireAuth, async (req, res) => {
   return res.json({ user: req.auth.user });
+});
+
+app.get('/me/login-history', requireAuth, async (req, res) => {
+  try {
+    const existing = await pool.query(
+      `SELECT login_date::text AS login_date
+       FROM user_login_history
+       WHERE user_id = $1
+       ORDER BY login_date DESC
+       LIMIT 120`,
+      [req.auth.user.id]
+    );
+
+    if (existing.rows.length === 0) {
+      const streakCount = Math.max(0, Number(req.auth.user.loginStreak || 0));
+      const lastLoginAt = req.auth.user.lastLoginAt ? new Date(req.auth.user.lastLoginAt) : null;
+
+      if (streakCount > 0 && lastLoginAt && !Number.isNaN(lastLoginAt.getTime())) {
+        const values = [];
+        const placeholders = [];
+
+        for (let index = 0; index < streakCount; index += 1) {
+          const day = new Date(lastLoginAt);
+          day.setDate(lastLoginAt.getDate() - index);
+          const dateKey = dateKeyInTimeZone(day);
+
+          if (!dateKey) {
+            continue;
+          }
+
+          const base = values.length;
+          values.push(req.auth.user.id, dateKey, day.toISOString());
+          placeholders.push(`($${base + 1}, $${base + 2}::date, $${base + 3}::timestamp)`);
+        }
+
+        if (placeholders.length > 0) {
+          await pool.query(
+            `INSERT INTO user_login_history (user_id, login_date, login_at)
+             VALUES ${placeholders.join(', ')}
+             ON CONFLICT (user_id, login_date)
+             DO NOTHING`,
+            values
+          );
+        }
+      }
+    }
+
+    const { rows } = await pool.query(
+      `SELECT login_date::text AS login_date
+       FROM user_login_history
+       WHERE user_id = $1
+       ORDER BY login_date DESC
+       LIMIT 120`,
+      [req.auth.user.id]
+    );
+
+    return res.json({
+      historyDates: rows.map((row) => row.login_date),
+      count: Number(req.auth.user.loginStreak || 0),
+      lastLoginAt: req.auth.user.lastLoginAt || null
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 });
 
 app.put('/me/profile', requireAuth, async (req, res) => {
@@ -1301,6 +1420,7 @@ app.get('/tutors', requireAuth, async (req, res) => {
 
 app.post('/bookings', requireAuth, requireRole('tutee'), async (req, res) => {
   const { tutorId, courseCode, sessionTime, notes } = req.body;
+  const normalizedCourseCode = courseCode ? String(courseCode).trim().toUpperCase() : null;
 
   if (!tutorId || !sessionTime) {
     return res.status(400).json({
@@ -1330,11 +1450,25 @@ app.post('/bookings', requireAuth, requireRole('tutee'), async (req, res) => {
 
     const tutor = tutorLookup.rows[0];
 
+    if (normalizedCourseCode) {
+      const courseCheck = await client.query('SELECT 1 FROM courses WHERE code = $1', [
+        normalizedCourseCode
+      ]);
+
+      if (courseCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          message:
+            'Invalid course code. Use a course from /courses (for example: TMF3953, TMF3963, TMF3973), or leave it blank.'
+        });
+      }
+    }
+
     const { rows } = await client.query(
       `INSERT INTO bookings (tutor_id, tutee_id, course_code, session_time, notes)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [tutor.id, req.auth.user.id, courseCode || null, sessionTime, notes || null]
+      [tutor.id, req.auth.user.id, normalizedCourseCode, sessionTime, notes || null]
     );
 
     await createNotification(
@@ -2204,6 +2338,51 @@ app.get(
     }
   }
 );
+
+app.get('/users/:id/public/reviews', requireAuth, async (req, res) => {
+  const rawId = String(req.params.id || '').trim();
+  if (!rawId) {
+    return res.status(400).json({ message: 'User id is required.' });
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT id, role
+       FROM users
+       WHERE id::text = $1
+       LIMIT 1`,
+      [rawId]
+    );
+
+    if (!userResult.rows.length) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (String(userResult.rows[0].role) !== 'tutor') {
+      return res.json({ reviews: [] });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT br.id,
+              br.rating,
+              br.comment,
+              br.created_at,
+              reviewer.full_name AS reviewer_name,
+              reviewer.role AS reviewer_role
+       FROM booking_reviews br
+       JOIN bookings b ON b.id = br.booking_id
+       JOIN users reviewer ON reviewer.id = br.reviewer_id
+       WHERE b.tutor_id = $1
+         AND reviewer.role = 'tutee'
+       ORDER BY br.created_at DESC`,
+      [userResult.rows[0].id]
+    );
+
+    return res.json({ reviews: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
 
 app.post(
   '/admin/tutor-verifications/:id/request-reupload',

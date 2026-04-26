@@ -6,11 +6,13 @@ mountNav('session');
 
 const availabilityForm = document.getElementById('availabilityForm');
 const bookingForm = document.getElementById('bookingForm');
+const bookingCourseCodes = document.getElementById('bookingCourseCodes');
 const bookingList = document.getElementById('bookingList');
 const recentTutorsCard = document.getElementById('recentTutorsCard');
 const recentTutorsList = document.getElementById('recentTutorsList');
 const sessionPageTitle = document.getElementById('sessionPageTitle');
 let bookingsState = [];
+let knownCourseCodes = new Set();
 let bookingSubmitInFlight = false;
 
 if (user.role === 'tutor') {
@@ -31,6 +33,34 @@ if (prefillTutorId && bookingForm) {
   const tutorIdInput = bookingForm.querySelector('input[name="tutorId"]');
   tutorIdInput.value = prefillTutorId;
   localStorage.removeItem('prefillTutorId');
+}
+
+async function loadCourses() {
+  if (!bookingCourseCodes) {
+    return;
+  }
+
+  try {
+    const data = await api('/courses');
+    const courses = Array.isArray(data.courses) ? data.courses : [];
+
+    knownCourseCodes = new Set(
+      courses
+        .map((course) => String(course.code || '').trim().toUpperCase())
+        .filter(Boolean)
+    );
+
+    bookingCourseCodes.innerHTML = courses
+      .map((course) => {
+        const code = String(course.code || '').trim().toUpperCase();
+        const name = String(course.name || '').trim();
+        return `<option value="${code}">${code}${name ? ` - ${name}` : ''}</option>`;
+      })
+      .join('');
+  } catch (error) {
+    bookingCourseCodes.innerHTML = '';
+    knownCourseCodes = new Set();
+  }
 }
 
 availabilityForm.addEventListener('submit', async (event) => {
@@ -62,9 +92,19 @@ bookingForm.addEventListener('submit', async (event) => {
   const data = new FormData(bookingForm);
   const tutorId = String(data.get('tutorId') || '').trim();
   const sessionTime = String(data.get('sessionTime') || '').trim();
+  const courseCodeRaw = String(data.get('courseCode') || '').trim();
+  const courseCode = courseCodeRaw ? courseCodeRaw.toUpperCase() : null;
 
   if (!tutorId || !sessionTime) {
     setMessage('sessionMessage', 'Tutor ID and session time are required.');
+    return;
+  }
+
+  if (courseCode && knownCourseCodes.size && !knownCourseCodes.has(courseCode)) {
+    setMessage(
+      'sessionMessage',
+      'Invalid course code. Choose a course from the suggestions or leave it blank.'
+    );
     return;
   }
 
@@ -84,7 +124,7 @@ bookingForm.addEventListener('submit', async (event) => {
   try {
     await api('/bookings', 'POST', {
       tutorId,
-      courseCode: data.get('courseCode') || null,
+      courseCode,
       sessionTime
     });
     setMessage('sessionMessage', 'Booking request sent.', true);
@@ -268,3 +308,4 @@ async function loadBookings() {
 
 loadBookings();
 loadRecentTutors();
+loadCourses();

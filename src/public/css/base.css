@@ -305,6 +305,40 @@ body.streak-modal-open {
   text-transform: uppercase;
 }
 
+.streak-calendar-toolbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.streak-calendar-month-label {
+  text-align: center;
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 1rem;
+  color: #1f3a2d;
+}
+
+.streak-month-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid #d5e1d8;
+  background: #ffffff;
+  color: #2e4c3c;
+  font-size: 1.05rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.streak-month-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .streak-calendar-head span {
   text-align: center;
 }
@@ -338,6 +372,14 @@ body.streak-modal-open {
 .streak-day.is-today {
   outline: 1px solid rgba(63, 111, 87, 0.18);
   outline-offset: 0;
+}
+
+.streak-day.is-outside-month {
+  opacity: 0.45;
+}
+
+.streak-day.is-outside-month.is-active {
+  opacity: 0.65;
 }
 
 .streak-day-name {

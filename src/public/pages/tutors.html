@@ -20,6 +20,40 @@
             <button id="searchTutorBtn" class="chip" type="button">Filter</button>
           </div>
           <h2>Tutor Directory</h2>
+          <div id="tutorProfileModal" class="tutor-profile-modal hidden" aria-hidden="true">
+            <div class="tutor-profile-modal__backdrop" data-close-tutor-profile></div>
+            <div id="tutorProfilePanel" class="card tutor-profile-panel" role="dialog" aria-modal="true" aria-labelledby="tutorProfileName">
+              <div class="tutor-profile-panel__header">
+                <div>
+                  <p class="tutor-profile-panel__kicker">Tutor preview</p>
+                  <h3 id="tutorProfileName">Select a tutor</h3>
+                </div>
+                <button id="closeTutorProfileBtn" class="chip" type="button">Close</button>
+              </div>
+              <div class="tutor-profile-panel__body">
+                <img id="tutorProfilePicture" class="tutor-profile-picture" alt="Tutor profile picture" />
+                <div class="tutor-profile-summary">
+                  <p id="tutorProfileRole" class="meta">-</p>
+                  <p id="tutorProfileMatric" class="meta">-</p>
+                  <p id="tutorProfileStats" class="meta">-</p>
+                  <p id="tutorProfileExpertise" class="meta">-</p>
+                  <p id="tutorProfileAvailability" class="meta">-</p>
+                </div>
+              </div>
+              <div class="tutor-profile-bio">
+                <p class="tutor-profile-panel__kicker">Bio</p>
+                <p id="tutorProfileBio">Pick a tutor to see their short profile.</p>
+              </div>
+              <div class="tutor-profile-actions" id="tutorProfileActions"></div>
+              <div class="tutor-reviews">
+                <div class="tutor-reviews__header">
+                  <p class="tutor-profile-panel__kicker">Reviews left for tutor</p>
+                  <p id="tutorReviewCount" class="meta">0 reviews</p>
+                </div>
+                <div id="tutorReviewList" class="list tutor-review-list"></div>
+              </div>
+            </div>
+          </div>
           <div id="tutorList" class="list"></div>
         </div>
         <nav id="bottomNav" class="bottom-nav"></nav>

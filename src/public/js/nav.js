@@ -44,20 +44,74 @@ function formatDateLabel(dateValue) {
   }).format(date);
 }
 
-function buildStreakCalendarGrid(streakCount, lastLoginAt) {
-  const anchorDate = lastLoginAt ? new Date(lastLoginAt) : new Date();
-  const safeStreakCount = Math.max(0, Number(streakCount || 0));
-  const cells = [];
+function formatMonthLabel(dateValue) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
 
-  for (let offset = 27; offset >= 0; offset -= 1) {
-    const cellDate = new Date(anchorDate);
-    cellDate.setDate(anchorDate.getDate() - offset);
-    const isActive = offset < safeStreakCount;
-    const isToday = offset === 0;
+  return new Intl.DateTimeFormat('en', {
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+}
+
+function startOfMonth(dateValue) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    const fallback = new Date();
+    return new Date(fallback.getFullYear(), fallback.getMonth(), 1);
+  }
+
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(dateValue, delta) {
+  const monthStart = startOfMonth(dateValue);
+  return new Date(monthStart.getFullYear(), monthStart.getMonth() + Number(delta || 0), 1);
+}
+
+function dateKeyLocal(dateValue) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeHistoryDates(historyDates = []) {
+  if (!Array.isArray(historyDates)) {
+    return [];
+  }
+
+  return historyDates
+    .map((value) => String(value || '').trim())
+    .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+function buildStreakCalendarGrid(historyDates = [], visibleMonth = new Date()) {
+  const monthStart = startOfMonth(visibleMonth);
+  const historySet = new Set(normalizeHistoryDates(historyDates));
+  const cells = [];
+  const todayKey = dateKeyLocal(new Date());
+  const startDate = new Date(monthStart);
+  startDate.setDate(monthStart.getDate() - monthStart.getDay());
+
+  for (let offset = 0; offset < 42; offset += 1) {
+    const cellDate = new Date(startDate);
+    cellDate.setDate(startDate.getDate() + offset);
+    const cellKey = dateKeyLocal(cellDate);
+    const isActive = historySet.has(cellKey);
+    const isToday = cellKey === todayKey;
+    const isOutsideMonth = cellDate.getMonth() !== monthStart.getMonth();
     const dayName = STREAK_DAYS[cellDate.getDay()];
 
     cells.push(`
-      <div class="streak-day${isActive ? ' is-active' : ''}${isToday ? ' is-today' : ''}">
+      <div class="streak-day${isActive ? ' is-active' : ''}${isToday ? ' is-today' : ''}${isOutsideMonth ? ' is-outside-month' : ''}">
         <span class="streak-day-name">${dayName}</span>
         <span class="streak-day-number">${cellDate.getDate()}</span>
       </div>
@@ -96,6 +150,11 @@ function ensureStreakModal() {
           <strong id="streakCalendarLastLogin">Today</strong>
         </div>
       </div>
+      <div class="streak-calendar-toolbar">
+        <button type="button" class="streak-month-btn" id="streakPrevMonthBtn" aria-label="View previous month">&#8249;</button>
+        <strong id="streakCalendarMonthLabel" class="streak-calendar-month-label"></strong>
+        <button type="button" class="streak-month-btn" id="streakNextMonthBtn" aria-label="View next month">&#8250;</button>
+      </div>
       <div class="streak-calendar-head" aria-hidden="true">
         <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
       </div>
@@ -122,12 +181,15 @@ function readPendingLoginStreak() {
   }
 }
 
-function renderStreakModal(modal, user, streakData = {}) {
+function renderStreakModal(modal, user, streakData = {}, visibleMonth = new Date()) {
   const count = Math.max(0, Number(streakData.count ?? user?.loginStreak ?? 0));
   const lastLoginAt = user?.lastLoginAt || streakData.lastLoginAt || new Date().toISOString();
+  const historyDates = normalizeHistoryDates(streakData.historyDates);
   const title = modal.querySelector('#streakCalendarMessage');
   const countEl = modal.querySelector('#streakCalendarCount');
   const lastLoginEl = modal.querySelector('#streakCalendarLastLogin');
+  const monthLabelEl = modal.querySelector('#streakCalendarMonthLabel');
+  const nextMonthBtn = modal.querySelector('#streakNextMonthBtn');
   const grid = modal.querySelector('#streakCalendarGrid');
 
   if (title) {
@@ -144,8 +206,20 @@ function renderStreakModal(modal, user, streakData = {}) {
     lastLoginEl.textContent = formatDateLabel(lastLoginAt);
   }
 
+  if (monthLabelEl) {
+    monthLabelEl.textContent = formatMonthLabel(visibleMonth);
+  }
+
+  if (nextMonthBtn) {
+    const currentMonth = startOfMonth(new Date());
+    const targetMonth = startOfMonth(visibleMonth);
+    const shouldDisableNext = targetMonth >= currentMonth;
+    nextMonthBtn.disabled = shouldDisableNext;
+    nextMonthBtn.setAttribute('aria-disabled', shouldDisableNext ? 'true' : 'false');
+  }
+
   if (grid) {
-    grid.innerHTML = buildStreakCalendarGrid(count, lastLoginAt);
+    grid.innerHTML = buildStreakCalendarGrid(historyDates, visibleMonth);
   }
 
   return count;
@@ -230,6 +304,8 @@ export function mountNav(activePage) {
   const streakButtonCount = Math.max(0, Number(user?.loginStreak || 0));
   const streakButtonBadge = streakButtonCount > 0 ? `<span class="streak-btn-badge">${streakButtonCount}</span>` : '';
   const pendingLoginStreak = readPendingLoginStreak();
+  let latestStreakData = pendingLoginStreak || {};
+  let visibleMonth = startOfMonth(new Date());
 
   if (activePage !== 'notifications') {
     sessionStorage.setItem(LAST_NON_NOTIFICATION_PAGE_KEY, window.location.pathname);
@@ -276,10 +352,21 @@ export function mountNav(activePage) {
   const streakCalendarLastLogin = document.getElementById('streakCalendarLastLogin');
   const streakCalendarMessage = document.getElementById('streakCalendarMessage');
   const streakCalendarGrid = document.getElementById('streakCalendarGrid');
+  const streakCalendarMonthLabel = document.getElementById('streakCalendarMonthLabel');
+  const streakPrevMonthBtn = document.getElementById('streakPrevMonthBtn');
+  const streakNextMonthBtn = document.getElementById('streakNextMonthBtn');
 
-  const syncStreakModal = (streakData = {}) => {
-    const data = pendingLoginStreak || streakData;
-    const count = renderStreakModal(streakModal, user, data);
+  const syncStreakModal = (streakData = {}, options = {}) => {
+    if (streakData && Object.keys(streakData).length) {
+      latestStreakData = { ...latestStreakData, ...streakData };
+    }
+
+    if (options.resetMonth) {
+      visibleMonth = startOfMonth(new Date());
+    }
+
+    const data = latestStreakData;
+    const count = renderStreakModal(streakModal, user, data, visibleMonth);
     if (streakBtn) {
       streakBtn.setAttribute('aria-label', `Open activity calendar (${count} day${count === 1 ? '' : 's'})`);
     }
@@ -295,8 +382,21 @@ export function mountNav(activePage) {
         : 'Check in daily to build your run.');
     }
     if (streakCalendarGrid) {
-      streakCalendarGrid.innerHTML = buildStreakCalendarGrid(count, user?.lastLoginAt || data.lastLoginAt || new Date().toISOString());
+      streakCalendarGrid.innerHTML = buildStreakCalendarGrid(
+        data.historyDates,
+        visibleMonth
+      );
     }
+    if (streakCalendarMonthLabel) {
+      streakCalendarMonthLabel.textContent = formatMonthLabel(visibleMonth);
+    }
+
+    if (streakNextMonthBtn) {
+      const currentMonth = startOfMonth(new Date());
+      const shouldDisableNext = startOfMonth(visibleMonth) >= currentMonth;
+      streakNextMonthBtn.disabled = shouldDisableNext;
+    }
+
     return count;
   };
 
@@ -304,7 +404,20 @@ export function mountNav(activePage) {
     closeStreakModal(streakModal);
   };
 
-  syncStreakModal(pendingLoginStreak || {});
+  syncStreakModal(pendingLoginStreak || {}, { resetMonth: true });
+
+  const loadLoginHistory = async () => {
+    try {
+      const response = await api('/me/login-history');
+      syncStreakModal({
+        count: Number(response.count || latestStreakData.count || user?.loginStreak || 0),
+        lastLoginAt: response.lastLoginAt || latestStreakData.lastLoginAt || user?.lastLoginAt,
+        historyDates: normalizeHistoryDates(response.historyDates)
+      });
+    } catch (error) {
+      // Keep fallback UI from local session data if history fetch fails.
+    }
+  };
 
   const setUnreadBadge = (count) => {
     if (!notifyDot) {
@@ -407,9 +520,27 @@ export function mountNav(activePage) {
   });
 
   streakBtn.addEventListener('click', () => {
-    syncStreakModal({});
+    syncStreakModal({}, { resetMonth: true });
     openStreakModal(streakModal);
   });
+
+  if (streakPrevMonthBtn) {
+    streakPrevMonthBtn.addEventListener('click', () => {
+      visibleMonth = addMonths(visibleMonth, -1);
+      syncStreakModal({});
+    });
+  }
+
+  if (streakNextMonthBtn) {
+    streakNextMonthBtn.addEventListener('click', () => {
+      const currentMonth = startOfMonth(new Date());
+      const nextMonth = addMonths(visibleMonth, 1);
+      if (nextMonth <= currentMonth) {
+        visibleMonth = nextMonth;
+        syncStreakModal({});
+      }
+    });
+  }
 
   if (streakModalCloseBtn) {
     streakModalCloseBtn.addEventListener('click', closeStreak);
@@ -431,6 +562,7 @@ export function mountNav(activePage) {
   }
 
   loadUnreadCount();
+  loadLoginHistory();
   window.setInterval(() => {
     if (!document.hidden) {
       loadUnreadCount();
