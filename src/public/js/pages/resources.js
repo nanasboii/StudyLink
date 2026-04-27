@@ -11,6 +11,7 @@ const RESOURCE_PAGE_SIZE = 12;
 let allVisibleResources = [];
 let visibleResourceCount = RESOURCE_PAGE_SIZE;
 const suggestedCarousel = document.getElementById('suggestedCarousel');
+const suggestedSection = document.querySelector('.suggested-section');
 const uploadPanel = document.getElementById('uploadPanel');
 const uploadForm = document.getElementById('resourceUploadForm');
 const uploadMessage = document.getElementById('resourceUploadMessage');
@@ -527,7 +528,6 @@ async function loadResources() {
   const list = document.getElementById('resourceList');
   showSkeletonList(list, 4);
   suggestedCarousel.innerHTML = '';
-  showSkeletonList(suggestedCarousel, 2);
 
   try {
     const search = resourceSearch.value.trim();
@@ -548,9 +548,10 @@ async function loadResources() {
       .slice(0, 8);
 
     if (suggestions.length) {
+      suggestedSection.style.display = 'block';
       suggestions.forEach((resource) => suggestedCarousel.appendChild(renderSuggestedCard(resource)));
     } else {
-      suggestedCarousel.innerHTML = '<div class="empty-state">No suggestions yet. Upload or rate resources to populate this feed.</div>';
+      suggestedSection.style.display = 'none';
     }
 
     allVisibleResources = filteredResources;

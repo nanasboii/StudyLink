@@ -14,3 +14,36 @@
   overflow: visible;
   font-size: clamp(28px, 5vw, 40px);
 }
+
+.password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.password-row input {
+  width: 100%;
+}
+
+.password-toggle {
+  border: 1px solid #1f3a50;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d3f58;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.password-toggle:hover {
+  background: #f0f4f8;
+}
+
+.password-toggle:focus-visible {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.14);
+}

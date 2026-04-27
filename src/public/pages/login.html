@@ -25,7 +25,10 @@
                 <input type="email" name="email" required />
               </label>
               <label>Password
-                <input type="password" name="password" required />
+                <div class="password-row">
+                  <input id="loginPassword" type="password" name="password" required />
+                  <button id="toggleLoginPassword" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false">Show</button>
+                </div>
               </label>
               <button class="primary" type="submit">Sign In</button>
             </form>

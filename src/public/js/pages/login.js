@@ -8,6 +8,18 @@ if (getToken() && getUser()) {
 }
 
 const form = document.getElementById('loginForm');
+const passwordInput = document.getElementById('loginPassword');
+const passwordToggle = document.getElementById('toggleLoginPassword');
+
+if (passwordInput && passwordToggle) {
+  passwordToggle.addEventListener('click', () => {
+    const isHidden = passwordInput.type === 'password';
+    passwordInput.type = isHidden ? 'text' : 'password';
+    passwordToggle.textContent = isHidden ? 'Hide' : 'Show';
+    passwordToggle.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    passwordToggle.setAttribute('aria-pressed', String(isHidden));
+  });
+}
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
