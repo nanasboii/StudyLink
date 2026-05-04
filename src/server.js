@@ -99,18 +99,31 @@ if (!fs.existsSync(profilePictureUploadDir)) {
   fs.mkdirSync(profilePictureUploadDir, { recursive: true });
 }
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 5432),
-  user: process.env.DB_USER || 'studylink',
-  password: process.env.DB_PASSWORD || 'studylink',
-  database: process.env.DB_NAME || 'studylink',
-  ssl: String(process.env.DB_SSL || '').toLowerCase() === 'true'
-    ? {
-        rejectUnauthorized: String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true'
-      }
-    : undefined
-});
+
+// Support both DATABASE_URL (Railway) and individual env vars (local)
+const getPoolConfig = () => {
+  if (process.env.DATABASE_URL) {
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    };
+  }
+
+  return {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 5432),
+    user: process.env.DB_USER || 'studylink',
+    password: process.env.DB_PASSWORD || 'studylink',
+    database: process.env.DB_NAME || 'studylink',
+    ssl: String(process.env.DB_SSL || '').toLowerCase() === 'true'
+      ? {
+          rejectUnauthorized: String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true'
+        }
+      : undefined
+  };
+};
+
+const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/ui', express.static(path.join(__dirname, 'public')));
