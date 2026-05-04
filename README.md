@@ -2,25 +2,32 @@
 
 StudyLink is a Node.js + Express + PostgreSQL tutoring platform with a multi-page frontend. It includes authentication, profiles, resources, booking/sessions, reviews, achievements, notifications, tutor verification, and admin monitoring tools.
 
-## Services
+## Services (local)
 
-- App/API: http://localhost:6767
-- UI: http://localhost:6767/ui/
+- App/API: http://localhost:3000
+- UI: http://localhost:3000/ui/
 - PostgreSQL: localhost:5432
 
-## Quick Start
+## Quick Start (local)
 
-1. Install Docker Desktop.
-2. From the project root, run:
+1. Install Node.js (v18+) and PostgreSQL or Docker Desktop.
+2. Create a local `.env` (see **Environment** below) or run with Docker Compose:
 
 ```bash
 docker compose up -d --build
 ```
 
-3. Verify health:
+3. Start the app (without Docker):
 
 ```bash
-http://localhost:6767/health
+npm install
+npm run dev
+```
+
+4. Verify health:
+
+```bash
+curl http://localhost:3000/health
 ```
 
 ## Current UI Pages
@@ -201,34 +208,39 @@ Shared frontend modules:
 
 ## Environment Variables
 
+Recommended runtime variables (set in `.env` for local development or in Railway/host variables for production):
+
 Application:
 
-- `PORT` (default: `6767`)
+- `PORT` (default: `3000`)
 - `SESSION_DURATION_HOURS` (default: `24`)
 - `STREAK_TIMEZONE` (default: `Asia/Kuala_Lumpur`)
 - `ADMIN_EMAIL` (default: `admin@studylink.local`)
 - `ADMIN_PASSWORD` (default: `admin123`)
 
-Database:
+Database (two supported methods):
 
-- `DB_HOST` (default: `localhost`)
-- `DB_PORT` (default: `5432`)
-- `DB_USER` (default: `studylink`)
-- `DB_PASSWORD` (default: `studylink`)
-- `DB_NAME` (default: `studylink`)
+- Use a single connection string: `DATABASE_URL` (recommended for hosted DBs like Railway/Supabase)
+- Or set individual vars: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 
-## Default Credentials
+Production additions (Railway / hosted):
 
-Database:
+- `NODE_ENV=production`
+- `PORT=3000` (should match `Dockerfile` EXPOSE)
+- `SKIP_DB_INIT=true` to skip schema initialization if you import the SQL manually
 
-- User: `studylink`
-- Password: `studylink`
-- Database: `studylink`
+Notes:
+- Do NOT commit an `.env` file. This repo already ignores `.env` in `.gitignore`.
+- If you accidentally committed secrets, rotate credentials immediately (regenerate DB password / connection string).
 
-Seed admin account:
+## Default Credentials (local/dev)
 
-- Email: `admin@studylink.local`
-- Password: `admin123`
+These are only used when no external DB is provided and are suitable for local testing:
+
+- Database user: `studylink` / password: `studylink` / database: `studylink`
+- Seed admin account created on DB init: `admin@studylink.local` / `admin123`
+
+If you publish your repo or share screenshots, rotate any exposed credentials immediately.
 
 ## Auth Header
 
@@ -236,8 +248,56 @@ Use bearer token for protected routes:
 
 `Authorization: Bearer <token>`
 
-## Notes
+## Deployment (Railway)
 
-- Tables and seed data are auto-created on first startup.
-- Uploaded files are served from `/uploads`.
-- Integration flow tests are available at `tests/critical-flows.integration.test.mjs`.
+1. Create a Railway project and connect the GitHub repo `nanasboii/StudyLink`.
+2. Add the PostgreSQL plugin (Railway will provision a database).
+3. In the Railway service variables, set either:
+
+	- `DATABASE_URL` = the connection string from the plugin
+
+	Or (if you prefer individual vars):
+
+	- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+
+4. Also add:
+
+	- `NODE_ENV=production`
+	- `PORT=3000`
+	- `SKIP_DB_INIT=true` (if you import the provided `studylink_backup.sql` instead of letting the app create schema)
+
+5. Railway will build using the included `Dockerfile` (the repo contains `railway.json` to use the Dockerfile builder).
+
+6. After deploy, monitor logs in Railway. You should see startup messages including "StudyLink API listening on port 3000" and DB connection success.
+
+## Production security reminder
+
+- Never store secrets in the repository. Use Railway env variables or a secrets manager.
+- If secrets were committed, rotate them immediately.
+
+## Local DB initialization / migration
+
+- The app will attempt to create missing tables on startup unless `SKIP_DB_INIT=true`.
+- To import a prebuilt dataset, use the provided `studylink_backup.sql`:
+
+```bash
+psql -h <host> -U <user> -d <db> -f studylink_backup.sql
+```
+
+## Running tests
+
+```bash
+npm run test:flows
+```
+
+## Useful files
+
+- Server: [src/server.js](src/server.js)
+- Dockerfile: [Dockerfile](Dockerfile)
+- Railway config: [railway.json](railway.json)
+- Sample DB backup: [studylink_backup.sql](studylink_backup.sql)
+- Integration tests: [tests/critical-flows.integration.test.mjs](tests/critical-flows.integration.test.mjs)
+
+---
+
+If you want, I can also add a `README.example.env` file with recommended variables (without secrets) and a small deploy checklist for Railway. Would you like that?
