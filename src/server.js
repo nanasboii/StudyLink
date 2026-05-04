@@ -128,6 +128,8 @@ const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/ui', express.static(path.join(__dirname, 'public')));
+// Serve the UI static assets at the site root as well (SPA entry)
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadBaseDir));
 app.use('/uploads', express.static(legacyUploadBaseDir));
 
@@ -2876,6 +2878,17 @@ app.use((err, req, res, next) => {
   logServerError(req, err);
   console.error('Unhandled API error:', err);
   return res.status(500).json({ message: err.message || 'Unexpected server error.' });
+});
+
+// SPA fallback: serve index.html for any GET request that accepts HTML
+// This allows client-side routes to work when users navigate directly.
+app.get('*', (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const accept = String(req.get('Accept') || '');
+  if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  return next();
 });
 
 if (skipDbInit) {
