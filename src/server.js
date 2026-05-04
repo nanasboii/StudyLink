@@ -123,6 +123,16 @@ const getPoolConfig = () => {
   };
 };
 
+// Debug: print which DB environment variables are available (safe: don't print secrets)
+console.log('DB env:', {
+  has_DATABASE_URL: !!process.env.DATABASE_URL,
+  DATABASE_URL_length: process.env.DATABASE_URL ? String(process.env.DATABASE_URL).length : 0,
+  DB_HOST: process.env.DB_HOST || null,
+  DB_PORT: process.env.DB_PORT || null,
+  DB_USER: process.env.DB_USER ? 'present' : null,
+  NODE_ENV: process.env.NODE_ENV || null
+});
+
 const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
