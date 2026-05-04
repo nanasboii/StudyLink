@@ -124,16 +124,6 @@ const getPoolConfig = () => {
   };
 };
 
-// Debug: print which DB environment variables are available (safe: don't print secrets)
-console.log('DB env:', {
-  has_DATABASE_URL: !!process.env.DATABASE_URL,
-  DATABASE_URL_length: process.env.DATABASE_URL ? String(process.env.DATABASE_URL).length : 0,
-  DB_HOST: process.env.DB_HOST || null,
-  DB_PORT: process.env.DB_PORT || null,
-  DB_USER: process.env.DB_USER ? 'present' : null,
-  NODE_ENV: process.env.NODE_ENV || null
-});
-
 const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
@@ -845,27 +835,9 @@ async function initializeDatabase() {
   }
 }
 
+// Serve web UI at root (no redirect). Keep API metadata available at '/api' if needed.
 app.get('/', (req, res) => {
-  const accept = String(req.get('Accept') || '');
-  // If the client is a browser (accepts HTML), redirect to the UI path.
-  if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
-    return res.redirect('/ui');
-  }
-
-  // Default: return API metadata for programmatic clients.
-  res.json({
-    name: 'StudyLink API',
-    status: 'running',
-    modules: [
-      'authentication',
-      'profile',
-      'resources',
-      'bookings',
-      'achievements',
-      'notifications',
-      'admin-verification'
-    ]
-  });
+  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/health', async (req, res) => {
