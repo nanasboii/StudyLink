@@ -7,7 +7,8 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-const defaultPort = Number(process.env.PORT || 6767);
+// Use 3000 as the production default port to match the Dockerfile and common conventions.
+const defaultPort = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';
