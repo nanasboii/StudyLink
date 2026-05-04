@@ -2,6 +2,87 @@
   border-left: 5px solid var(--accent-2);
   background: linear-gradient(180deg, #ffffff, #f6fbff);
   cursor: pointer;
+  display: grid;
+  gap: 10px;
+}
+
+.tutor-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tutor-card__name {
+  margin: 0;
+  font-size: 1.08rem;
+  color: #173247;
+}
+
+.tutor-card__badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #a8d5ff, #d4ebff);
+  color: #0d5b9a;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tutor-card__stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tutor-card__stats .stat {
+  background: rgba(181, 90, 115, 0.08);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #5b3d52;
+}
+
+.tutor-card__meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #4a5f73;
+  line-height: 1.4;
+}
+
+.item .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.item .actions button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-2);
+  background: linear-gradient(135deg, #ffcce8, #ffddeb);
+  color: #a83860;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+}
+
+.item .actions button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ffb3d9, #ffc9e3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(181, 90, 115, 0.2);
+}
+
+.item .actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f0f0f0;
+  color: #999;
+  border-color: #d0d0d0;
 }
 
 .tutor-profile-modal {

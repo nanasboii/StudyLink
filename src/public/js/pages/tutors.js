@@ -11,6 +11,8 @@ const defaultProfilePicture =
 let allTutors = [];
 let visibleTutorCount = TUTOR_PAGE_SIZE;
 let selectedTutorId = '';
+let currentUserRole = 'tutee'; // default
+let userBookings = []; // cache of user's bookings
 
 const tutorProfilePanel = document.getElementById('tutorProfilePanel');
 const tutorProfileName = document.getElementById('tutorProfileName');
@@ -122,6 +124,15 @@ function renderTutorReviews(reviews) {
   });
 }
 
+function getTutorBookingStatus(tutorId) {
+  // Check if current tutee has an active/pending booking with this tutor
+  const hasBooking = userBookings.some(
+    (b) => (b.tutor_id === tutorId || b.tutee_id === tutorId) &&
+           ['pending', 'accepted'].includes(b.status)
+  );
+  return hasBooking;
+}
+
 function renderTutorProfile(tutor, reviews = []) {
   if (!tutorProfilePanel || !tutorProfileModal) {
     return;
@@ -142,25 +153,41 @@ function renderTutorProfile(tutor, reviews = []) {
 
   tutorProfileActions.innerHTML = '';
 
-  const bookBtn = document.createElement('button');
-  bookBtn.type = 'button';
-  bookBtn.className = 'chip';
-  bookBtn.textContent = 'Book this tutor';
-  bookBtn.addEventListener('click', () => {
-    localStorage.setItem('prefillTutorId', String(tutor.id));
-    window.location.href = PAGES.session;
-  });
-  tutorProfileActions.appendChild(bookBtn);
-
-  const matricBtn = document.createElement('button');
-  matricBtn.type = 'button';
-  matricBtn.className = 'chip';
-  matricBtn.textContent = 'Use this tutor';
-  matricBtn.addEventListener('click', () => {
-    localStorage.setItem('prefillTutorId', String(tutor.id));
-    window.location.href = PAGES.session;
-  });
-  tutorProfileActions.appendChild(matricBtn);
+  // Show role-specific buttons
+  if (currentUserRole === 'tutee') {
+    const hasActiveBooking = getTutorBookingStatus(tutor.id);
+    const bookBtn = document.createElement('button');
+    bookBtn.type = 'button';
+    bookBtn.className = 'chip';
+    bookBtn.textContent = hasActiveBooking ? 'Already booked' : 'Book this tutor';
+    bookBtn.disabled = hasActiveBooking;
+    if (!hasActiveBooking) {
+      bookBtn.addEventListener('click', () => {
+        localStorage.setItem('prefillTutorId', String(tutor.id));
+        window.location.href = PAGES.session;
+      });
+    }
+    tutorProfileActions.appendChild(bookBtn);
+  } else if (currentUserRole === 'tutor') {
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'chip';
+    viewBtn.textContent = 'View tutor';
+    viewBtn.addEventListener('click', () => {
+      loadTutorProfile(tutor);
+    });
+    tutorProfileActions.appendChild(viewBtn);
+  } else if (currentUserRole === 'admin') {
+    // Admin can view or take actions if needed
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'chip';
+    viewBtn.textContent = 'View tutor';
+    viewBtn.addEventListener('click', () => {
+      loadTutorProfile(tutor);
+    });
+    tutorProfileActions.appendChild(viewBtn);
+  }
 
   renderTutorReviews(reviews);
 }
@@ -281,15 +308,25 @@ function tutorCard(tutor) {
         .join(' | ')
     : 'No available time set yet';
 
+  const hasActiveBooking = currentUserRole === 'tutee' ? getTutorBookingStatus(tutor.id) : false;
+  const buttonText = hasActiveBooking ? 'Already booked' : (currentUserRole === 'tutee' ? 'Book this tutor' : 'View tutor');
+  const buttonDisabled = hasActiveBooking ? 'disabled' : '';
+
   const div = document.createElement('div');
   div.className = 'item';
   div.innerHTML = `
-    <strong>${tutor.fullName || tutor.full_name}</strong>
-    <div class="meta">Rating: ${tutor.rating} | Points: ${tutor.totalPoints || tutor.total_points}</div>
-    <div class="meta">Expertise: ${expertise.length ? expertise.join(', ') : 'Not listed'}</div>
-    <div class="meta">Availability: ${slotText}</div>
-    ${slots.length > 3 ? `<div class="meta">+${slots.length - 3} more time slots</div>` : ''}
-    <div class="actions"><button type="button">Book this tutor</button></div>
+    <div class="tutor-card__header">
+      <strong class="tutor-card__name">${escapeHtml(tutor.fullName || tutor.full_name)}</strong>
+      ${tutor.isVerified || tutor.is_verified ? '<span class="tutor-card__badge">✓ Verified</span>' : ''}
+    </div>
+    <div class="tutor-card__stats">
+      <span class="stat">⭐ ${Number(tutor.rating || 0).toFixed(1)}</span>
+      <span class="stat">📊 ${tutor.totalPoints || tutor.total_points} pts</span>
+    </div>
+    <div class="tutor-card__meta">Expertise: ${expertise.length ? expertise.join(', ') : 'Not listed'}</div>
+    <div class="tutor-card__meta">First available: ${previewSlots.length ? `${previewSlots[0].dayOfWeek} ${previewSlots[0].startTime}-${previewSlots[0].endTime}` : 'Not set'}</div>
+    ${slots.length > 1 ? `<div class="tutor-card__meta">+${slots.length - 1} more slot${slots.length > 2 ? 's' : ''}</div>` : ''}
+    <div class="actions"><button type="button" ${buttonDisabled}>${escapeHtml(buttonText)}</button></div>
   `;
 
   const openProfile = () => {
@@ -304,13 +341,34 @@ function tutorCard(tutor) {
     openProfile();
   });
 
-  div.querySelector('button').addEventListener('click', (event) => {
-    event.stopPropagation();
-    localStorage.setItem('prefillTutorId', String(tutor.id));
-    window.location.href = PAGES.session;
-  });
+  const btn = div.querySelector('button');
+  if (btn) {
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (hasActiveBooking) {
+        alert('You already have a pending or active booking with this tutor.');
+        return;
+      }
+      if (currentUserRole === 'tutee') {
+        localStorage.setItem('prefillTutorId', String(tutor.id));
+        window.location.href = PAGES.session;
+      } else {
+        openProfile();
+      }
+    });
+  }
 
   return div;
+}
+
+async function loadUserBookings() {
+  try {
+    const data = await api('/bookings/inbox');
+    userBookings = data.bookings || [];
+  } catch (error) {
+    console.error('Failed to load user bookings:', error.message);
+    userBookings = [];
+  }
 }
 
 async function loadTutors() {
@@ -363,4 +421,19 @@ if (tutorProfileModal) {
   });
 }
 
-loadTutors();
+(async () => {
+  try {
+    // Get current user to determine role
+    const meResponse = await api('/me');
+    currentUserRole = meResponse.user?.role || 'tutee';
+    
+    // Load user bookings for tutees
+    if (currentUserRole === 'tutee') {
+      await loadUserBookings();
+    }
+  } catch (error) {
+    console.error('Failed to initialize user context:', error.message);
+  }
+  
+  loadTutors();
+})();
