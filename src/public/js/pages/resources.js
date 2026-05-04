@@ -2,7 +2,7 @@ import { api, debounce, getToken, requireSession, showToast } from '../api.js';
 import { mountNav } from '../nav.js';
 import { PAGES } from '../routes.js';
 
-requireSession();
+const currentUser = requireSession();
 mountNav('resources');
 
 let selectedType = '';
@@ -12,7 +12,11 @@ let allVisibleResources = [];
 let visibleResourceCount = RESOURCE_PAGE_SIZE;
 const suggestedCarousel = document.getElementById('suggestedCarousel');
 const suggestedSection = document.querySelector('.suggested-section');
-const uploadPanel = document.getElementById('uploadPanel');
+const newestCarousel = document.getElementById('newestCarousel');
+const newestSection = document.getElementById('newestSection');
+const topRatedCarousel = document.getElementById('topRatedCarousel');
+const topRatedSection = document.getElementById('topRatedSection');
+const uploadModal = document.getElementById('uploadModal');
 const uploadForm = document.getElementById('resourceUploadForm');
 const uploadMessage = document.getElementById('resourceUploadMessage');
 const resourceSearch = document.getElementById('resourceSearch');
@@ -30,12 +34,79 @@ const maxRatingValue = document.getElementById('maxRatingValue');
 const typeFilterChecks = Array.from(document.querySelectorAll('input[data-filter="type"]'));
 const sourceFilterChecks = Array.from(document.querySelectorAll('input[data-filter="source"]'));
 const typeChips = Array.from(document.querySelectorAll('#typeChips .chip'));
+const resourcesHeroTitle = document.getElementById('resourcesHeroTitle');
+const resourcesHeroText = document.getElementById('resourcesHeroText');
+const heroResourceCount = document.getElementById('heroResourceCount');
+const heroTopPickCount = document.getElementById('heroTopPickCount');
+const heroLatestCount = document.getElementById('heroLatestCount');
 const filterState = {
   resourceTypes: new Set(),
   sources: new Set(),
   minRating: 0,
   maxRating: 5
 };
+
+function normalizeText(value, fallback = '-') {
+  const text = String(value || '').trim();
+  return text || fallback;
+}
+
+function firstNameFromUser(user) {
+  const name = normalizeText(user?.fullName || user?.full_name || user?.username || user?.name, '');
+  return name ? name.split(/\s+/)[0] : 'there';
+}
+
+function formatFriendlyDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Recently';
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function resourceVisual(resource) {
+  const type = normalizeType(resource.resource_type);
+  const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
+  const courseCode = String(resource.course_code || '').trim().toUpperCase();
+
+  if (/^(IT|CS|SE|CT|CN|IS|SW)/.test(courseCode)) {
+    return { icon: '&lt;/&gt;', tone: 'code', label: 'Code-ready', copy: 'Built for technical courses' };
+  }
+
+  if (uploadKind === 'link' || type === 'link') {
+    return { icon: '↗', tone: 'link', label: 'External link', copy: 'Open in a new tab' };
+  }
+
+  if (type === 'past-year') {
+    return { icon: 'PY', tone: 'exam', label: 'Past year', copy: 'Revision-focused paper set' };
+  }
+
+  if (type === 'lecture-note') {
+    return { icon: 'LN', tone: 'note', label: 'Lecture note', copy: 'Quick class recap' };
+  }
+
+  if (type === 'slides') {
+    return { icon: 'SL', tone: 'slides', label: 'Slides', copy: 'Presentation deck' };
+  }
+
+  if (type === 'pdf') {
+    return { icon: 'PDF', tone: 'pdf', label: 'PDF', copy: 'Readable and ready' };
+  }
+
+  if (type === 'archive') {
+    return { icon: 'ZIP', tone: 'archive', label: 'Archive', copy: 'Packaged resources' };
+  }
+
+  if (type === 'audio' || type === 'video') {
+    return { icon: type === 'audio' ? 'AUD' : 'VID', tone: 'media', label: resourceTypeLabel(resource), copy: 'Media resource' };
+  }
+
+  if (type === 'picture') {
+    return { icon: 'IMG', tone: 'media', label: 'Image', copy: 'Visual reference' };
+  }
+
+  return { icon: 'R', tone: 'generic', label: resourceTypeLabel(resource), copy: 'Shared study material' };
+}
 
 function ratingKey(resourceId) {
   return String(resourceId || '');
@@ -194,14 +265,15 @@ function renderSuggestedCard(resource) {
   const card = document.createElement('button');
   card.type = 'button';
   card.className = 'suggested-card';
+  const visual = resourceVisual(resource);
   card.innerHTML = `
-    <div class="suggested-media">
-      <span>${resourceCoverLabel(resource).slice(0, 1).toUpperCase()}</span>
+    <div class="suggested-media suggested-media--${visual.tone}">
+      <span aria-hidden="true">${visual.icon}</span>
     </div>
     <div class="suggested-body">
-      <div class="suggested-type">${resourceTypeLabel(resource)}</div>
-      <strong>${resource.title}</strong>
-      <div class="meta">${resource.course_code || 'General'} · ${resource.contributor_name}</div>
+      <div class="suggested-type">${visual.label}</div>
+      <strong>${normalizeText(resource.title, 'Untitled resource')}</strong>
+      <div class="meta">${normalizeText(resource.course_code, 'General')} · ${normalizeText(resource.contributor_name, 'Unknown')}</div>
       <div class="meta rating-line">${renderStars(resource.avg_rating)} <span>${Number(resource.avg_rating || 0).toFixed(1)}</span></div>
     </div>
   `;
@@ -211,6 +283,49 @@ function renderSuggestedCard(resource) {
   });
 
   return card;
+}
+
+function compactRatingMarkup(resource) {
+  const rating = Number(resource.avg_rating || 0);
+  return `
+    <span class="resource-rating-chip" title="Average rating ${rating.toFixed(1)} out of 5">
+      <span class="resource-rating-chip__label">Avg rating</span>
+      <span class="resource-rating-chip__value">${rating.toFixed(1)}</span>
+      <span class="resource-rating-chip__stars" aria-hidden="true">${renderStars(rating)}</span>
+    </span>
+  `;
+}
+
+function resourceCardMarkup(resource, layout = 'grid') {
+  const visual = resourceVisual(resource);
+  const title = normalizeText(resource.title, 'Untitled resource');
+  const courseCode = normalizeText(resource.course_code, 'General');
+  const contributor = normalizeText(resource.contributor_name, 'Unknown contributor');
+  const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
+  const sourceLabel = uploadKind === 'link' ? 'Link' : 'File';
+  const fileLabel = resourcePreviewLabel(resource);
+
+  return `
+    <div class="resource-cover resource-cover--${visual.tone}">
+      <div class="resource-cover-icon" aria-hidden="true">${visual.icon}</div>
+      <div class="resource-cover-meta">
+        <div class="resource-cover-tag">${visual.label}</div>
+        <div class="resource-cover-copy">${visual.copy}</div>
+      </div>
+    </div>
+    <div class="resource-card-body resource-card-body--${layout}">
+      <div class="resource-card-topline">
+        <strong>${courseCode} - ${title}</strong>
+        ${compactRatingMarkup(resource)}
+      </div>
+      <div class="meta resource-meta-line">By ${contributor}</div>
+      <div class="meta resource-meta-line">${sourceLabel}: ${fileLabel}</div>
+      <div class="actions resource-card-actions">
+        <button data-action="open">Open Resource</button>
+        <button data-action="download">Download</button>
+      </div>
+    </div>
+  `;
 }
 
 async function submitResourceRating(resourceId, rating) {
@@ -279,10 +394,38 @@ function wireStarPreview(container, resourceId) {
 }
 
 document.getElementById('toggleUploadBtn').addEventListener('click', () => {
-  uploadPanel.classList.toggle('hidden');
-  document.getElementById('toggleUploadBtn').textContent = uploadPanel.classList.contains('hidden')
-    ? 'Upload Resource'
-    : 'Hide Upload';
+  if (!uploadModal) {
+    return;
+  }
+  uploadModal.classList.remove('hidden');
+  document.body.classList.add('upload-modal-open');
+});
+
+const closeUploadModalBtn = document.getElementById('closeUploadModalBtn');
+const closeUploadModal = () => {
+  if (!uploadModal) {
+    return;
+  }
+  uploadModal.classList.add('hidden');
+  document.body.classList.remove('upload-modal-open');
+};
+
+if (closeUploadModalBtn) {
+  closeUploadModalBtn.addEventListener('click', closeUploadModal);
+}
+
+if (uploadModal) {
+  uploadModal.addEventListener('click', (event) => {
+    if (event.target === uploadModal || event.target.hasAttribute('data-close-upload-modal')) {
+      closeUploadModal();
+    }
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && uploadModal && !uploadModal.classList.contains('hidden')) {
+    closeUploadModal();
+  }
 });
 
 function getActiveFilter() {
@@ -456,37 +599,7 @@ function renderItem(resource) {
   div.tabIndex = 0;
   div.setAttribute('role', 'button');
   div.setAttribute('aria-label', `Open details for ${resource.title}`);
-  const selectedRating = resourceRatings.get(ratingKey(resource.id));
-  const hasSelectedRating = Number.isFinite(selectedRating) && selectedRating > 0;
-  const displayRating = hasSelectedRating ? selectedRating : Number(resource.avg_rating || 0);
-  const displayValueText = hasSelectedRating
-    ? `${displayRating.toFixed(1)} (You)`
-    : Number(resource.avg_rating || 0).toFixed(1);
-  const uploadKind = resource.metadata?.uploadKind || (resource.file_url?.startsWith('http') ? 'link' : 'file');
-  const sourceLabel = uploadKind === 'link' ? 'Link' : 'File';
-  const fileLabel = resourcePreviewLabel(resource);
-  div.innerHTML = `
-    <div class="resource-cover">
-      <div class="resource-cover-tag">${resourceTypeLabel(resource)}</div>
-      <div class="resource-cover-copy">Uploaded by ${resource.contributor_name}</div>
-    </div>
-    <strong>${resource.course_code || 'General'} - ${resource.title}</strong>
-    <div class="meta resource-rating">${renderStars(displayRating)} <span>${displayValueText}</span></div>
-    <div class="meta">${resourceTypeLabel(resource)}</div>
-    <div class="meta">By ${resource.contributor_name}</div>
-    <div class="meta">${sourceLabel}: ${fileLabel}</div>
-    <div class="actions">
-      <button data-action="open">Open Resource</button>
-      <button data-action="download">Download</button>
-      <div class="star-rating" role="group" aria-label="Rate this resource">
-        <button type="button" data-rating="1" aria-label="Rate 1 star">★</button>
-        <button type="button" data-rating="2" aria-label="Rate 2 stars">★</button>
-        <button type="button" data-rating="3" aria-label="Rate 3 stars">★</button>
-        <button type="button" data-rating="4" aria-label="Rate 4 stars">★</button>
-        <button type="button" data-rating="5" aria-label="Rate 5 stars">★</button>
-      </div>
-    </div>
-  `;
+  div.innerHTML = resourceCardMarkup(resource, 'grid');
 
   div.querySelector('[data-action="open"]').addEventListener('click', (event) => {
     event.preventDefault();
@@ -511,23 +624,48 @@ function renderItem(resource) {
     }
   });
 
-  const starRatingEl = div.querySelector('.star-rating');
-  starRatingEl.addEventListener('click', (event) => {
-    event.stopPropagation();
-  });
-  starRatingEl.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-  });
-
-  wireStarPreview(starRatingEl, resource.id);
-
   return div;
+}
+
+function setHeroContent(visibleCount = 0, topPickCount = 0, latestCount = 0) {
+  if (resourcesHeroTitle) {
+    resourcesHeroTitle.textContent = `Welcome back, ${firstNameFromUser(currentUser)}`;
+  }
+  if (resourcesHeroText) {
+    resourcesHeroText.textContent = 'Find past papers, lecture notes, slides, and shared links in a glassy workspace built to help you move faster.';
+  }
+  if (heroResourceCount) {
+    heroResourceCount.textContent = String(visibleCount);
+  }
+  if (heroTopPickCount) {
+    heroTopPickCount.textContent = String(topPickCount);
+  }
+  if (heroLatestCount) {
+    heroLatestCount.textContent = String(latestCount);
+  }
+}
+
+function renderCarousel(target, resources, emptyMessage) {
+  if (!target) {
+    return false;
+  }
+
+  target.innerHTML = '';
+  if (!resources.length) {
+    target.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+    return false;
+  }
+
+  resources.forEach((resource) => target.appendChild(renderSuggestedCard(resource)));
+  return true;
 }
 
 async function loadResources() {
   const list = document.getElementById('resourceList');
   showSkeletonList(list, 4);
   suggestedCarousel.innerHTML = '';
+  if (newestCarousel) newestCarousel.innerHTML = '';
+  if (topRatedCarousel) topRatedCarousel.innerHTML = '';
 
   try {
     const search = resourceSearch.value.trim();
@@ -546,15 +684,29 @@ async function loadResources() {
     const suggestions = [...filteredResources]
       .sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0) || new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 8);
+    const newestResources = [...filteredResources]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 8);
+    const topRatedResources = [...filteredResources]
+      .sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0) || Number(b.rating_count || 0) - Number(a.rating_count || 0))
+      .slice(0, 8);
 
-    if (suggestions.length) {
-      suggestedSection.style.display = 'block';
-      suggestions.forEach((resource) => suggestedCarousel.appendChild(renderSuggestedCard(resource)));
-    } else {
-      suggestedSection.style.display = 'none';
+    if (suggestedSection) {
+      suggestedSection.style.display = suggestions.length ? 'block' : 'none';
+    }
+    if (newestSection) {
+      newestSection.style.display = newestResources.length ? 'block' : 'none';
+    }
+    if (topRatedSection) {
+      topRatedSection.style.display = topRatedResources.length ? 'block' : 'none';
     }
 
+    renderCarousel(suggestedCarousel, suggestions, 'No suggested resources for this search yet.');
+    renderCarousel(newestCarousel, newestResources, 'No recent uploads match your search.');
+    renderCarousel(topRatedCarousel, topRatedResources, 'No highly rated resources match your search.');
+
     allVisibleResources = filteredResources;
+    setHeroContent(filteredResources.length, topRatedResources.length, newestResources.length);
     renderResourcesSection();
   } catch (error) {
     list.innerHTML = `<div class="empty-state">Unable to load resources: ${error.message}</div>`;
@@ -618,6 +770,7 @@ uploadForm.addEventListener('submit', async (event) => {
     setUploadMessage('Resource published. You earned 15 Learning Points.', true);
     showToast('Resource published successfully.', true);
     uploadForm.reset();
+    closeUploadModal();
     visibleResourceCount = RESOURCE_PAGE_SIZE;
     await loadResources();
   } catch (error) {

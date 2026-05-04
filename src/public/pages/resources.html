@@ -15,15 +15,49 @@
       <section class="phone-shell">
         <header id="topbar" class="topbar"></header>
         <div class="view page active">
+          <section class="resources-hero">
+            <div class="resources-hero__copy">
+              <p class="resources-hero__kicker">Study smarter</p>
+              <h2 id="resourcesHeroTitle">Welcome back</h2>
+              <p id="resourcesHeroText" class="resources-hero__text">Search past year papers, lecture notes, and shared links from one clean workspace.</p>
+            </div>
+            <div class="resources-hero__stats" aria-label="Resource highlights">
+              <div class="hero-stat">
+                <span class="hero-stat__label">Available now</span>
+                <strong id="heroResourceCount">0</strong>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat__label">Top picks</span>
+                <strong id="heroTopPickCount">0</strong>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat__label">Latest uploads</span>
+                <strong id="heroLatestCount">0</strong>
+              </div>
+            </div>
+          </section>
           <div class="search-row resource-toolbar">
-            <input id="resourceSearch" placeholder="Search by course code, title, type, or uploader" />
+            <div class="resource-search-shell" role="search">
+              <input id="resourceSearch" placeholder="Search by course code, title, type, or uploader" />
+              <div class="search-inline-actions" aria-label="Search controls">
+                <button id="resourceFilterBtn" class="icon-chip" type="button" aria-label="Search resources" title="Search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+                  </svg>
+                  <span class="sr-only">Search</span>
+                </button>
+                <button id="filterPopupBtn" class="icon-chip" type="button" aria-label="Open filters" title="Filter">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
+                  </svg>
+                  <span class="sr-only">Filter</span>
+                </button>
+              </div>
+            </div>
             <div class="action-row">
-              <button id="resourceFilterBtn" class="chip" type="button">Search</button>
-              <button id="filterPopupBtn" class="chip chip-quick" type="button">Filter</button>
               <button id="toggleUploadBtn" class="chip chip-strong" type="button">Upload Resource</button>
             </div>
           </div>
-          <p class="quick-help"><strong>Filter and Download:</strong> Tutees can quickly locate resources, significantly reducing the average two-hour search time identified in the requirement analysis.</p>
           <div id="resourceFilterModal" class="filter-modal hidden" role="dialog" aria-modal="true" aria-labelledby="filterModalTitle">
             <div class="filter-panel">
               <div class="filter-panel-head">
@@ -50,12 +84,13 @@
               <details class="filter-section" open>
                 <summary>Rating Range</summary>
                 <div class="rating-filter-row">
-                  <span id="minRatingValue" class="rating-filter-value">☆☆☆☆☆</span>
                   <div id="ratingRangeWrap" class="rating-range-wrap" role="group" aria-label="Rating range">
+                    <span id="minRatingValue" class="rating-filter-value range-label label-from">☆☆☆☆☆</span>
+                    <span id="maxRatingValue" class="rating-filter-value range-label label-to">★★★★★</span>
+                    
                     <input id="minRatingFilter" type="range" min="0" max="5" step="0.5" value="0" aria-label="Minimum rating" />
                     <input id="maxRatingFilter" type="range" min="0" max="5" step="0.5" value="5" aria-label="Maximum rating" />
                   </div>
-                  <span id="maxRatingValue" class="rating-filter-value">★★★★★</span>
                 </div>
               </details>
 
@@ -77,47 +112,66 @@
             </div>
             <div id="suggestedCarousel" class="suggested-carousel" aria-label="Suggested resources carousel"></div>
           </section>
-          <section id="uploadPanel" class="card upload-panel hidden">
+          <section class="suggested-section resource-strip-section" id="newestSection">
             <div class="search-row compact">
-              <h3>Upload Resource</h3>
-              <span class="meta">Upload files or paste a link to earn Learning Points.</span>
+              <h3>Newly Uploaded</h3>
+              <span class="meta">Fresh uploads from your community.</span>
             </div>
-            <form id="resourceUploadForm" class="stack">
-              <label>Title
-                <input name="title" placeholder="Example: Week 3 Lecture Slides" required />
-              </label>
-              <div class="row-2">
-                <label>Course Code
-                  <input name="courseCode" placeholder="TMF3953" />
-                </label>
-                <label>Resource Type
-                  <select name="resourceType" required>
-                    <option value="">Select a type</option>
-                    <option value="past-year">Past Year</option>
-                    <option value="lecture-note">Lecture Notes</option>
-                    <option value="slides">Slides / PPTX</option>
-                    <option value="notes">Notes / DOCX</option>
-                    <option value="pdf">PDF</option>
-                    <option value="picture">Picture / Image</option>
-                    <option value="link">Link</option>
-                    <option value="audio">Audio</option>
-                    <option value="video">Video</option>
-                    <option value="archive">ZIP / Archive</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-              </div>
-              <label>Resource File (PDF, PPTX, DOCX, image, audio, video, zip, or any file type)
-                <input name="resourceFile" type="file" accept="*/*" />
-              </label>
-              <label>Resource Link
-                <input name="resourceLink" placeholder="https://... or drive/shared link" />
-              </label>
-              <p class="meta">You can upload a file, paste a link, or do both. Files of any common student/lecturer format are allowed.</p>
-              <button class="primary" type="submit">Publish Resource</button>
-            </form>
-            <p id="resourceUploadMessage" class="message"></p>
+            <div id="newestCarousel" class="suggested-carousel" aria-label="Newest resources carousel"></div>
           </section>
+          <section class="suggested-section resource-strip-section" id="topRatedSection">
+            <div class="search-row compact">
+              <h3>Highest Rated</h3>
+              <span class="meta">The most trusted resources this week.</span>
+            </div>
+            <div id="topRatedCarousel" class="suggested-carousel" aria-label="Top rated resources carousel"></div>
+          </section>
+          <div id="uploadModal" class="upload-modal hidden" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
+            <div class="upload-modal__backdrop" data-close-upload-modal></div>
+            <div class="upload-panel card" role="document">
+              <button id="closeUploadModalBtn" class="upload-close-btn" type="button" aria-label="Close upload resource popup">×</button>
+              <div class="upload-panel-head">
+                <p class="upload-kicker">Resource upload</p>
+                <h3 id="uploadModalTitle">Upload Resource</h3>
+                <p class="upload-message meta">Upload a file or paste a link without scrolling the page.</p>
+              </div>
+              <form id="resourceUploadForm" class="stack">
+                <label>Title
+                  <input name="title" placeholder="Example: Week 3 Lecture Slides" required />
+                </label>
+                <div class="row-2">
+                  <label>Course Code
+                    <input name="courseCode" placeholder="TMF3953" />
+                  </label>
+                  <label>Resource Type
+                    <select name="resourceType" required>
+                      <option value="">Select a type</option>
+                      <option value="past-year">Past Year</option>
+                      <option value="lecture-note">Lecture Notes</option>
+                      <option value="slides">Slides / PPTX</option>
+                      <option value="notes">Notes / DOCX</option>
+                      <option value="pdf">PDF</option>
+                      <option value="picture">Picture / Image</option>
+                      <option value="link">Link</option>
+                      <option value="audio">Audio</option>
+                      <option value="video">Video</option>
+                      <option value="archive">ZIP / Archive</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                </div>
+                <label>Resource File (PDF, PPTX, DOCX, image, audio, video, zip, or any file type)
+                  <input name="resourceFile" type="file" accept="*/*" />
+                </label>
+                <label>Resource Link
+                  <input name="resourceLink" placeholder="https://... or drive/shared link" />
+                </label>
+                <p class="meta">You can upload a file, paste a link, or do both. Files of any common student/lecturer format are allowed.</p>
+                <button class="primary" type="submit">Publish Resource</button>
+              </form>
+              <p id="resourceUploadMessage" class="message"></p>
+            </div>
+          </div>
           <h2>Popular Entries</h2>
           <div id="resourceList" class="list"></div>
         </div>

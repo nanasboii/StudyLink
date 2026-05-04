@@ -115,14 +115,14 @@ function renderLeaderboard() {
       <div class="leaderboard-rank">#${rank}</div>
       <div class="leaderboard-main">
         <div class="leaderboard-topline">
-          <strong>${entry.full_name}</strong>
+          <strong>${entry.fullName || entry.full_name}</strong>
           <span class="role-pill role-${role}">${roleLabel(entry.role)}</span>
         </div>
         <div class="leaderboard-stats">
-          <span class="stat-chip"><b>Achievements:</b> ${entry.total_achievements}</span>
-          <span class="stat-chip"><b>Points:</b> ${entry.total_points}</span>
+          <span class="stat-chip"><b>Achievements:</b> ${entry.totalAchievements || entry.total_achievements}</span>
+          <span class="stat-chip"><b>Points:</b> ${entry.totalPoints || entry.total_points}</span>
           <span class="stat-chip"><b>Rating:</b> ${Number(entry.rating || 0).toFixed(2)}</span>
-          <span class="stat-chip"><b>Reviews:</b> ${entry.reviews_received}</span>
+          <span class="stat-chip"><b>Reviews:</b> ${entry.reviewsReceived || entry.reviews_received}</span>
         </div>
         <div class="leaderboard-actions"></div>
       </div>
@@ -138,8 +138,7 @@ function renderLeaderboard() {
     if (user?.role === 'tutee' && role === 'tutor') {
       const bookBtn = buildActionButton('Book a Session', 'is-primary');
       bookBtn.addEventListener('click', () => {
-        const prefill = normalizeText(entry.student_id, String(entry.id));
-        localStorage.setItem('prefillTutorId', prefill);
+        localStorage.setItem('prefillTutorId', normalizeText(entry.id, ''));
         window.location.href = PAGES.session;
       });
       actions.appendChild(bookBtn);

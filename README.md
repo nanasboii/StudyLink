@@ -6,7 +6,6 @@ StudyLink is a Node.js + Express + PostgreSQL tutoring platform with a multi-pag
 
 - App/API: http://localhost:6767
 - UI: http://localhost:6767/ui/
-- pgAdmin: http://localhost:5050
 - PostgreSQL: localhost:5432
 
 ## Quick Start
@@ -229,11 +228,6 @@ Database:
 Seed admin account:
 
 - Email: `admin@studylink.local`
-- Password: `admin123`
-
-pgAdmin:
-
-- Email: `admin@studylink.com`
 - Password: `admin123`
 
 ## Auth Header

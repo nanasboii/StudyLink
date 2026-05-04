@@ -10,6 +10,7 @@ const app = express();
 const defaultPort = Number(process.env.PORT || 6767);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
+const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';
 const uploadBaseDir = path.join(__dirname, 'uploads');
 const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
@@ -103,7 +104,12 @@ const pool = new Pool({
   port: Number(process.env.DB_PORT || 5432),
   user: process.env.DB_USER || 'studylink',
   password: process.env.DB_PASSWORD || 'studylink',
-  database: process.env.DB_NAME || 'studylink'
+  database: process.env.DB_NAME || 'studylink',
+  ssl: String(process.env.DB_SSL || '').toLowerCase() === 'true'
+    ? {
+        rejectUnauthorized: String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true'
+      }
+    : undefined
 });
 
 app.use(express.json({ limit: '2mb' }));
@@ -255,6 +261,53 @@ function sanitizeUser(row) {
     loginStreak: Number(row.login_streak || 0),
     lastLoginAt: row.last_login_at,
     createdAt: row.created_at
+  };
+}
+
+function sanitizePublicTutor(row) {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    role: row.role,
+    major: row.major,
+    yearOfStudy: row.year_of_study,
+    targetSubjects: row.target_subjects,
+    expertise: Array.isArray(row.expertise) ? row.expertise : [],
+    bio: row.bio,
+    profilePictureUrl: row.profile_picture_url,
+    isVerified: row.is_verified,
+    totalPoints: Number(row.total_points || 0),
+    rating: Number(row.rating || 0),
+    reviewsReceived: Number(row.reviews_received || 0),
+    totalAchievements: Number(row.total_achievements || 0),
+    availability: Array.isArray(row.availability) ? row.availability : []
+  };
+}
+
+function sanitizeLeaderboardEntry(row) {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    role: row.role,
+    totalPoints: Number(row.total_points || 0),
+    isVerified: Boolean(row.is_verified),
+    rating: Number(row.rating || 0),
+    reviewsReceived: Number(row.reviews_received || 0),
+    totalAchievements: Number(row.total_achievements || 0)
+  };
+}
+
+function sanitizeErrorLog(row) {
+  return {
+    id: row.id,
+    path: row.path,
+    method: row.method,
+    status_code: row.status_code,
+    message: row.message,
+    created_at: row.created_at,
+    user_name: row.user_name || null,
+    user_email: row.user_email || null,
+    stack: row.stack || null
   };
 }
 
@@ -583,7 +636,7 @@ async function initializeDatabase() {
 
       CREATE TABLE IF NOT EXISTS resources (
         id SERIAL PRIMARY KEY,
-        course_code VARCHAR(30) REFERENCES courses(code),
+        course_code VARCHAR(30),
         contributor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title VARCHAR(250) NOT NULL,
         resource_type VARCHAR(80) NOT NULL,
@@ -607,7 +660,7 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS tutor_availability (
         id SERIAL PRIMARY KEY,
         tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        course_code VARCHAR(30) REFERENCES courses(code),
+        course_code VARCHAR(30),
         day_of_week VARCHAR(20) NOT NULL,
         start_time TIME NOT NULL,
         end_time TIME NOT NULL,
@@ -618,7 +671,7 @@ async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         tutee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        course_code VARCHAR(30) REFERENCES courses(code),
+        course_code VARCHAR(30),
         session_time TIMESTAMP NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending'
           CHECK (status IN ('pending', 'accepted', 'rejected', 'completed', 'cancelled')),
@@ -701,7 +754,7 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS tutor_verifications (
         id SERIAL PRIMARY KEY,
         tutor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        course_code VARCHAR(30) REFERENCES courses(code),
+        course_code VARCHAR(30),
         proof_url TEXT NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending'
           CHECK (status IN ('pending', 'approved', 'rejected')),
@@ -1226,44 +1279,78 @@ app.get('/courses', requireAuth, async (req, res) => {
 
 app.get('/leaderboard', requireAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT u.id,
-              u.student_id,
-              u.full_name,
-              u.role,
-              u.total_points,
-              u.is_verified,
-              COALESCE(u.rating, 0) AS rating,
-              COALESCE(rc.reviews_received, 0) AS reviews_received,
-              COALESCE(ua.total_achievements, 0) AS total_achievements
-       FROM users u
-       LEFT JOIN (
-         SELECT reviewed_user_id, COUNT(*)::int AS reviews_received
-         FROM booking_reviews br
-         JOIN bookings b ON b.id = br.booking_id
-         JOIN users reviewer ON reviewer.id = br.reviewer_id
-         CROSS JOIN LATERAL (
-           SELECT CASE
-             WHEN reviewer.role = 'tutor' THEN b.tutee_id
-             WHEN reviewer.role = 'tutee' THEN b.tutor_id
-           END AS reviewed_user_id
-         ) reviewed
-         WHERE reviewer.role IN ('tutor', 'tutee')
-           AND reviewed.reviewed_user_id IS NOT NULL
-         GROUP BY reviewed.reviewed_user_id
-       ) rc ON rc.reviewed_user_id = u.id
-       LEFT JOIN (
-         SELECT user_id, COUNT(*)::int AS total_achievements
-         FROM user_achievements
-         GROUP BY user_id
-       ) ua ON ua.user_id = u.id
-       ORDER BY COALESCE(ua.total_achievements, 0) DESC,
-                u.total_points DESC,
-                COALESCE(rc.reviews_received, 0) DESC,
-                u.full_name ASC
-       LIMIT 20`
-    );
-    return res.json({ leaderboard: rows });
+    try {
+      const { rows } = await pool.query(
+        `SELECT u.id,
+                u.full_name,
+                u.role,
+                u.total_points,
+                u.is_verified,
+                COALESCE(u.rating, 0) AS rating,
+                COALESCE(rc.reviews_received, 0) AS reviews_received,
+                COALESCE(ua.total_achievements, 0) AS total_achievements
+         FROM users u
+         LEFT JOIN (
+           SELECT reviewed_user_id, COUNT(*)::int AS reviews_received
+           FROM booking_reviews br
+           JOIN bookings b ON b.id = br.booking_id
+           JOIN users reviewer ON reviewer.id = br.reviewer_id
+           CROSS JOIN LATERAL (
+             SELECT CASE
+               WHEN reviewer.role = 'tutor' THEN b.tutee_id
+               WHEN reviewer.role = 'tutee' THEN b.tutor_id
+             END AS reviewed_user_id
+           ) reviewed
+           WHERE reviewer.role IN ('tutor', 'tutee')
+             AND reviewed.reviewed_user_id IS NOT NULL
+           GROUP BY reviewed.reviewed_user_id
+         ) rc ON rc.reviewed_user_id = u.id
+         LEFT JOIN (
+           SELECT user_id, COUNT(*)::int AS total_achievements
+           FROM user_achievements
+           GROUP BY user_id
+         ) ua ON ua.user_id = u.id
+         ORDER BY COALESCE(ua.total_achievements, 0) DESC,
+                  u.total_points DESC,
+                  COALESCE(rc.reviews_received, 0) DESC,
+                  u.full_name ASC
+         LIMIT 20`
+      );
+
+      return res.json({ leaderboard: rows.map((row) => sanitizeLeaderboardEntry(row)) });
+    } catch (innerErr) {
+      // If the booking_reviews (or bookings) relation is missing on the imported DB,
+      // fall back to a simpler leaderboard that omits reviews_received.
+      if (String(innerErr.message || '').toLowerCase().includes('booking_reviews') ||
+          String(innerErr.message || '').toLowerCase().includes('relation') && String(innerErr.message || '').toLowerCase().includes('does not exist')) {
+        console.warn('Leaderboard: booking_reviews not available, using fallback query. Error:', innerErr.message);
+
+        const { rows } = await pool.query(
+          `SELECT u.id,
+                  u.full_name,
+                  u.role,
+                  u.total_points,
+                  u.is_verified,
+                  COALESCE(u.rating, 0) AS rating,
+                  0 AS reviews_received,
+                  COALESCE(ua.total_achievements, 0) AS total_achievements
+           FROM users u
+           LEFT JOIN (
+             SELECT user_id, COUNT(*)::int AS total_achievements
+             FROM user_achievements
+             GROUP BY user_id
+           ) ua ON ua.user_id = u.id
+           ORDER BY COALESCE(ua.total_achievements, 0) DESC,
+                    u.total_points DESC,
+                    u.full_name ASC
+           LIMIT 20`
+        );
+
+        return res.json({ leaderboard: rows.map((row) => sanitizeLeaderboardEntry(row)) });
+      }
+
+      throw innerErr;
+    }
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -1277,8 +1364,7 @@ app.get('/users/:id/public', requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT u.id,
-              u.student_id,
+            `SELECT u.id,
               u.full_name,
               u.role,
               u.major,
@@ -1314,7 +1400,6 @@ app.get('/users/:id/public', requireAuth, async (req, res) => {
          GROUP BY user_id
        ) ua ON ua.user_id = u.id
        WHERE u.id::text = $1
-          OR u.student_id = $1
        LIMIT 1`,
       [rawId]
     );
@@ -1323,7 +1408,7 @@ app.get('/users/:id/public', requireAuth, async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    return res.json({ user: rows[0] });
+    return res.json({ user: sanitizePublicTutor(rows[0]) });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -1379,8 +1464,7 @@ app.get('/tutors', requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT u.id,
-              u.student_id,
+            `SELECT u.id,
               u.full_name,
               u.major,
               u.year_of_study,
@@ -1407,12 +1491,12 @@ app.get('/tutors', requireAuth, async (req, res) => {
              AND ($1::text IS NULL OR ta.course_code = $1)
        WHERE u.role = 'tutor'
          AND ($1::text IS NULL OR ta.id IS NOT NULL)
-       GROUP BY u.id, u.student_id, u.full_name, u.major, u.year_of_study, u.bio, u.rating, u.total_points, u.is_verified
+       GROUP BY u.id, u.full_name, u.major, u.year_of_study, u.bio, u.rating, u.total_points, u.is_verified
        ORDER BY u.is_verified DESC, u.rating DESC, u.total_points DESC, u.full_name ASC`,
       [courseCode]
     );
 
-    return res.json({ tutors: rows });
+    return res.json({ tutors: rows.map((row) => sanitizePublicTutor(row)) });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -1449,20 +1533,6 @@ app.post('/bookings', requireAuth, requireRole('tutee'), async (req, res) => {
     }
 
     const tutor = tutorLookup.rows[0];
-
-    if (normalizedCourseCode) {
-      const courseCheck = await client.query('SELECT 1 FROM courses WHERE code = $1', [
-        normalizedCourseCode
-      ]);
-
-      if (courseCheck.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          message:
-            'Invalid course code. Use a course from /courses (for example: TMF3953, TMF3963, TMF3973), or leave it blank.'
-        });
-      }
-    }
 
     const { rows } = await client.query(
       `INSERT INTO bookings (tutor_id, tutee_id, course_code, session_time, notes)
@@ -1864,27 +1934,6 @@ app.post(
     try {
       await client.query('BEGIN');
 
-      if (courseCode) {
-        const courseCheck = await client.query('SELECT 1 FROM courses WHERE code = $1', [courseCode]);
-        if (courseCheck.rows.length === 0) {
-          if (req.file) {
-            try {
-              await fs.promises.unlink(req.file.path);
-            } catch (cleanupError) {
-              if (cleanupError.code !== 'ENOENT') {
-                console.error('Resource upload cleanup failed:', cleanupError.message);
-              }
-            }
-          }
-
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            message:
-              'Invalid course code. Use a course from /courses (for example: TMF3953, TMF3963, TMF3973), or leave it blank.'
-          });
-        }
-      }
-
       const { rows } = await client.query(
         `INSERT INTO resources
          (course_code, contributor_id, title, resource_type, file_url, metadata)
@@ -2239,29 +2288,6 @@ app.post('/tutor-verifications', requireAuth, requireRole('tutor'), async (req, 
       message:
         'Uploaded verification file was not found on server. Please upload the document again before submitting.'
     });
-  }
-
-  if (normalizedCourseCode) {
-    const courseCheck = await pool.query('SELECT 1 FROM courses WHERE code = $1', [
-      normalizedCourseCode
-    ]);
-
-    if (courseCheck.rows.length === 0) {
-      if (uploadedFilePath) {
-        try {
-          await fs.promises.unlink(uploadedFilePath);
-        } catch (cleanupError) {
-          if (cleanupError.code !== 'ENOENT') {
-            console.error('Verification upload cleanup failed:', cleanupError.message);
-          }
-        }
-      }
-
-      return res.status(400).json({
-        message:
-          'Invalid course code. Use a course from /courses (for example: TMF3953, TMF3963, TMF3973), or leave it blank.'
-      });
-    }
   }
 
   try {
@@ -2639,7 +2665,7 @@ app.get('/admin/error-logs', requireAuth, requireRole('admin'), async (req, res)
        LIMIT 300`
     );
 
-    return res.json({ logs: rows });
+    return res.json({ logs: rows.map((row) => sanitizeErrorLog(row)) });
   } catch (error) {
     console.error('Error loading server error logs:', error.message);
     return res.status(500).json({ message: `Database error: ${error.message}` });
@@ -2849,11 +2875,15 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ message: err.message || 'Unexpected server error.' });
 });
 
-initializeDatabase()
-  .then(() => {
-    startServer(defaultPort);
-  })
-  .catch((error) => {
-    console.error('Failed to initialize StudyLink API:', error);
-    process.exit(1);
-  });
+if (skipDbInit) {
+  startServer(defaultPort);
+} else {
+  initializeDatabase()
+    .then(() => {
+      startServer(defaultPort);
+    })
+    .catch((error) => {
+      console.error('Failed to initialize StudyLink API:', error);
+      process.exit(1);
+    });
+}

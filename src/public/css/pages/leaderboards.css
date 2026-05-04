@@ -1,9 +1,33 @@
+.view.page.active {
+  gap: 14px;
+}
+
 .leaderboard-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  padding: 18px 20px 16px;
+  margin-bottom: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 245, 248, 0.72) 100%),
+    linear-gradient(135deg, rgba(255, 200, 214, 0.2), rgba(255, 183, 197, 0.12));
+  box-shadow: 0 16px 34px rgba(231, 126, 156, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+.leaderboard-header::before {
+  content: '';
+  position: absolute;
+  inset: -24% auto auto -8%;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 183, 197, 0.18), rgba(255, 183, 197, 0));
+  pointer-events: none;
 }
 
 .leaderboard-kicker {
@@ -12,38 +36,66 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #56758a;
+  color: #b55a73;
+}
+
+.leaderboard-header h2 {
+  color: #183041;
+  font-size: clamp(1.7rem, 2.4vw, 2.35rem);
+  line-height: 1.06;
 }
 
 .leaderboard-summary {
-  margin: 0 0 12px;
-  color: #4c6476;
+  margin: 0;
+  color: #5f5f68;
   font-size: 0.92rem;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.16) 100%),
+    linear-gradient(135deg, rgba(255, 232, 238, 0.88), rgba(255, 216, 227, 0.84));
+  box-shadow: 0 8px 18px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .leaderboard-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 2px 0 10px;
+  margin: 6px 0 2px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 245, 248, 0.68) 100%),
+    linear-gradient(135deg, rgba(255, 200, 214, 0.16), rgba(255, 183, 197, 0.1));
+  box-shadow: 0 12px 26px rgba(231, 126, 156, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
 }
 
 .tab-btn {
-  border-color: #cad9e7;
-  background: #f3f8fc;
-  color: #2f4f66;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.2) 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 245, 248, 0.82));
+  color: #5c4452;
+  box-shadow: 0 8px 18px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .tab-btn.is-active {
-  background: #2f4f66;
-  border-color: #2f4f66;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.14) 100%),
+    linear-gradient(135deg, #ffc8d6 0%, #ffb7c5 55%, #ffa9bc 100%);
+  border-color: rgba(255, 255, 255, 0.72);
   color: #fff;
+  box-shadow: 0 10px 22px rgba(231, 126, 156, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.48);
 }
 
 #leaderboardList {
+  display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
-  max-width: 960px;
+  max-width: 980px;
 }
 
 #leaderboardList .leaderboard-item {
@@ -52,9 +104,14 @@
   grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: start;
-  background: linear-gradient(180deg, #ffffff, #f6fafd);
-  border: 1px solid #d9e8f3;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 245, 248, 0.72) 100%),
+    linear-gradient(135deg, rgba(255, 200, 214, 0.18), rgba(255, 183, 197, 0.12));
+  border: 1px solid rgba(255, 255, 255, 0.76);
   padding: 14px 16px;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(231, 126, 156, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
 }
 
 #leaderboardList .leaderboard-item::before {
@@ -63,7 +120,7 @@
   inset: 0 auto 0 0;
   width: 4px;
   border-radius: 14px 0 0 14px;
-  background: #8aa4b8;
+  background: linear-gradient(180deg, #d9b1c0, #b86d86);
 }
 
 #leaderboardList .leaderboard-item.rank-1::before {
@@ -81,39 +138,68 @@
 #leaderboardList .leaderboard-item.rank-1,
 #leaderboardList .leaderboard-item.rank-2,
 #leaderboardList .leaderboard-item.rank-3 {
-  box-shadow: 0 10px 26px rgba(21, 45, 63, 0.1);
+  box-shadow: 0 18px 36px rgba(231, 126, 156, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+#leaderboardList .leaderboard-item.rank-1 {
+  transform: translateY(-2px);
+}
+
+#leaderboardList .leaderboard-item.rank-1::after,
+#leaderboardList .leaderboard-item.rank-2::after,
+#leaderboardList .leaderboard-item.rank-3::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 60%);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .leaderboard-rank {
-  min-width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  border: 1px solid #cbd9e5;
-  background: #eef4f8;
-  color: #1c3b51;
+  min-width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(255, 232, 238, 0.92), rgba(255, 216, 227, 0.88));
+  color: #8d4d64;
   font-family: 'Josefin Sans', sans-serif;
   font-size: 1.05rem;
   font-weight: 700;
   display: grid;
   place-items: center;
+  box-shadow: 0 8px 18px rgba(231, 126, 156, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .leaderboard-item.rank-1 .leaderboard-rank {
-  background: #fff6d9;
-  border-color: #eccb73;
-  color: #805200;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.16) 100%),
+    linear-gradient(135deg, #ffe89d 0%, #ffd56f 55%, #f0b84b 100%);
+  border-color: rgba(255, 255, 255, 0.84);
+  color: #6d4700;
+  box-shadow: 0 10px 22px rgba(211, 151, 39, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .leaderboard-item.rank-2 .leaderboard-rank {
-  background: #eef2f6;
-  border-color: #b8c6d5;
-  color: #3c5367;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.16) 100%),
+    linear-gradient(135deg, #eef2f6 0%, #dbe6ee 100%);
+  border-color: rgba(255, 255, 255, 0.84);
+  color: #40566d;
 }
 
 .leaderboard-item.rank-3 .leaderboard-rank {
-  background: #fff0e4;
-  border-color: #d7ad8d;
-  color: #6f4324;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.16) 100%),
+    linear-gradient(135deg, #ffe7da 0%, #f5cda9 100%);
+  border-color: rgba(255, 255, 255, 0.84);
+  color: #7a4a24;
 }
 
 .leaderboard-main {
@@ -129,7 +215,7 @@
 }
 
 #leaderboardList .leaderboard-topline strong {
-  color: #152d3f;
+  color: #183041;
   margin: 0;
   font-size: 1.95rem;
 }
@@ -141,24 +227,28 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  box-shadow: 0 6px 14px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .role-pill.role-admin {
-  background: #f0f5ff;
-  border-color: #c7d7f9;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(240, 245, 255, 0.96), rgba(220, 231, 250, 0.92));
   color: #2f5394;
 }
 
 .role-pill.role-tutor {
-  background: #ebf8f1;
-  border-color: #b9e0cc;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(235, 248, 241, 0.96), rgba(215, 239, 225, 0.92));
   color: #1f6d47;
 }
 
 .role-pill.role-tutee {
-  background: #fff7ea;
-  border-color: #f1d9ad;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(255, 247, 234, 0.96), rgba(248, 227, 193, 0.92));
   color: #8b611c;
 }
 
@@ -176,56 +266,69 @@
 }
 
 .leaderboard-action-btn {
-  border: 1px solid #cddce9;
-  background: #fff;
-  color: #244056;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 245, 248, 0.82));
+  color: #5c4452;
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .leaderboard-action-btn:hover {
-  background: #f5f9fc;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(231, 126, 156, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 .leaderboard-action-btn.is-primary {
-  border-color: #2f4f66;
-  background: #2f4f66;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%),
+    linear-gradient(135deg, #ffc8d6 0%, #ffb7c5 55%, #ffa9bc 100%);
   color: #fff;
+  box-shadow: 0 10px 22px rgba(231, 126, 156, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.48);
 }
 
 .leaderboard-action-btn.is-primary:hover {
-  background: #234156;
+  box-shadow: 0 14px 28px rgba(231, 126, 156, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
 .stat-chip {
   border-radius: 12px;
-  border: 1px solid #d9e6ef;
-  background: #f8fcff;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.18) 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 245, 248, 0.84));
   padding: 6px 9px;
-  color: #365166;
+  color: #5c4452;
   font-size: 0.84rem;
   white-space: nowrap;
+  box-shadow: 0 8px 16px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .stat-chip b {
   font-weight: 700;
-  color: #1f3a50;
+  color: #183041;
 }
 
 @media (max-width: 640px) {
   .leaderboard-header {
-    align-items: center;
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 
   .leaderboard-header .chip {
     padding: 8px 12px;
+    justify-self: start;
   }
 
   .leaderboard-tabs {
     gap: 6px;
+    padding: 8px;
   }
 
   .tab-btn {
@@ -241,6 +344,12 @@
     grid-template-columns: 44px 1fr;
     gap: 10px;
     padding: 12px 12px 12px 14px;
+  }
+
+  .leaderboard-rank {
+    min-width: 44px;
+    height: 44px;
+    border-radius: 14px;
   }
 
   #leaderboardList .leaderboard-topline strong {

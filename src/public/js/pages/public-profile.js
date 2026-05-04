@@ -29,16 +29,16 @@ function getUserIdFromQuery() {
 }
 
 function setProfile(entry) {
-  document.getElementById('publicProfileTitle').textContent = `${text(entry.full_name)} - Public Profile`;
-  document.getElementById('publicProfileName').textContent = text(entry.full_name);
+  document.getElementById('publicProfileTitle').textContent = `${text(entry.fullName || entry.full_name)} - Public Profile`;
+  document.getElementById('publicProfileName').textContent = text(entry.fullName || entry.full_name);
   document.getElementById('publicProfileRole').textContent = `Role: ${roleLabel(entry.role)}`;
-  document.getElementById('publicProfileMatric').textContent = `Matric: ${text(entry.student_id)}`;
-  document.getElementById('publicProfilePicture').src = entry.profile_picture_url || defaultProfilePicture;
-  document.getElementById('publicProfileAchievements').textContent = String(entry.total_achievements || 0);
-  document.getElementById('publicProfilePoints').textContent = String(entry.total_points || 0);
+  document.getElementById('publicProfileMatric').textContent = 'Matric: Hidden';
+  document.getElementById('publicProfilePicture').src = entry.profilePictureUrl || entry.profile_picture_url || defaultProfilePicture;
+  document.getElementById('publicProfileAchievements').textContent = String(entry.totalAchievements || entry.total_achievements || 0);
+  document.getElementById('publicProfilePoints').textContent = String(entry.totalPoints || entry.total_points || 0);
   document.getElementById('publicProfileRating').textContent = Number(entry.rating || 0).toFixed(2);
-  document.getElementById('publicProfileReviews').textContent = String(entry.reviews_received || 0);
-  document.getElementById('publicProfileVerified').textContent = entry.is_verified ? 'Verified' : 'Not verified';
+  document.getElementById('publicProfileReviews').textContent = String(entry.reviewsReceived || entry.reviews_received || 0);
+  document.getElementById('publicProfileVerified').textContent = (entry.isVerified ?? entry.is_verified) ? 'Verified' : 'Not verified';
   document.getElementById('publicProfileMajor').textContent = text(entry.major);
   document.getElementById('publicProfileYear').textContent = text(entry.year_of_study);
   document.getElementById('publicProfileExpertise').textContent = Array.isArray(entry.expertise) && entry.expertise.length
@@ -64,8 +64,8 @@ function setProfile(entry) {
     bookBtn.className = 'chip primary-action';
     bookBtn.textContent = 'Book a Session';
     bookBtn.addEventListener('click', () => {
-      const prefill = text(entry.student_id, String(entry.id || ''));
-      if (prefill !== '-') {
+      const prefill = String(entry.id || '').trim();
+      if (prefill) {
         localStorage.setItem('prefillTutorId', prefill);
       }
       window.location.href = PAGES.session;

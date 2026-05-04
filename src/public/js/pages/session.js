@@ -100,14 +100,6 @@ bookingForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  if (courseCode && knownCourseCodes.size && !knownCourseCodes.has(courseCode)) {
-    setMessage(
-      'sessionMessage',
-      'Invalid course code. Choose a course from the suggestions or leave it blank.'
-    );
-    return;
-  }
-
   if (new Date(sessionTime).getTime() <= Date.now()) {
     setMessage('sessionMessage', 'Session time must be in the future.');
     return;
@@ -169,15 +161,14 @@ function tutorPreviewCard(tutor) {
     : 'No time slot yet';
 
   div.innerHTML = `
-    <strong>${tutor.full_name}</strong>
-    <div class="meta">Matric Number: ${tutor.student_id}</div>
+    <strong>${tutor.fullName || tutor.full_name}</strong>
     <div class="meta">${firstSlot}</div>
-    <div class="actions"><button type="button">Use Matric ${tutor.student_id}</button></div>
+    <div class="actions"><button type="button">Use this tutor</button></div>
   `;
 
   div.querySelector('button').addEventListener('click', () => {
     const tutorIdInput = bookingForm.querySelector('input[name="tutorId"]');
-    tutorIdInput.value = tutor.student_id;
+    tutorIdInput.value = tutor.id;
   });
 
   return div;

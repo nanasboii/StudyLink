@@ -13,29 +13,104 @@
     <link rel="stylesheet" href="/ui/css/base.css" />
     <link rel="stylesheet" href="/ui/css/pages/login.css" />
   </head>
-  <body>
-    <main class="page-bg">
-      <section class="phone-shell">
-        <header class="topbar"><h1>StudyLink</h1></header>
-        <div class="view auth-view">
-          <div class="auth-block">
-            <h2>Sign in or create new account to continue</h2>
-            <form id="loginForm" class="stack">
-              <label>Email
-                <input type="email" name="email" required />
-              </label>
-              <label>Password
-                <div class="password-row">
-                  <input id="loginPassword" type="password" name="password" required />
-                  <button id="toggleLoginPassword" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false">Show</button>
-                </div>
-              </label>
-              <button class="primary" type="submit">Sign In</button>
-            </form>
-            <a class="link-btn" href="/ui/pages/register.html">No account? Create one now</a>
-            <p id="authMessage" class="message"></p>
-          </div>
-        </div>
+  <body class="login-page">
+    <!-- SVG filters for photographic cartoon/posterize effect -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width:0; height:0;" aria-hidden="true" focusable="false">
+      <filter id="posterize">
+        <feColorMatrix type="saturate" values="1.12" />
+        <feComponentTransfer>
+          <feFuncR type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncG type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncB type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+        </feComponentTransfer>
+        <feGaussianBlur stdDeviation="0.4" />
+      </filter>
+    </svg>
+    <main class="login-scene">
+      <div class="login-scene-art" aria-hidden="true">
+        <span class="scene-cloud scene-cloud-left"></span>
+        <span class="scene-cloud scene-cloud-right"></span>
+        <span class="scene-sun"></span>
+        <span class="scene-lake"></span>
+        <span class="scene-lake-glow"></span>
+        <span class="scene-hill scene-hill-left"></span>
+        <span class="scene-hill scene-hill-right"></span>
+        <span class="scene-campus scene-campus-left"></span>
+        <span class="scene-campus scene-campus-center"></span>
+        <span class="scene-tower"></span>
+        <span class="scene-bridge"></span>
+        <span class="scene-tree scene-tree-left"></span>
+        <span class="scene-tree scene-tree-right"></span>
+      </div>
+
+      <section class="login-brand" aria-label="UNIMAS sign in branding">
+        <svg class="unimas-logo" viewBox="0 0 640 240" aria-hidden="true" role="img">
+          <defs>
+            <linearGradient id="unimasBlue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#214c8f" />
+              <stop offset="100%" stop-color="#173d7a" />
+            </linearGradient>
+            <linearGradient id="unimasGold" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ffd861" />
+              <stop offset="100%" stop-color="#f2a81f" />
+            </linearGradient>
+          </defs>
+
+          <g transform="translate(8 18)">
+            <path d="M133 26 98 0 63 26v14h70Z" fill="url(#unimasBlue)" />
+            <path d="M98 10c-19 0-35 16-35 35 0 12 6 22 15 28l20 14 20-14c9-6 15-16 15-28 0-19-16-35-35-35Z" fill="#d92f3a" />
+            <path d="M98 20c-13 0-24 11-24 24 0 8 4 15 10 19l14 9 14-9c6-4 10-11 10-19 0-13-11-24-24-24Z" fill="url(#unimasGold)" />
+            <path d="M89 44c0-9 5-15 12-18-2 5-2 9 1 12 4 4 10 4 15 1-2 10-10 18-20 18-5 0-8-2-8-13Z" fill="#ff7d2a" />
+            <circle cx="142" cy="58" r="16" fill="none" stroke="#173d7a" stroke-width="2.5" />
+            <circle cx="142" cy="58" r="24" fill="none" stroke="#173d7a" stroke-width="1.5" opacity="0.8" />
+            <circle cx="142" cy="58" r="32" fill="none" stroke="#173d7a" stroke-width="1.2" opacity="0.55" />
+          </g>
+
+          <text x="18" y="160" fill="#214c8f" font-family="Josefin Sans, Trebuchet MS, sans-serif" font-size="86" font-weight="700" letter-spacing="0.5">UNIMAS</text>
+          <text x="20" y="198" fill="#214c8f" font-family="DM Sans, Segoe UI, sans-serif" font-size="28" font-weight="500" letter-spacing="0.9">UNIVERSITI MALAYSIA SARAWAK</text>
+        </svg>
+        <span class="studylink-brand">StudyLink</span>
+      </section>
+
+      <section class="login-card" aria-labelledby="loginTitle">
+        <h2 id="loginTitle">Sign in to your account</h2>
+        <form id="loginForm" class="login-form" novalidate>
+          <label class="field">
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="username" required />
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <div class="password-row">
+              <input id="loginPassword" type="password" name="password" autocomplete="current-password" required />
+              <button
+                id="toggleLoginPassword"
+                class="password-toggle"
+                type="button"
+                aria-label="Show password"
+                aria-pressed="false"
+              >
+                <svg class="password-icon password-icon-open" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5c5 0 9.27 3.11 11 7-1.73 3.89-6 7-11 7S2.73 15.89 1 12c1.73-3.89 6-7 11-7Zm0 2C8.14 7 4.8 9.32 3.35 12 4.8 14.68 8.14 17 12 17s7.2-2.32 8.65-5C19.2 9.32 15.86 7 12 7Zm0 1.75A3.25 3.25 0 1 1 12 15a3.25 3.25 0 0 1 0-6.5Zm0 2A1.25 1.25 0 1 0 12 13a1.25 1.25 0 0 0 0-2.5Z" />
+                </svg>
+                <svg class="password-icon password-icon-closed" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m2.1 3.51 1.42-1.42 18 18-1.42 1.42-3.04-3.04A11.93 11.93 0 0 1 12 19C6.98 19 2.73 15.89 1 12a12.94 12.94 0 0 1 4.33-5.17L2.1 3.51ZM9.5 10.91l3.59 3.59A3.25 3.25 0 0 1 9.5 10.91Zm3.06-3.08L16.95 12A8.1 8.1 0 0 0 12 8.75c.2 0 .39.02.56.08ZM12 5c5 0 9.27 3.11 11 7a13.08 13.08 0 0 1-3.17 4.02l-1.45-1.45A11.07 11.07 0 0 0 21.65 12C20.2 9.32 16.86 7 13 7c-.42 0-.84.04-1.24.1L9.99 5.32C10.62 5.11 11.29 5 12 5Z" />
+                </svg>
+              </button>
+            </div>
+          </label>
+
+          <label class="remember-row">
+            <input id="rememberMe" type="checkbox" checked />
+            <span>Remember me</span>
+          </label>
+
+          <button class="primary login-submit" type="submit">Sign In</button>
+        </form>
+
+        <a class="alt-link" href="/ui/pages/register.html">No account? Register here!</a>
+        <p id="authMessage" class="message"></p>
       </section>
     </main>
     <script type="module" src="/ui/js/pages/login.js"></script>

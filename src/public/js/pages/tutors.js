@@ -130,12 +130,12 @@ function renderTutorProfile(tutor, reviews = []) {
   tutorProfileModal.classList.remove('hidden');
   tutorProfileModal.setAttribute('aria-hidden', 'false');
   tutorProfilePanel.classList.remove('hidden');
-  tutorProfileName.textContent = tutor.full_name;
-  tutorProfilePicture.src = tutor.profile_picture_url || defaultProfilePicture;
-  tutorProfilePicture.alt = `${tutor.full_name} profile picture`;
-  tutorProfileRole.textContent = `Tutor • ${tutor.is_verified ? 'Verified' : 'Not verified'}`;
-  tutorProfileMatric.textContent = `Matric: ${tutor.student_id}`;
-  tutorProfileStats.textContent = `Rating: ${Number(tutor.rating || 0).toFixed(2)} | Points: ${tutor.total_points || 0}`;
+  tutorProfileName.textContent = tutor.fullName || tutor.full_name;
+  tutorProfilePicture.src = tutor.profilePictureUrl || tutor.profile_picture_url || defaultProfilePicture;
+  tutorProfilePicture.alt = `${tutor.fullName || tutor.full_name} profile picture`;
+  tutorProfileRole.textContent = `Tutor • ${(tutor.isVerified ?? tutor.is_verified) ? 'Verified' : 'Not verified'}`;
+  tutorProfileMatric.textContent = 'Matric: Hidden';
+  tutorProfileStats.textContent = `Rating: ${Number(tutor.rating || 0).toFixed(2)} | Points: ${tutor.totalPoints || tutor.total_points || 0}`;
   tutorProfileExpertise.textContent = `Expertise: ${Array.isArray(tutor.expertise) && tutor.expertise.length ? tutor.expertise.join(', ') : 'Not listed'}`;
   tutorProfileAvailability.textContent = `Availability: ${getFirstAvailabilityText(tutor)}`;
   tutorProfileBio.textContent = tutor.bio ? tutor.bio : 'No bio provided.';
@@ -147,7 +147,7 @@ function renderTutorProfile(tutor, reviews = []) {
   bookBtn.className = 'chip';
   bookBtn.textContent = 'Book this tutor';
   bookBtn.addEventListener('click', () => {
-    localStorage.setItem('prefillTutorId', String(tutor.student_id));
+    localStorage.setItem('prefillTutorId', String(tutor.id));
     window.location.href = PAGES.session;
   });
   tutorProfileActions.appendChild(bookBtn);
@@ -155,9 +155,9 @@ function renderTutorProfile(tutor, reviews = []) {
   const matricBtn = document.createElement('button');
   matricBtn.type = 'button';
   matricBtn.className = 'chip';
-  matricBtn.textContent = `Use Matric ${tutor.student_id}`;
+  matricBtn.textContent = 'Use this tutor';
   matricBtn.addEventListener('click', () => {
-    localStorage.setItem('prefillTutorId', String(tutor.student_id));
+    localStorage.setItem('prefillTutorId', String(tutor.id));
     window.location.href = PAGES.session;
   });
   tutorProfileActions.appendChild(matricBtn);
@@ -284,9 +284,8 @@ function tutorCard(tutor) {
   const div = document.createElement('div');
   div.className = 'item';
   div.innerHTML = `
-    <strong>${tutor.full_name}</strong>
-    <div class="meta"><b>Matric Number:</b> ${tutor.student_id}</div>
-    <div class="meta">Rating: ${tutor.rating} | Points: ${tutor.total_points}</div>
+    <strong>${tutor.fullName || tutor.full_name}</strong>
+    <div class="meta">Rating: ${tutor.rating} | Points: ${tutor.totalPoints || tutor.total_points}</div>
     <div class="meta">Expertise: ${expertise.length ? expertise.join(', ') : 'Not listed'}</div>
     <div class="meta">Availability: ${slotText}</div>
     ${slots.length > 3 ? `<div class="meta">+${slots.length - 3} more time slots</div>` : ''}
@@ -307,7 +306,7 @@ function tutorCard(tutor) {
 
   div.querySelector('button').addEventListener('click', (event) => {
     event.stopPropagation();
-    localStorage.setItem('prefillTutorId', String(tutor.student_id));
+    localStorage.setItem('prefillTutorId', String(tutor.id));
     window.location.href = PAGES.session;
   });
 
