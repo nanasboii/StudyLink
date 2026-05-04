@@ -846,6 +846,13 @@ async function initializeDatabase() {
 }
 
 app.get('/', (req, res) => {
+  const accept = String(req.get('Accept') || '');
+  // If the client is a browser (accepts HTML), redirect to the UI path.
+  if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
+    return res.redirect('/ui');
+  }
+
+  // Default: return API metadata for programmatic clients.
   res.json({
     name: 'StudyLink API',
     status: 'running',
