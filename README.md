@@ -215,8 +215,6 @@ Application:
 - `PORT` (default: `3000`)
 - `SESSION_DURATION_HOURS` (default: `24`)
 - `STREAK_TIMEZONE` (default: `Asia/Kuala_Lumpur`)
-- `ADMIN_EMAIL` (default: `admin@studylink.local`)
-- `ADMIN_PASSWORD` (default: `admin123`)
 
 Database (two supported methods):
 

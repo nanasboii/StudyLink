@@ -119,9 +119,9 @@
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  border: 2px solid #213645;
-  background: #fff;
-  color: #bac4cc;
+  border: 2px solid #c41e3a;
+  background: #1a1a1a;
+  color: #999999;
   font-size: 18px;
   line-height: 1;
   padding: 0;
@@ -132,17 +132,20 @@
 .detail-star-rating button:hover,
 .detail-star-rating button:focus-visible,
 .detail-star-rating button.is-previewed {
-  color: #f0b300;
-  background: #fff7d7;
+  color: #ffd700;
+  background: #2d2d2d;
+  border-color: #e63a52;
 }
 
 .detail-star-rating button.is-active {
-  color: #f0b300;
-  background: #fff1bc;
+  color: #ffd700;
+  background: #3d3d3d;
+  border-color: #c41e3a;
 }
 
 .detail-star-rating button.is-active.is-previewed {
-  background: #ffeaa0;
+  background: #4d4d4d;
+  border-color: #e63a52;
 }
 
 .detail-star-rating button:focus-visible,
