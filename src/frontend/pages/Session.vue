@@ -140,8 +140,8 @@
 </template>
 
 <script>
-import { api } from '../utils/api.js'
-import { getUser } from '../utils/auth.js'
+import { api, getUser } from '@/api.js'
+
 export default {
   name: 'Session',
   data() {

@@ -115,7 +115,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { api, requireSession, showToast } from '@/api.js'; // Adjust relative path if needed
+import { api, requireSession, showToast } from '@/api.js';
 
 const route = useRoute();
 const router = useRouter();

@@ -31,7 +31,7 @@
 </template>
 
 <script>
-import { api } from '../utils/api.js'
+import { api } from '@/api.js'
 export default {
   name: 'Review',
   data() {

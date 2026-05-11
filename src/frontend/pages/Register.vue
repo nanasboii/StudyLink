@@ -94,7 +94,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../utils/api.js'
+import { api } from '@/api.js'
 
 const router = useRouter()
 const isLoading = ref(false)

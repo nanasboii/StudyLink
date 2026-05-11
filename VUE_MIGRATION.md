@@ -81,7 +81,7 @@ All 18 pages have placeholder components ready:
 All API calls use the `api()` function in `src/frontend/utils/api.js`:
 
 ```javascript
-import { api } from '../utils/api.js'
+import { api } from '@/api.js'
 
 // GET request
 const data = await api('/users/me')

@@ -190,8 +190,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../utils/api.js'
-import { getUser } from '../utils/auth.js'
+import { api, getUser } from '@/api.js'
 
 const router = useRouter()
 const currentUser = getUser()
