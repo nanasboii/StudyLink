@@ -541,7 +541,7 @@ body.login-page .page-bg {
   }
 
   .unimas-logo {
-    width: min(100%, 260px);
+    width: min(100%, 280px);
   }
 
   .login-card {
@@ -551,15 +551,15 @@ body.login-page .page-bg {
   }
 
   .login-brand {
-    top: 14px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    gap: 4px;
+    gap: 6px;
   }
 
   .studylink-brand {
-    font-size: 12px;
-    letter-spacing: 0.14em;
+    font-size: clamp(18px, 2.8vw, 24px);
+    letter-spacing: 0.18em;
   }
 
   .login-submit {

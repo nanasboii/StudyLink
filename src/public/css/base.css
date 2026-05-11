@@ -573,6 +573,21 @@ label {
   font-weight: 500;
 }
 
+label:has(> input[required]),
+label:has(> textarea[required]),
+label:has(> select[required]) {
+  position: relative;
+}
+
+label:has(> input[required])::after,
+label:has(> textarea[required])::after,
+label:has(> select[required])::after {
+  content: ' * (required)';
+  color: #d92f3a;
+  font-weight: 700;
+  font-size: 12px;
+}
+
 input,
 textarea,
 select,
