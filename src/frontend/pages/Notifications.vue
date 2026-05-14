@@ -75,8 +75,18 @@ export default {
   },
   methods: {
     relativeTime(dateValue) {
-      const ms = Date.now() - new Date(dateValue).getTime()
+      if (!dateValue) return 'Just now'
+      
+      // Fix for "NaNd ago": Convert SQL timestamp to a browser-safe ISO string
+      const safeDate = dateValue.replace(' ', 'T') + (dateValue.includes('Z') ? '' : 'Z')
+      const date = new Date(safeDate)
+      
+      // Fallback if the date is completely invalid
+      if (isNaN(date.getTime())) return 'Just now'
+
+      const ms = Date.now() - date.getTime()
       const seconds = Math.max(1, Math.floor(ms / 1000))
+      
       if (seconds < 60) return `${seconds}s ago`
       const minutes = Math.floor(seconds / 60)
       if (minutes < 60) return `${minutes}m ago`
@@ -139,14 +149,16 @@ export default {
 }
 
 .view {
+  grid-row: 1 !important; /* Ini akan musnahkan baris ghaib tu! */
   overflow-y: auto;
-  padding: 20px 16px;
+  padding: 24px 16px !important; 
 }
 
 .notifications-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 0px !important;
   margin-bottom: 24px;
 }
 

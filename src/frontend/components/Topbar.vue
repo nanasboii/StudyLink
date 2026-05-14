@@ -90,7 +90,7 @@
       <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
         👤 Profile
       </router-link>
-      <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
+      <router-link to="/settings" class="menu-item" @click="isUserMenuOpen = false">
         ⚙️ Settings
       </router-link>
       <router-link to="/review" class="menu-item" @click="isUserMenuOpen = false">

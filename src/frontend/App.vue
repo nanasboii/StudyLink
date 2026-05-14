@@ -6,24 +6,26 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import Topbar from './components/Topbar.vue'
 import { getToken, getUser } from '@/api.js'
 
 const router = useRouter()
-const isAuthenticated = computed(() => !!getToken())
+const sessionToken = ref(getToken())
+const isAuthenticated = computed(() => !!sessionToken.value)
 const currentUser = computed(() => getUser())
 const currentPage = computed(() => router.currentRoute.value.name?.toLowerCase() || '')
 const showStreakModalOnMount = ref(false)
 const topbarRef = ref(null)
 
+const syncSessionState = () => {
+  sessionToken.value = getToken()
+}
+
 onMounted(async () => {
-  // If not authenticated, redirect to login
-  if (!isAuthenticated.value && router.currentRoute.value.name !== 'Login' && router.currentRoute.value.name !== 'Register') {
-    router.push('/login')
-    return
-  }
+  window.addEventListener('studylink-session-changed', syncSessionState)
+  window.addEventListener('storage', syncSessionState)
 
   // Check if user just logged in (hasn't seen streak modal yet)
   if (isAuthenticated.value) {
@@ -39,6 +41,11 @@ onMounted(async () => {
       }
     }
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('studylink-session-changed', syncSessionState)
+  window.removeEventListener('storage', syncSessionState)
 })
 </script>
 

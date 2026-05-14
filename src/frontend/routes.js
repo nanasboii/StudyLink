@@ -19,6 +19,7 @@
   notifications: '/notifications',
   achievements: '/achievements',
   profile: '/profile',
+  settings: '/settings',
   publicProfile: '/public-profile',
   resourceDetail: '/resource-detail'
 };

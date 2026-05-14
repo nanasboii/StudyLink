@@ -62,7 +62,7 @@
       <section class="login-card" aria-labelledby="loginTitle">
         <h2 id="loginTitle">Sign in to your account</h2>
         
-        <form class="login-form" @submit.prevent="handleLogin" novalidate>
+        <form v-if="!requires2FA" class="login-form" @submit.prevent="handleLogin" novalidate>
           <label class="field">
             <span>Email</span>
             <input type="email" v-model="email" autocomplete="username" required />
@@ -103,7 +103,31 @@
           <button class="primary login-submit" type="submit">Sign In</button>
         </form>
 
-        <router-link class="alt-link" to="/register">No account? Register here!</router-link>
+        <form v-else class="login-form otp-form" @submit.prevent="handleVerifyOTP" novalidate>
+          <p class="otp-instructions">We've sent a one-time password to your email. Please enter it below.</p>
+          <label class="field">
+            <span>OTP Code</span>
+            <input type="text" v-model="otp" required placeholder="123456" />
+          </label>
+          <button class="primary login-submit" type="submit">Verify OTP</button>
+          
+          <div class="otp-actions">
+            <button 
+              class="resend-btn" 
+              type="button" 
+              @click="handleResendOTP"
+              :disabled="!canResendOTP"
+            >
+              {{ canResendOTP ? 'Resend OTP' : `Resend in ${resendCountdown}s` }}
+            </button>
+            <button class="secondary back-btn" type="button" @click="requires2FA = false; authMessage = ''">Back to Login</button>
+          </div>
+        </form>
+
+        <div style="display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:12px;">
+          <router-link class="alt-link" to="/register">No account? Register here!</router-link>
+          <router-link class="alt-link" to="/forgot-password">Forgot password?</router-link>
+        </div>
         
         <p v-if="authMessage" class="message">{{ authMessage }}</p>
       </section>
@@ -122,9 +146,13 @@ const router = useRouter();
 // Form state
 const email = ref('');
 const password = ref('');
+const otp = ref('');
+const requires2FA = ref(false);
 const rememberMe = ref(true);
 const isPasswordHidden = ref(true);
 const authMessage = ref('');
+const resendCountdown = ref(0);
+const canResendOTP = ref(false);
 
 // Constants
 const LOGIN_STREAK_STORAGE_KEY = 'studylinkLoginStreak';
@@ -165,6 +193,13 @@ const handleLogin = async () => {
       password: password.value
     });
 
+    if (result.requires2FA) {
+      requires2FA.value = true;
+      authMessage.value = result.message;
+      startResendCountdown();
+      return;
+    }
+
     setSession(result.token, result.user);
     sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
 
@@ -176,6 +211,53 @@ const handleLogin = async () => {
     router.push(PAGES.resources);
   } catch (error) {
     authMessage.value = error.message || 'An error occurred during login.';
+  }
+};
+
+const handleVerifyOTP = async () => {
+  authMessage.value = '';
+  try {
+    const result = await api('/auth/verify-otp', 'POST', {
+      email: email.value.trim(),
+      otp: otp.value.trim()
+    });
+
+    setSession(result.token, result.user);
+    sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
+
+    if (result.loginStreak) {
+      sessionStorage.setItem(LOGIN_STREAK_STORAGE_KEY, JSON.stringify(result.loginStreak));
+    }
+
+    router.push(PAGES.resources);
+  } catch (error) {
+    authMessage.value = error.message || 'Invalid OTP.';
+  }
+};
+
+const startResendCountdown = () => {
+  resendCountdown.value = 60;
+  canResendOTP.value = false;
+
+  const interval = setInterval(() => {
+    resendCountdown.value--;
+    if (resendCountdown.value <= 0) {
+      clearInterval(interval);
+      canResendOTP.value = true;
+    }
+  }, 1000);
+};
+
+const handleResendOTP = async () => {
+  authMessage.value = '';
+  try {
+    await api('/auth/resend-otp', 'POST', {
+      email: email.value.trim()
+    });
+    authMessage.value = 'OTP resent successfully! Check your email.';
+    startResendCountdown();
+  } catch (error) {
+    authMessage.value = error.message || 'Failed to resend OTP.';
   }
 };
 </script>
@@ -236,17 +318,21 @@ const handleLogin = async () => {
   width: 100vw;
   min-height: 100vh;
   margin-inline: auto;
-  display: grid;
-  place-items: center;
-  justify-items: center;
-  align-content: center;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
   overflow: hidden;
   padding: 0 16px;
 }
 
 .login-scene-art {
   display: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .login-scene-art::before,
@@ -494,15 +580,11 @@ const handleLogin = async () => {
 }
 
 .login-brand {
-  position: absolute;
-  top: clamp(16px, 4vh, 38px);
-  left: 50%;
   z-index: 3;
   display: grid;
   justify-items: center;
   gap: 6px;
-  margin: 0;
-  transform: translateX(-50%);
+  margin: 0 0 2rem 0;
 }
 
 .unimas-logo {
@@ -668,6 +750,50 @@ const handleLogin = async () => {
     inset 0 3px 18px rgba(255, 255, 255, 0.18),
     0 10px 34px rgba(22, 24, 39, 0.22);
   transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.otp-instructions {
+  font-size: 0.9rem;
+  color: #555;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #173d7a !important;
+  border: 1px solid rgba(23, 61, 122, 0.3) !important;
+}
+
+.otp-actions {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+  margin-top: 15px;
+}
+
+.resend-btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  background: transparent;
+  color: #1773cb;
+  border: 1px solid #1773cb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.resend-btn:hover:not(:disabled) {
+  background: #1773cb;
+  color: white;
+}
+
+.resend-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  color: #999;
+  border-color: #ccc;
 }
 
 .login-submit:hover {

@@ -46,7 +46,6 @@
           </div>
         </div>
 
-        <!-- Expertise Chips Filter -->
         <div class="chip-row">
           <button 
             v-for="skill in popularSkills" 
@@ -59,7 +58,6 @@
           </button>
         </div>
 
-        <!-- Tutors List -->
         <section class="tutors-section">
           <div class="search-row compact">
             <h3>Available Tutors</h3>
@@ -105,7 +103,6 @@
           </button>
         </section>
 
-        <!-- Tutor Profile Modal -->
         <div v-if="selectedTutorData" class="modal-backdrop" @click="selectedTutorData = null">
           <div class="modal-content" @click.stop>
             <button class="modal-close" @click="selectedTutorData = null">×</button>
@@ -154,7 +151,6 @@
               <p v-else class="meta">No availability set yet</p>
             </div>
 
-            <!-- Reviews Section -->
             <div class="profile-section">
               <h4>Reviews ({{ tutorReviews.length }})</h4>
               <div v-if="tutorReviews.length === 0" class="empty-state">
@@ -182,6 +178,34 @@
             </div>
           </div>
         </div>
+
+        <div v-if="showBookingModal" class="modal-backdrop" @click="showBookingModal = false">
+          <div class="modal-content" @click.stop>
+            <button class="modal-close" @click="showBookingModal = false">×</button>
+            <div class="tutor-profile-header" style="margin-bottom: 16px;">
+              <h2>Book Session with {{ selectedTutorData?.full_name }}</h2>
+            </div>
+        
+            <form @submit.prevent="submitBooking" class="stack">
+              <label>
+                Course Code (Optional)
+                <input v-model="bookingForm.courseCode" placeholder="e.g. TMF3953" />
+              </label>
+              <label>
+                Date & Time
+                <input type="datetime-local" v-model="bookingForm.sessionTime" required />
+              </label>
+              <label>
+                What do you need help with?
+                <textarea v-model="bookingForm.notes" rows="3" placeholder="I need help understanding..."></textarea>
+              </label>
+              <button class="chip-strong" type="submit" :disabled="isSubmitting" style="width: 100%; margin-top: 10px;">
+                {{ isSubmitting ? 'Sending Request...' : 'Send Request' }}
+              </button>
+            </form> 
+          </div>
+        </div>
+
       </div>
     </section>
   </main>
@@ -190,7 +214,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, getUser } from '@/api.js'
+import { api, getUser, showToast } from '@/api.js'
 
 const router = useRouter()
 const currentUser = getUser()
@@ -213,6 +237,10 @@ const popularSkills = ['Java', 'Python', 'Database', 'Web Dev', 'C++', 'Mobile D
 const totalTutors = computed(() => tutors.value.length)
 const highlyRatedTutors = computed(() => tutors.value.filter(t => t.rating >= 4).length)
 const totalSessions = computed(() => tutors.value.reduce((sum, t) => sum + (t.total_points || 0), 0))
+
+const showBookingModal = ref(false)
+const isSubmitting = ref(false)
+const bookingForm = ref({ courseCode: '', sessionTime: '', notes: '' })
 
 const filteredTutors = computed(() => {
   let filtered = [...tutors.value]
@@ -279,9 +307,27 @@ const selectTutor = async (tutor) => {
 }
 
 const bookTutor = () => {
-  if (selectedTutorData.value) {
-    localStorage.setItem('prefillTutorId', String(selectedTutorData.value.id))
+  showBookingModal.value = true
+  selectedTutorData.value = null 
+}
+
+const submitBooking = async () => {
+  isSubmitting.value = true
+  try {
+    await api('/bookings', 'POST', {
+      tutorId: selectedTutorData.value?.id || parseInt(localStorage.getItem('prefillTutorId')),
+      courseCode: bookingForm.value.courseCode,
+      sessionTime: new Date(bookingForm.value.sessionTime).toISOString(),
+      notes: bookingForm.value.notes
+    })
+    showToast('Booking request sent!', 'success')
+    showBookingModal.value = false
+    bookingForm.value = { courseCode: '', sessionTime: '', notes: '' }
     router.push('/session')
+  } catch (error) {
+    showToast(error.message, 'error')
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -461,6 +507,12 @@ onMounted(() => {
 .chip-strong {
   background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+  color: #fff;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .chip-active {
@@ -758,6 +810,37 @@ onMounted(() => {
   flex: 1;
 }
 
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stack label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f2f38;
+}
+
+.stack input,
+.stack textarea {
+  border: 2px solid #d1dadf;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.stack input:focus,
+.stack textarea:focus {
+  outline: none;
+  border-color: #ffb7c5;
+  box-shadow: 0 0 0 3px rgba(255, 183, 197, 0.28);
+}
+
 @media (max-width: 640px) {
   .tutors-hero__stats {
     grid-template-columns: 1fr;
@@ -774,4 +857,3 @@ onMounted(() => {
   }
 }
 </style>
-
