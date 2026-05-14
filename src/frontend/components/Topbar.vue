@@ -305,6 +305,12 @@ export default {
       if (currentUser.value) {
         streakCount.value = currentUser.value.login_streak || 0
         await loadUnreadNotifications()
+
+        // Auto-open the streak modal once after a fresh login.
+        if (sessionStorage.getItem('studylinkShowStreakAfterLogin') === '1') {
+          sessionStorage.removeItem('studylinkShowStreakAfterLogin')
+          await showStreakModal()
+        }
       }
     })
 

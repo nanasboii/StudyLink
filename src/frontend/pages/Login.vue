@@ -31,39 +31,6 @@
       </div>
 
       <section class="login-brand" aria-label="UNIMAS sign in branding">
-        <!-- Calendar Section (Center) -->
-        <div class="login-calendar-wrapper">
-          <div class="calendar-header">
-            <h3>Your Login Streak</h3>
-            <p class="streak-count">🔥 {{ streakCount }} days</p>
-          </div>
-          <div class="calendar">
-            <div class="calendar-nav">
-              <button type="button" @click="prevMonth">←</button>
-              <span class="calendar-month">{{ monthYear }}</span>
-              <button type="button" @click="nextMonth">→</button>
-            </div>
-            <div class="calendar-weekdays">
-              <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="weekday">
-                {{ day }}
-              </div>
-            </div>
-            <div class="calendar-days">
-              <div 
-                v-for="(day, idx) in calendarDays" 
-                :key="idx"
-                class="calendar-day"
-                :class="{ 
-                  'empty': !day,
-                  'logged-in': isLoggedInDay(day),
-                  'today': isToday(day)
-                }"
-              >
-                {{ day || '' }}
-              </div>
-            </div>
-          </div>
-        </div>
         <svg class="unimas-logo" viewBox="0 0 640 240" aria-hidden="true" role="img">
           <defs>
             <linearGradient id="unimasBlue" x1="0" y1="0" x2="0" y2="1">
@@ -272,21 +239,9 @@ const handleLogin = async () => {
     });
 
     setSession(result.token, result.user);
-    
-    // Update login streak
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
-    if (!loggedInDates.value.has(dateStr)) {
-      loggedInDates.value.add(dateStr);
-      streakCount.value += 1;
-    }
-    
-    const streakData = {
-      count: streakCount.value,
-      dates: Array.from(loggedInDates.value)
-    };
-    sessionStorage.setItem(LOGIN_STREAK_STORAGE_KEY, JSON.stringify(streakData));
-    sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
+
+    // Flag so the Topbar opens the streak/login modal on the next page
+    sessionStorage.setItem('studylinkShowStreakAfterLogin', '1');
 
     // Redirect on success
     router.push(PAGES.resources);
