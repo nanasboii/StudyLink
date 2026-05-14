@@ -64,12 +64,12 @@
         
         <form class="login-form" @submit.prevent="handleLogin" novalidate>
           <label class="field">
-            <span>Email</span>
+            <span>Email *</span>
             <input type="email" v-model="email" autocomplete="username" required />
           </label>
 
           <label class="field">
-            <span>Password</span>
+            <span>Password *</span>
             <div class="password-row">
               <input 
                 :type="isPasswordHidden ? 'password' : 'text'" 
@@ -627,6 +627,12 @@ const handleLogin = async () => {
 
 .field span {
   font-weight: 500;
+}
+
+.login-form .field:has(> input[required])::after,
+.login-form .field:has(> textarea[required])::after,
+.login-form .field:has(> select[required])::after {
+  content: none;
 }
 
 .field input {
