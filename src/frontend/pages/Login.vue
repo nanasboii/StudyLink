@@ -243,9 +243,9 @@ const handleLogin = async () => {
   place-items: center;
   justify-items: center;
   align-content: center;
-  gap: 0;
+  gap: clamp(10px, 2vh, 18px);
   overflow: hidden;
-  padding: 0 16px;
+  padding: clamp(18px, 4vh, 32px) 16px;
 }
 
 .login-scene-art {
@@ -497,15 +497,12 @@ const handleLogin = async () => {
 }
 
 .login-brand {
-  position: absolute;
-  top: clamp(16px, 4vh, 38px);
-  left: 50%;
+  position: relative;
   z-index: 3;
   display: grid;
   justify-items: center;
   gap: 6px;
   margin: 0;
-  transform: translateX(-50%);
 }
 
 .unimas-logo {
@@ -746,9 +743,6 @@ const handleLogin = async () => {
   }
 
   .login-brand {
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
     gap: 6px;
   }
 
