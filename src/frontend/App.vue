@@ -6,19 +6,33 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Topbar from './components/Topbar.vue'
 import { getToken, getUser } from '@/api.js'
 
 const router = useRouter()
-const isAuthenticated = computed(() => !!getToken())
+const sessionToken = ref(getToken())
+const isAuthenticated = computed(() => !!sessionToken.value)
 const currentUser = computed(() => getUser())
 const currentPage = computed(() => router.currentRoute.value.name?.toLowerCase() || '')
 const showStreakModalOnMount = ref(false)
 const topbarRef = ref(null)
 
+const syncSessionState = () => {
+  sessionToken.value = getToken()
+}
+
+const handleStorageChange = (event) => {
+  if (!event || event.key === 'studylinkToken' || event.key === null) {
+    syncSessionState()
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('studylink-session-changed', syncSessionState)
+  window.addEventListener('storage', handleStorageChange)
+
   // If not authenticated, redirect to login
   if (
     !isAuthenticated.value &&
@@ -42,6 +56,11 @@ onMounted(async () => {
       }
     }
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('studylink-session-changed', syncSessionState)
+  window.removeEventListener('storage', handleStorageChange)
 })
 </script>
 

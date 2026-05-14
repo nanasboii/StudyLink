@@ -47,11 +47,13 @@ export function setSession(token, user) {
   } else {
     localStorage.removeItem(USER_KEY)
   }
+  window.dispatchEvent(new Event('studylink-session-changed'))
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  window.dispatchEvent(new Event('studylink-session-changed'))
 }
 
 export function requireSession() {
