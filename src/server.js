@@ -1460,6 +1460,100 @@ app.post('/auth/logout', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/auth/2fa/toggle', requireAuth, authRateLimiter, async (req, res) => {
+  const { enable } = req.body;
+  const userId = req.auth.user.id;
+
+  if (typeof enable !== 'boolean') {
+    return res.status(400).json({ message: 'enable must be a boolean.' });
+  }
+
+  try {
+    await pool.query(
+      'UPDATE users SET two_factor_enabled = $1 WHERE id = $2',
+      [enable, userId]
+    );
+
+    return res.json({ 
+      message: `Two-factor authentication ${enable ? 'enabled' : 'disabled'}.`,
+      twoFactorEnabled: enable 
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/auth/change-password', requireAuth, authRateLimiter, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.auth.user.id;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'currentPassword and newPassword are required.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: 'New password must be at least 8 characters.' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    const isPasswordValid = comparePassword(currentPassword, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    const newHash = hashPassword(newPassword);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+
+    return res.json({ message: 'Password changed successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/auth/delete-account', requireAuth, authRateLimiter, async (req, res) => {
+  const { password } = req.body;
+  const userId = req.auth.user.id;
+
+  if (!password) {
+    return res.status(400).json({ message: 'password is required.' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    const isPasswordValid = comparePassword(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Password is incorrect.' });
+    }
+
+    // Delete associated data
+    await pool.query('DELETE FROM user_login_history WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    
+    // Delete user
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    return res.json({ message: 'Account deleted successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('/me', requireAuth, async (req, res) => {
   return res.json({ user: req.auth.user });
 });

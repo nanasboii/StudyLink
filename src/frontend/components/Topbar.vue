@@ -90,7 +90,7 @@
       <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
         👤 Profile
       </router-link>
-      <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
+      <router-link to="/settings" class="menu-item" @click="isUserMenuOpen = false">
         ⚙️ Settings
       </router-link>
       <router-link to="/review" class="menu-item" @click="isUserMenuOpen = false">
@@ -216,13 +216,13 @@ export default {
     const loadLoginHistory = async () => {
       try {
         const resp = await api('/me/login-history')
-        loginHistory.value = resp.loginHistory || []
-        streakCount.value = currentUser.value?.login_streak || 0
+        loginHistory.value = resp.loginHistory || resp.historyDates || []
+        streakCount.value = resp.count || currentUser.value?.login_streak || 0
         
         // Format last check-in date
         const today = new Date()
         const todayDate = today.getDate()
-        if (loginHistory.value.includes(todayDate)) {
+        if (loginHistory.value.includes(todayDate) || loginHistory.value.some(d => d.includes(today.toISOString().split('T')[0]))) {
           lastCheckInDate.value = 'Today'
         } else {
           const yesterday = new Date(today)
@@ -230,7 +230,7 @@ export default {
           lastCheckInDate.value = yesterday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
         }
       } catch (err) {
-        console.error('Failed to load login history:', err)
+        console.debug('Failed to load login history (this is normal if endpoint not yet available):', err.message)
       }
     }
 
@@ -239,7 +239,7 @@ export default {
         const resp = await api('/notifications?filter=unread')
         unreadCount.value = resp.notifications?.length || 0
       } catch (err) {
-        console.error('Failed to load notifications:', err)
+        console.debug('Failed to load notifications (this is normal if endpoint not yet available):', err.message)
       }
     }
 
