@@ -96,18 +96,31 @@ export async function api(path, method = 'GET', body) {
   }
 
   try {
-    // Keep your /api prefix for the Vite proxy!
-    const response = await fetch(`/api${path}`, options)
-    
-    if (!response.ok) {
+    // Default to /api for local Vite proxy, then retry direct path on 404.
+    const requestUrls = path.startsWith('/') ? [`/api${path}`, path] : [path]
+
+    for (let index = 0; index < requestUrls.length; index += 1) {
+      const response = await fetch(requestUrls[index], options)
+
+      if (response.ok) {
+        return await response.json()
+      }
+
+      const isFirstRequest = index === 0
+      const canRetryWithoutApiPrefix = requestUrls.length > 1 && isFirstRequest && response.status === 404
+      if (canRetryWithoutApiPrefix) {
+        continue
+      }
+
       if (response.status === 401) {
         clearSession() // Auto logout if token expires
       }
+
       const error = await response.json().catch(() => ({}))
       throw new Error(error.message || `HTTP ${response.status}`)
     }
 
-    return await response.json()
+    throw new Error('Request failed')
   } catch (error) {
     showToast(error.message || 'Request failed', 'error')
     throw error

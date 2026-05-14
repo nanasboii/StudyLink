@@ -173,7 +173,7 @@ app.use(express.json({ limit: '2mb' }));
 
 // API routing: strip /api prefix and forward to actual routes
 // This handles both development (with Vite proxy) and production (static files + backend)
-app.use('/api/', (req, res, next) => {
+app.use('/api', (req, res, next) => {
   req.url = req.url.replace(/^\/api/, '');
   next();
 });
