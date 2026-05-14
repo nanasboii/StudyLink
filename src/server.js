@@ -4,7 +4,36 @@ const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
 const { Pool } = require('pg');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+  port: process.env.SMTP_PORT || 587,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
+
+function getFrontendOrigin() {
+  const configuredOrigin =
+    process.env.FRONTEND_ORIGIN ||
+    process.env.RAILWAY_STATIC_URL ||
+    process.env.RAILWAY_PUBLIC_DOMAIN ||
+    'http://localhost:5173';
+
+  return configuredOrigin.replace(/\/$/, '');
+}
+
+// Test SMTP connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP connection error:', error);
+  } else {
+    console.log('✓ SMTP connection verified and ready for message delivery');
+  }
+});
 
 const app = express();
 // Use 3000 as the production default port to match the Dockerfile and common conventions.
@@ -12,6 +41,9 @@ const defaultPort = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';
+const clientBuildDir = path.join(__dirname, '..', 'dist');
+const clientBuildIndex = path.join(clientBuildDir, 'index.html');
+const legacyPublicDir = path.join(__dirname, 'public');
 const uploadBaseDir = path.join(__dirname, 'uploads');
 const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
@@ -127,14 +159,31 @@ const getPoolConfig = () => {
 const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
-app.use('/ui', express.static(path.join(__dirname, 'public')));
-// Serve the UI static assets at the site root as well (SPA entry)
-app.use(express.static(path.join(__dirname, 'public')));
+const hasClientBuild = fs.existsSync(clientBuildIndex);
+
+if (hasClientBuild) {
+  // Serve Vue app by default and keep /ui links backward compatible.
+  app.use(express.static(clientBuildDir));
+  app.use('/ui', express.static(clientBuildDir));
+} else {
+  // Legacy fallback for development when dist is not built.
+  app.use('/ui', express.static(legacyPublicDir));
+  app.use(express.static(legacyPublicDir));
+}
+
 app.use('/uploads', express.static(uploadBaseDir));
 app.use('/uploads', express.static(legacyUploadBaseDir));
 
+function sendClientApp(res) {
+  if (fs.existsSync(clientBuildIndex)) {
+    return res.sendFile(clientBuildIndex);
+  }
+
+  return res.sendFile(path.join(legacyPublicDir, 'index.html'));
+}
+
 app.get('/ui/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  return sendClientApp(res);
 });
 
 const allowedVerificationMimeTypes = new Set([
@@ -271,6 +320,7 @@ function sanitizeUser(row) {
     expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
     profilePictureUrl: row.profile_picture_url,
+    twoFactorEnabled: row.two_factor_enabled,
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
     totalPoints: Number(row.total_points || 0),
@@ -606,6 +656,11 @@ async function initializeDatabase() {
         total_points INTEGER NOT NULL DEFAULT 0,
         login_streak INTEGER NOT NULL DEFAULT 0,
         last_login_at TIMESTAMP,
+        two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        otp_code VARCHAR(10),
+        otp_expires_at TIMESTAMP,
+        password_reset_token VARCHAR(128),
+        password_reset_expires_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -617,6 +672,21 @@ async function initializeDatabase() {
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS otp_code VARCHAR(10);
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(128);
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP;
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
@@ -839,7 +909,7 @@ async function initializeDatabase() {
 
 // Serve web UI at root (no redirect). Keep API metadata available at '/api' if needed.
 app.get('/', (req, res) => {
-  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  return sendClientApp(res);
 });
 
 app.get('/health', async (req, res) => {
@@ -858,6 +928,39 @@ app.get('/health', async (req, res) => {
     });
   }
 });
+
+  app.post('/test-email', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'email is required.' });
+    }
+
+    try {
+      console.log(`Sending test email to ${email}...`);
+      const info = await transporter.sendMail({
+        from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+        to: email,
+        subject: 'StudyLink Test Email',
+        text: 'This is a test email from StudyLink. If you received this, your email configuration is working correctly!',
+        html: '<p>This is a test email from StudyLink.</p><p>If you received this, your email configuration is working correctly!</p>'
+      });
+      console.log(`✓ Test email sent successfully. Message ID: ${info.messageId}`);
+      res.json({
+        success: true,
+        message: 'Test email sent successfully',
+        messageId: info.messageId
+      });
+    } catch (error) {
+      console.error(`✗ Error sending test email to ${email}:`, error.message);
+      console.error('Full error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send test email',
+        error: error.message
+      });
+    }
+  });
 
 app.post('/auth/register', authRateLimiter, async (req, res) => {
   const {
@@ -948,6 +1051,33 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
     if (!valid) {
       await client.query('ROLLBACK');
       return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    if (user.two_factor_enabled) {
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      await client.query(
+        `UPDATE users SET otp_code = $1, otp_expires_at = $2 WHERE id = $3`,
+        [otpCode, expiresAt, user.id]
+      );
+      await client.query('COMMIT');
+
+      try {
+        console.log(`Sending OTP email to ${user.email}...`);
+        const info = await transporter.sendMail({
+          from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+          to: user.email,
+          subject: 'Your StudyLink Login OTP',
+          text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
+        });
+        console.log(`✓ OTP email sent successfully to ${user.email}. Message ID: ${info.messageId}`);
+      } catch (err) {
+        console.error(`✗ Error sending OTP email to ${user.email}:`, err.message);
+        console.error('Full error:', err);
+      }
+
+      return res.json({ requires2FA: true, message: 'OTP sent to email.' });
     }
 
     const now = new Date();
@@ -1046,6 +1176,273 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
   }
 });
 
+app.post('/auth/verify-otp', authRateLimiter, async (req, res) => {
+  const { email, otp } = req.body;
+  let client;
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: 'email and otp are required.' });
+  }
+
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
+      email.toLowerCase()
+    ]);
+
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(401).json({ message: 'Invalid or expired OTP.' });
+    }
+
+    const user = rows[0];
+
+    if (!user.otp_code || user.otp_code !== otp || new Date() > new Date(user.otp_expires_at)) {
+      await client.query('ROLLBACK');
+      return res.status(401).json({ message: 'Invalid or expired OTP.' });
+    }
+
+    // Clear OTP
+    await client.query('UPDATE users SET otp_code = NULL, otp_expires_at = NULL WHERE id = $1', [user.id]);
+
+    const now = new Date();
+    const previousLoginAt = user.last_login_at ? new Date(user.last_login_at) : null;
+    const previousLoginDate = previousLoginAt ? dateKeyInTimeZone(previousLoginAt) : '';
+    const today = dateKeyInTimeZone(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = dateKeyInTimeZone(yesterday);
+    const previousStreak = Number(user.login_streak || 0);
+
+    let nextStreak = 1;
+    if (previousLoginDate === today) {
+      nextStreak = previousStreak || 1;
+    } else if (previousLoginDate === yesterdayDate) {
+      nextStreak = previousStreak + 1;
+    }
+
+    const shouldShowStreak = previousLoginDate !== today;
+
+    if (previousLoginDate) {
+      await client.query(
+        `INSERT INTO user_login_history (user_id, login_date, login_at)
+         VALUES ($1, $2::date, $3)
+         ON CONFLICT (user_id, login_date)
+         DO UPDATE SET login_at = EXCLUDED.login_at`,
+        [user.id, previousLoginDate, previousLoginAt || now]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO user_login_history (user_id, login_date, login_at)
+       VALUES ($1, $2::date, $3)
+       ON CONFLICT (user_id, login_date)
+       DO UPDATE SET login_at = EXCLUDED.login_at`,
+      [user.id, today, now]
+    );
+
+    const { rows: updatedRows } = await client.query(
+      `UPDATE users
+       SET login_streak = $1,
+           last_login_at = $2
+       WHERE id = $3
+       RETURNING *`,
+      [nextStreak, now, user.id]
+    );
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
+
+    await client.query(
+      `INSERT INTO sessions (token, user_id, expires_at)
+       VALUES ($1, $2, $3)`,
+      [token, user.id, expiresAt]
+    );
+
+    const { rows: historyRows } = await client.query(
+      `SELECT login_date::text AS login_date
+       FROM user_login_history
+       WHERE user_id = $1
+       ORDER BY login_date DESC
+       LIMIT 120`,
+      [user.id]
+    );
+
+    await client.query('COMMIT');
+
+    const updatedUser = updatedRows[0] || { ...user, login_streak: nextStreak, last_login_at: now };
+
+    return res.json({
+      message: 'Login successful.',
+      token,
+      expiresAt,
+      loginStreak: {
+        count: nextStreak,
+        shouldShow: shouldShowStreak,
+        message: formatLoginStreakMessage(nextStreak),
+        lastLoginAt: now,
+        historyDates: historyRows.map((row) => row.login_date)
+      },
+      user: sanitizeUser(updatedUser)
+    });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {}
+    }
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+});
+
+app.post('/auth/forgot-password', authRateLimiter, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'email is required.' });
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
+      email.toLowerCase()
+    ]);
+
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      // Do not reveal whether the email exists
+      return res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
+    }
+
+    const user = rows[0];
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await client.query(
+      'UPDATE users SET password_reset_token = $1, password_reset_expires_at = $2 WHERE id = $3',
+      [token, expiresAt, user.id]
+    );
+
+    await client.query('COMMIT');
+
+    try {
+      const resetUrl = `${getFrontendOrigin()}/reset-password?token=${token}`;
+      console.log(`Sending password reset email to ${user.email} with url ${resetUrl}`);
+      const info = await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"StudyLink" <noreply@studylink.local>',
+        to: user.email,
+        subject: 'StudyLink Password Reset',
+        text: `Click the link to reset your password: ${resetUrl}`,
+        html: `<p>Click the link to reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`
+      });
+      console.log('✓ Password reset email sent. MessageId:', info.messageId);
+    } catch (err) {
+      console.error('✗ Error sending password reset email:', err.message);
+    }
+
+    return res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
+  } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (e) {}
+    }
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+app.post('/auth/reset-password', authRateLimiter, async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ message: 'token and newPassword are required.' });
+
+  try {
+    const { rows } = await pool.query('SELECT * FROM users WHERE password_reset_token = $1', [token]);
+    if (rows.length === 0) return res.status(400).json({ message: 'Invalid or expired reset token.' });
+
+    const user = rows[0];
+    if (!user.password_reset_expires_at || new Date() > new Date(user.password_reset_expires_at)) {
+      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+    }
+
+    const nextHash = hashPassword(newPassword);
+    await pool.query('UPDATE users SET password_hash = $1, password_reset_token = NULL, password_reset_expires_at = NULL WHERE id = $2', [nextHash, user.id]);
+
+    return res.json({ message: 'Password updated successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/auth/resend-otp', authRateLimiter, async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'email is required.' });
+  }
+
+  let client;
+
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
+      email.toLowerCase()
+    ]);
+
+    if (rows.length === 0 || !rows[0].two_factor_enabled) {
+      await client.query('ROLLBACK');
+      return res.status(401).json({ message: 'Invalid request.' });
+    }
+
+    const user = rows[0];
+
+    // Generate new OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await client.query(
+      `UPDATE users SET otp_code = $1, otp_expires_at = $2 WHERE id = $3`,
+      [otpCode, expiresAt, user.id]
+    );
+
+    await client.query('COMMIT');
+
+    try {
+      console.log(`Resending OTP email to ${user.email}...`);
+      const info = await transporter.sendMail({
+        from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+        to: user.email,
+        subject: 'Your StudyLink Login OTP (Resent)',
+        text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
+      });
+      console.log(`✓ OTP email resent successfully to ${user.email}. Message ID: ${info.messageId}`);
+    } catch (err) {
+      console.error(`✗ Error resending OTP email to ${user.email}:`, err.message);
+      console.error('Full error:', err);
+    }
+
+    return res.json({ message: 'OTP resent to email.' });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {}
+    }
+    return res.status(500).json({ message: error.message });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+});
+
 app.post('/auth/logout', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM sessions WHERE token = $1', [req.auth.token]);
@@ -1061,47 +1458,46 @@ app.get('/me', requireAuth, async (req, res) => {
 
 app.get('/me/login-history', requireAuth, async (req, res) => {
   try {
-    const existing = await pool.query(
-      `SELECT login_date::text AS login_date
-       FROM user_login_history
-       WHERE user_id = $1
-       ORDER BY login_date DESC
-       LIMIT 120`,
-      [req.auth.user.id]
-    );
+    const now = new Date();
+    const today = dateKeyInTimeZone(now);
+    const user = req.auth.user;
+    
+    const previousLoginAt = user.lastLoginAt ? new Date(user.lastLoginAt) : null;
+    const previousLoginDate = previousLoginAt && !Number.isNaN(previousLoginAt.getTime())
+        ? dateKeyInTimeZone(previousLoginAt)
+        : '';
 
-    if (existing.rows.length === 0) {
-      const streakCount = Math.max(0, Number(req.auth.user.loginStreak || 0));
-      const lastLoginAt = req.auth.user.lastLoginAt ? new Date(req.auth.user.lastLoginAt) : null;
+    let currentStreak = Number(user.loginStreak || 0);
 
-      if (streakCount > 0 && lastLoginAt && !Number.isNaN(lastLoginAt.getTime())) {
-        const values = [];
-        const placeholders = [];
+    if (previousLoginDate !== today) {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayDate = dateKeyInTimeZone(yesterday);
 
-        for (let index = 0; index < streakCount; index += 1) {
-          const day = new Date(lastLoginAt);
-          day.setDate(lastLoginAt.getDate() - index);
-          const dateKey = dateKeyInTimeZone(day);
-
-          if (!dateKey) {
-            continue;
-          }
-
-          const base = values.length;
-          values.push(req.auth.user.id, dateKey, day.toISOString());
-          placeholders.push(`($${base + 1}, $${base + 2}::date, $${base + 3}::timestamp)`);
-        }
-
-        if (placeholders.length > 0) {
-          await pool.query(
-            `INSERT INTO user_login_history (user_id, login_date, login_at)
-             VALUES ${placeholders.join(', ')}
-             ON CONFLICT (user_id, login_date)
-             DO NOTHING`,
-            values
-          );
-        }
+      if (previousLoginDate === yesterdayDate) {
+        currentStreak += 1;
+      } else {
+        currentStreak = 1;
       }
+
+      await pool.query(
+        `INSERT INTO user_login_history (user_id, login_date, login_at)
+         VALUES ($1, $2::date, $3)
+         ON CONFLICT (user_id, login_date)
+         DO UPDATE SET login_at = EXCLUDED.login_at`,
+        [user.id, today, now]
+      );
+
+      await pool.query(
+        `UPDATE users
+         SET login_streak = $1,
+             last_login_at = $2
+         WHERE id = $3`,
+        [currentStreak, now, user.id]
+      );
+
+      user.loginStreak = currentStreak;
+      user.lastLoginAt = now;
     }
 
     const { rows } = await pool.query(
@@ -1110,13 +1506,13 @@ app.get('/me/login-history', requireAuth, async (req, res) => {
        WHERE user_id = $1
        ORDER BY login_date DESC
        LIMIT 120`,
-      [req.auth.user.id]
+      [user.id]
     );
 
     return res.json({
       historyDates: rows.map((row) => row.login_date),
-      count: Number(req.auth.user.loginStreak || 0),
-      lastLoginAt: req.auth.user.lastLoginAt || null
+      count: currentStreak,
+      lastLoginAt: user.lastLoginAt
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -1133,7 +1529,8 @@ app.put('/me/profile', requireAuth, async (req, res) => {
     expertise,
     bio,
     profilePictureUrl,
-    removeProfilePicture
+    removeProfilePicture,
+    twoFactorEnabled
   } = req.body;
 
   const nextProfilePictureUrl =
@@ -1168,7 +1565,8 @@ app.put('/me/profile', requireAuth, async (req, res) => {
              WHEN $10 THEN NULL
              WHEN $9::text IS NOT NULL THEN $9::text
              ELSE profile_picture_url
-           END
+           END,
+           two_factor_enabled = COALESCE($11, two_factor_enabled)
        WHERE id = $1
        RETURNING *`,
       [
@@ -1181,7 +1579,8 @@ app.put('/me/profile', requireAuth, async (req, res) => {
         normalizedExpertise,
         bio,
         nextProfilePictureUrl,
-        wantsProfilePictureRemoval
+        wantsProfilePictureRemoval,
+        twoFactorEnabled
       ]
     );
 
@@ -2822,6 +3221,21 @@ app.get('/notifications', requireAuth, async (req, res) => {
   }
 });
 
+// NEW ENDPOINT: Mark all as read
+app.patch('/notifications/mark-all-read', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE notifications
+       SET is_read = TRUE
+       WHERE recipient_id = $1`,
+      [req.auth.user.id]
+    );
+    return res.json({ message: 'All notifications marked as read successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.post('/notifications/:id/read', requireAuth, async (req, res) => {
   const notificationId = Number(req.params.id);
   try {
@@ -2886,7 +3300,7 @@ app.get('*', (req, res, next) => {
   if (req.method !== 'GET') return next();
   const accept = String(req.get('Accept') || '');
   if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
-    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    return sendClientApp(res);
   }
   return next();
 });
