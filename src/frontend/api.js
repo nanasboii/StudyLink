@@ -27,12 +27,26 @@ export function getToken() {
 
 export function getUser() {
   const raw = localStorage.getItem(USER_KEY)
-  return raw ? JSON.parse(raw) : null
+  if (!raw || raw === 'undefined' || raw === 'null') {
+    return null
+  }
+
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    // Recover from corrupted localStorage values to avoid crashing the app render.
+    localStorage.removeItem(USER_KEY)
+    return null
+  }
 }
 
 export function setSession(token, user) {
   localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  if (user && typeof user === 'object') {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  } else {
+    localStorage.removeItem(USER_KEY)
+  }
 }
 
 export function clearSession() {
