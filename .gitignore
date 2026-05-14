@@ -1,6 +1,10 @@
 node_modules
 .env
 postgres_data
+<<<<<<< HEAD
 dist
 .vite
 *.log
+=======
+dist/
+>>>>>>> 1a5109d (Untrack committed dist, add deploy docs and ignore dist)
