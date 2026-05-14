@@ -41,8 +41,6 @@ const defaultPort = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';
-const clientBuildDir = path.join(__dirname, '..', 'dist');
-const clientBuildIndex = path.join(clientBuildDir, 'index.html');
 const uploadBaseDir = path.join(__dirname, 'uploads');
 const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
@@ -161,17 +159,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/ui', express.static(path.join(__dirname, 'public')));
 // Serve the UI static assets at the site root as well (SPA entry)
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(clientBuildDir));
 app.use('/uploads', express.static(uploadBaseDir));
 app.use('/uploads', express.static(legacyUploadBaseDir));
-
-function sendClientApp(res) {
-  if (fs.existsSync(clientBuildIndex)) {
-    return res.sendFile(clientBuildIndex);
-  }
-
-  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
-}
 
 app.get('/ui/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -900,7 +889,7 @@ async function initializeDatabase() {
 
 // Serve web UI at root (no redirect). Keep API metadata available at '/api' if needed.
 app.get('/', (req, res) => {
-  return sendClientApp(res);
+  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/health', async (req, res) => {
@@ -3291,7 +3280,7 @@ app.get('*', (req, res, next) => {
   if (req.method !== 'GET') return next();
   const accept = String(req.get('Accept') || '');
   if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
-    return sendClientApp(res);
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
   return next();
 });
