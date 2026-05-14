@@ -31,6 +31,39 @@
       </div>
 
       <section class="login-brand" aria-label="UNIMAS sign in branding">
+        <!-- Calendar Section (Center) -->
+        <div class="login-calendar-wrapper">
+          <div class="calendar-header">
+            <h3>Your Login Streak</h3>
+            <p class="streak-count">🔥 {{ streakCount }} days</p>
+          </div>
+          <div class="calendar">
+            <div class="calendar-nav">
+              <button type="button" @click="prevMonth">←</button>
+              <span class="calendar-month">{{ monthYear }}</span>
+              <button type="button" @click="nextMonth">→</button>
+            </div>
+            <div class="calendar-weekdays">
+              <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="weekday">
+                {{ day }}
+              </div>
+            </div>
+            <div class="calendar-days">
+              <div 
+                v-for="(day, idx) in calendarDays" 
+                :key="idx"
+                class="calendar-day"
+                :class="{ 
+                  'empty': !day,
+                  'logged-in': isLoggedInDay(day),
+                  'today': isToday(day)
+                }"
+              >
+                {{ day || '' }}
+              </div>
+            </div>
+          </div>
+        </div>
         <svg class="unimas-logo" viewBox="0 0 640 240" aria-hidden="true" role="img">
           <defs>
             <linearGradient id="unimasBlue" x1="0" y1="0" x2="0" y2="1">
@@ -115,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { api, getToken, getUser, setSession } from '@/api.js'; 
 import { PAGES } from '@/routes.js';
@@ -129,12 +162,19 @@ const rememberMe = ref(true);
 const isPasswordHidden = ref(true);
 const authMessage = ref('');
 
+// Calendar state
+const currentMonth = ref(new Date());
+const loggedInDates = ref(new Set());
+const streakCount = ref(0);
+
 // Constants
 const LOGIN_STREAK_STORAGE_KEY = 'studylinkLoginStreak';
 const REMEMBERED_EMAIL_KEY = 'studylinkRememberedEmail';
 
 // Initial Load
 onMounted(() => {
+  loadLoginStreak();
+  
   if (getToken() && getUser()) {
     router.push(PAGES.resources); // Use Vue Router instead of window.location
   }
@@ -149,6 +189,69 @@ onMounted(() => {
 // UI Logic
 const togglePassword = () => {
   isPasswordHidden.value = !isPasswordHidden.value;
+};
+
+// Calendar logic
+const monthYear = computed(() => {
+  const options = { year: 'numeric', month: 'long' };
+  return currentMonth.value.toLocaleDateString('en-US', options);
+});
+
+const calendarDays = computed(() => {
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
+
+  const days = [];
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    days.push(null);
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(i);
+  }
+  return days;
+});
+
+const isLoggedInDay = (day) => {
+  if (!day) return false;
+  const year = currentMonth.value.getFullYear();
+  const month = currentMonth.value.getMonth();
+  const dateStr = `${year}-${month + 1}-${day}`;
+  return loggedInDates.value.has(dateStr);
+};
+
+const isToday = (day) => {
+  if (!day) return false;
+  const today = new Date();
+  return day === today.getDate() && 
+         currentMonth.value.getMonth() === today.getMonth() &&
+         currentMonth.value.getFullYear() === today.getFullYear();
+};
+
+const prevMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
+};
+
+const nextMonth = () => {
+  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
+};
+
+const loadLoginStreak = () => {
+  const streakData = sessionStorage.getItem(LOGIN_STREAK_STORAGE_KEY);
+  if (streakData) {
+    try {
+      const streak = JSON.parse(streakData);
+      streakCount.value = streak.count || 0;
+      if (streak.dates && Array.isArray(streak.dates)) {
+        loggedInDates.value = new Set(streak.dates);
+      }
+    } catch (err) {
+      console.error('Error parsing login streak:', err);
+    }
+  }
 };
 
 // Submission Logic
@@ -169,11 +272,21 @@ const handleLogin = async () => {
     });
 
     setSession(result.token, result.user);
-    sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
-
-    if (result.loginStreak) {
-      sessionStorage.setItem(LOGIN_STREAK_STORAGE_KEY, JSON.stringify(result.loginStreak));
+    
+    // Update login streak
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+    if (!loggedInDates.value.has(dateStr)) {
+      loggedInDates.value.add(dateStr);
+      streakCount.value += 1;
     }
+    
+    const streakData = {
+      count: streakCount.value,
+      dates: Array.from(loggedInDates.value)
+    };
+    sessionStorage.setItem(LOGIN_STREAK_STORAGE_KEY, JSON.stringify(streakData));
+    sessionStorage.removeItem(LOGIN_STREAK_STORAGE_KEY);
 
     // Redirect on success
     router.push(PAGES.resources);
@@ -759,4 +872,133 @@ const handleLogin = async () => {
     grid-template-columns: minmax(0, 1fr) 44px;
   }
 }
+
+/* Calendar Styles */
+.login-calendar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(196, 30, 58, 0.15);
+  backdrop-filter: blur(8px);
+  max-width: 320px;
+}
+
+.calendar-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #3f2f38;
+}
+
+.streak-count {
+  margin: 8px 0 0;
+  font-size: 28px;
+  color: #c41e3a;
+  font-weight: 700;
+}
+
+.calendar {
+  width: 100%;
+}
+
+.calendar-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-nav button {
+  background: #ffb7c5;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  color: #c41e3a;
+  transition: all 150ms ease;
+}
+
+.calendar-nav button:hover {
+  background: #ff8fa3;
+  transform: scale(1.05);
+}
+
+.calendar-month {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3f2f38;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #999;
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #999;
+  background: #f5f5f5;
+  cursor: default;
+}
+
+.calendar-day.empty {
+  background: transparent;
+  cursor: default;
+}
+
+.calendar-day.today {
+  background: #fff0f3;
+  color: #c41e3a;
+  font-weight: 700;
+  border: 2px solid #c41e3a;
+}
+
+.calendar-day.logged-in {
+  background: linear-gradient(135deg, #ffb7c5 0%, #ff8fa3 100%);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+}
+
+.calendar-day.logged-in.today {
+  background: linear-gradient(135deg, #ff8fa3 0%, #ff6b8a 100%);
+  border: 2px solid white;
+}
+
 </style>

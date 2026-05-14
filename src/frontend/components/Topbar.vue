@@ -1,7 +1,7 @@
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <router-link to="/resources" class="brand-link">StudyLink</router-link>
+      <router-link to="/resources" class="brand-link">StudyLink{{ brandRoleLabel }}</router-link>
     </div>
     <div class="topbar-center">
       <nav class="main-nav" v-if="currentUser">
@@ -129,8 +129,52 @@ export default {
     const currentDate = ref(new Date())
     const calendarDays = ref([])
 
+    const toDateKey = (dateValue) => {
+      const date = dateValue instanceof Date ? dateValue : new Date(dateValue)
+      if (Number.isNaN(date.getTime())) return ''
+
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    const normalizeDateKey = (value) => {
+      if (!value) return ''
+      if (value instanceof Date) return toDateKey(value)
+
+      const str = String(value).trim()
+      if (!str) return ''
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+      if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return str.slice(0, 10)
+
+      return toDateKey(str)
+    }
+
+    const formatDateKey = (dateKey) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 'Today'
+      const [year, month, day] = dateKey.split('-').map(Number)
+      const date = new Date(year, month - 1, day)
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
     const currentMonth = computed(() => {
       return currentDate.value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    })
+
+    const displayRole = computed(() => {
+      const rawRole = currentUser.value?.role
+      if (!rawRole) return ''
+
+      return rawRole
+        .toString()
+        .replace(/[_-]+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    })
+
+    const brandRoleLabel = computed(() => {
+      return displayRole.value ? ` (${displayRole.value})` : ''
     })
 
     const navItems = computed(() => {
@@ -154,6 +198,14 @@ export default {
       return baseItems
     })
 
+    const loginDateKeys = computed(() => {
+      return new Set(
+        (loginHistory.value || [])
+          .map((entry) => normalizeDateKey(entry))
+          .filter(Boolean)
+      )
+    })
+
     const generateCalendar = () => {
       const year = currentDate.value.getFullYear()
       const month = currentDate.value.getMonth()
@@ -170,12 +222,12 @@ export default {
         date.setDate(date.getDate() + i)
         const isCurrentMonth = date.getMonth() === month
         const dateString = isCurrentMonth ? date.getDate() : null
-        const dateNum = date.getDate()
+        const dateKey = toDateKey(date)
         
         days.push({
           date: dateString,
           otherMonth: !isCurrentMonth,
-          checkedIn: isCurrentMonth && loginHistory.value.includes(dateNum)
+          checkedIn: isCurrentMonth && loginDateKeys.value.has(dateKey)
         })
       }
       calendarDays.value = days
@@ -218,16 +270,16 @@ export default {
         const resp = await api('/me/login-history')
         loginHistory.value = resp.loginHistory || resp.historyDates || []
         streakCount.value = resp.count || currentUser.value?.login_streak || 0
-        
-        // Format last check-in date
-        const today = new Date()
-        const todayDate = today.getDate()
-        if (loginHistory.value.includes(todayDate) || loginHistory.value.some(d => d.includes(today.toISOString().split('T')[0]))) {
+
+        const todayKey = toDateKey(new Date())
+        const latestKey = normalizeDateKey(loginHistory.value[0])
+
+        if (loginDateKeys.value.has(todayKey)) {
           lastCheckInDate.value = 'Today'
+        } else if (latestKey) {
+          lastCheckInDate.value = formatDateKey(latestKey)
         } else {
-          const yesterday = new Date(today)
-          yesterday.setDate(yesterday.getDate() - 1)
-          lastCheckInDate.value = yesterday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          lastCheckInDate.value = 'N/A'
         }
       } catch (err) {
         console.debug('Failed to load login history (this is normal if endpoint not yet available):', err.message)
@@ -265,6 +317,7 @@ export default {
       lastCheckInDate,
       calendarDays,
       currentMonth,
+      brandRoleLabel,
       navItems,
       navigateToNotifications,
       showStreakModal,
@@ -438,14 +491,11 @@ export default {
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  padding: 20px;
   z-index: 1000;
   backdrop-filter: blur(2px);
 }
@@ -455,12 +505,14 @@ export default {
   border-radius: 12px;
   padding: 24px;
   max-width: 500px;
-  width: 90%;
+  width: min(500px, calc(100vw - 40px));
+  margin: 0 auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 .modal-content.streak-modal {
   max-width: 420px;
+  width: min(420px, calc(100vw - 40px));
 }
 
 .modal-header {

@@ -333,25 +333,11 @@ textarea {
 }
 
 button.primary {
-  border: 2px solid #c41e3a;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  color: #ffffff;
-  border-radius: 10px;
   padding: 14px 24px;
   font-size: 16px;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 200ms ease;
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
   margin-top: 8px;
-}
-
-button.primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
-  border-color: #e63a52;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
 }
 
 button.primary:disabled {

@@ -32,12 +32,12 @@
               @input="debouncedSearch"
             />
             <div class="search-inline-actions" aria-label="Search controls">
-              <button class="icon-chip" type="button" aria-label="Search" title="Search">
+              <button class="icon-chip" type="button" aria-label="Search" title="Search" @click="visibleCount = pageSize">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
                 </svg>
               </button>
-              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters">
+              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
                 </svg>
@@ -49,16 +49,85 @@
           </div>
         </div>
 
-        <!-- Resource Type Chips -->
+        <!-- Filter Panel Backdrop -->
+        <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
+
+        <!-- Filter Panel (Shopee Style) -->
+        <div v-if="showFilters" class="filter-panel">
+          <!-- Star Rating Slider -->
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Star Rating</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.rating = !expandedSections.rating">
+                {{ expandedSections.rating ? '−' : '+' }}
+              </button>
+            </div>
+            <div v-if="expandedSections.rating" class="filter-content">
+              <div class="rating-slider-wrap">
+                <input 
+                  v-model.number="filterMinRating" 
+                  type="range" 
+                  min="0" 
+                  max="5" 
+                  step="0.5" 
+                  class="rating-slider"
+                />
+                <div class="rating-value">{{ filterMinRating.toFixed(1) }} ⭐ and above</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resource Type Checkbox -->
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Resource Type</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.type = !expandedSections.type">
+                {{ expandedSections.type ? '−' : '+' }}
+              </button>
+            </div>
+            <div v-if="expandedSections.type" class="filter-content">
+              <label v-for="rt in resourceTypes.filter(r => r.value)" :key="rt.value" class="filter-checkbox">
+                <input 
+                  type="checkbox" 
+                  :checked="selectedType === rt.value"
+                  @change="selectedType = selectedType === rt.value ? '' : rt.value"
+                />
+                <span>{{ rt.label }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Price/Points Range -->
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Price Range</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.price = !expandedSections.price">
+                {{ expandedSections.price ? '−' : '+' }}
+              </button>
+            </div>
+            <div v-if="expandedSections.price" class="filter-content">
+              <div class="price-inputs">
+                <input v-model="filterMinPrice" type="number" placeholder="MIN" class="price-input" />
+                <span class="price-divider">−</span>
+                <input v-model="filterMaxPrice" type="number" placeholder="MAX" class="price-input" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Apply Button -->
+          <button class="filter-apply-btn" @click="applyFilters">APPLY</button>
+        </div>
+
+        <!-- Resource Type Chips (Quick Filter) -->
         <div class="chip-row" id="typeChips">
           <button 
-            v-for="type in resourceTypes" 
-            :key="type.value"
+            v-for="resourceType in resourceTypes" 
+            :key="resourceType.value"
             class="chip"
-            :class="{ 'chip-active': selectedType === type.value }"
-            @click="selectedType = selectedType === type.value ? '' : type.value"
+            :class="{ 'chip-active': selectedType === resourceType.value }"
+            @click="selectedType = selectedType === resourceType.value ? '' : resourceType.value"
           >
-            {{ type.label }}
+            {{ resourceType.label }}
           </button>
         </div>
 
@@ -158,6 +227,14 @@
                 Description
                 <textarea v-model="uploadForm.description" rows="3" placeholder="What's this resource about?"></textarea>
               </label>
+              <label>
+                Upload File (optional)
+                <input type="file" @change="onUploadFileChange" />
+              </label>
+              <label>
+                Resource Link (optional)
+                <input v-model="uploadForm.resourceLink" placeholder="https://example.com/resource" />
+              </label>
               <button class="primary" type="submit" :disabled="isUploading">
                 {{ isUploading ? 'Uploading...' : 'Upload' }}
               </button>
@@ -173,7 +250,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, getUser } from '@/api.js'
+import { api, getToken, getUser } from '@/api.js'
 
 const router = useRouter()
 const currentUser = getUser()
@@ -189,13 +266,22 @@ const pageSize = 12
 const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadMessageType = ref('')
+const selectedUploadFile = ref(null)
+const expandedSections = ref({
+  rating: true,
+  type: true,
+  price: false
+})
+const filterMinRating = ref(0)
+const filterMinPrice = ref('')
+const filterMaxPrice = ref('')
 
 const uploadForm = ref({
   title: '',
   courseCode: '',
   resourceType: '',
   description: '',
-  fileOrLink: ''
+  resourceLink: ''
 })
 
 const resourceTypes = [
@@ -220,6 +306,20 @@ const filteredResources = computed(() => {
 
   if (selectedType.value) {
     filtered = filtered.filter(r => r.resource_type === selectedType.value)
+  }
+
+  if (filterMinRating.value > 0) {
+    filtered = filtered.filter(r => Number(r.avg_rating || 0) >= filterMinRating.value)
+  }
+
+  if (filterMinPrice.value) {
+    const minPrice = Number(filterMinPrice.value)
+    filtered = filtered.filter(r => Number(r.total_points || 0) >= minPrice)
+  }
+
+  if (filterMaxPrice.value) {
+    const maxPrice = Number(filterMaxPrice.value)
+    filtered = filtered.filter(r => Number(r.total_points || 0) <= maxPrice)
   }
 
   if (searchQuery.value) {
@@ -261,6 +361,15 @@ const loadResources = async () => {
   }
 }
 
+const onUploadFileChange = (event) => {
+  selectedUploadFile.value = event?.target?.files?.[0] || null
+}
+
+const applyFilters = () => {
+  visibleCount.value = pageSize
+  showFilters.value = false
+}
+
 const handleUpload = async () => {
   if (!uploadForm.value.title) {
     uploadMessage.value = 'Please enter a title'
@@ -268,18 +377,49 @@ const handleUpload = async () => {
     return
   }
 
+  if (!uploadForm.value.resourceType) {
+    uploadMessage.value = 'Please select a resource type'
+    uploadMessageType.value = 'error'
+    return
+  }
+
+  const trimmedLink = String(uploadForm.value.resourceLink || '').trim()
+  if (!selectedUploadFile.value && !trimmedLink) {
+    uploadMessage.value = 'Upload a file or paste a resource link'
+    uploadMessageType.value = 'error'
+    return
+  }
+
   isUploading.value = true
+  uploadMessage.value = ''
   try {
-    await api('/resources', 'POST', {
-      title: uploadForm.value.title,
-      courseCode: uploadForm.value.courseCode,
-      resourceType: uploadForm.value.resourceType,
-      description: uploadForm.value.description
+    const formData = new FormData()
+    formData.append('title', uploadForm.value.title)
+    formData.append('courseCode', uploadForm.value.courseCode || '')
+    formData.append('resourceType', uploadForm.value.resourceType)
+    if (trimmedLink) {
+      formData.append('resourceLink', trimmedLink)
+    }
+    if (selectedUploadFile.value) {
+      formData.append('resourceFile', selectedUploadFile.value)
+    }
+
+    const token = getToken()
+    const response = await fetch('/api/resources/upload', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData
     })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.message || `HTTP ${response.status}`)
+    }
 
     uploadMessage.value = 'Resource uploaded successfully!'
     uploadMessageType.value = 'success'
-    uploadForm.value = { title: '', courseCode: '', resourceType: '', description: '', fileOrLink: '' }
+    uploadForm.value = { title: '', courseCode: '', resourceType: '', description: '', resourceLink: '' }
+    selectedUploadFile.value = null
     showUploadModal.value = false
     await loadResources()
   } catch (error) {
@@ -447,6 +587,30 @@ onMounted(() => {
   gap: 8px;
 }
 
+.filter-panel {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(5px);
+}
+
+.filter-section {
+  margin-bottom: 12px;
+}
+
+.filter-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3f2f38;
+}
+
+.filter-section:last-child {
+  margin-bottom: 0;
+}
+
 .chip-row {
   display: flex;
   gap: 8px;
@@ -456,30 +620,9 @@ onMounted(() => {
 }
 
 .chip {
-  border: 2px solid #c41e3a;
-  background: #1a1a1a;
-  color: #fff;
-  border-radius: 999px;
-  padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 150ms ease;
   white-space: nowrap;
-}
-
-.chip:hover {
-  border-color: #e63a52;
-  background: #2d2d2d;
-}
-
-.chip-strong {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
-}
-
-.chip-active {
-  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
 }
 
 .suggested-section {
@@ -692,18 +835,8 @@ textarea:focus {
 }
 
 button.primary {
-  border: 2px solid #c41e3a;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  color: white;
   padding: 12px;
-  border-radius: 8px;
   font-weight: 600;
-  cursor: pointer;
-}
-
-button.primary:hover:not(:disabled) {
-  border-color: #e63a52;
-  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
 }
 
 button.primary:disabled {
@@ -727,6 +860,253 @@ button.primary:disabled {
   background: #f5fff5;
   border: 1px solid #d6ffd6;
   color: #3f6f57;
+}
+
+/* New Filter Panel Styles */
+.filter-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border-left: 1px solid #e0e0e0;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  overflow-y: auto;
+  z-index: 999;
+  animation: slideInRight 300ms ease;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.filter-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 998;
+  animation: fadeIn 300ms ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.filter-section {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 12px;
+}
+
+.filter-section:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.filter-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3f2f38;
+  flex: 1;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+
+.expand-btn:hover {
+  color: #c41e3a;
+}
+
+.filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideDown 150ms ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  user-select: none;
+  transition: color 150ms ease;
+}
+
+.filter-checkbox:hover {
+  color: #3f2f38;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #c41e3a;
+  border: 2px solid #d1dadf;
+  border-radius: 4px;
+}
+
+.rating-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rating-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #ffb7c5, #ff8fa3);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.rating-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c41e3a;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
+  transition: all 150ms ease;
+}
+
+.rating-slider::-webkit-slider-thumb:hover {
+  width: 22px;
+  height: 22px;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
+}
+
+.rating-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c41e3a;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
+  transition: all 150ms ease;
+}
+
+.rating-slider::-moz-range-thumb:hover {
+  width: 22px;
+  height: 22px;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
+}
+
+.rating-value {
+  font-size: 12px;
+  color: #c41e3a;
+  font-weight: 600;
+  text-align: center;
+}
+
+.price-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-input {
+  flex: 1;
+  border: 2px solid #d1dadf;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.price-input::placeholder {
+  color: #ccc;
+}
+
+.price-input:focus {
+  border-color: #ffb7c5;
+  box-shadow: 0 0 0 3px rgba(255, 183, 197, 0.28);
+}
+
+.price-divider {
+  color: #999;
+  font-size: 12px;
+}
+
+.filter-apply-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #c41e3a 0%, #e63a52 100%);
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 150ms ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-apply-btn:hover {
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+  transform: translateY(-2px);
+}
+
+.filter-apply-btn:active {
+  transform: translateY(0);
 }
 
 @media (max-width: 640px) {

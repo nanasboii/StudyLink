@@ -81,7 +81,7 @@ async function seedDatabase() {
         'tutor',
         'Computer Science',
         3,
-        ARRAY['Java', 'Python', 'SQL'],
+        ['Java', 'Python', 'SQL'],
         'I am an experienced tutor in programming and databases',
         true
       ]

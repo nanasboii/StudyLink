@@ -35,10 +35,10 @@
             
             <div class="leaderboard-content">
               <div class="profile-section">
-                <img :src="entry.profilePicture || '/default-avatar.svg'" :alt="entry.firstName" class="profile-pic" />
+                <img :src="entry.profilePictureUrl || '/default-avatar.svg'" :alt="entry.fullName" class="profile-pic" />
                 <div class="profile-info">
                   <div class="profile-name">
-                    <strong>{{ entry.firstName }} {{ entry.lastName }}</strong>
+                    <strong>{{ entry.fullName }}</strong>
                     <span class="role-badge" :class="'role-' + String(entry.role).toLowerCase()">{{ roleLabel(entry.role) }}</span>
                   </div>
                 </div>
@@ -47,19 +47,19 @@
               <div class="stats-group">
                 <div class="stat-item">
                   <span class="stat-label">Achievements</span>
-                  <strong>{{ entry.achievementCount || 0 }}</strong>
+                  <strong>{{ entry.totalAchievements }}</strong>
                 </div>
                 <div class="stat-item">
                   <span class="stat-label">Points</span>
-                  <strong>{{ entry.points || 0 }}</strong>
+                  <strong>{{ entry.totalPoints }}</strong>
                 </div>
                 <div class="stat-item">
                   <span class="stat-label">Rating</span>
-                  <strong>{{ (entry.rating || 0).toFixed(2) }}</strong>
+                  <strong>{{ entry.rating.toFixed(2) }}</strong>
                 </div>
                 <div class="stat-item">
                   <span class="stat-label">Reviews</span>
-                  <strong>{{ entry.reviewCount || 'undefined' }}</strong>
+                  <strong>{{ entry.reviewsReceived }}</strong>
                 </div>
               </div>
 
@@ -83,6 +83,18 @@ export default {
     }
   },
   computed: {
+    normalizedLeaderboard() {
+      return (this.leaderboardState || []).map((entry) => ({
+        id: entry.id,
+        fullName: String(entry.fullName || 'Unknown User'),
+        role: String(entry.role || 'tutee'),
+        profilePictureUrl: entry.profilePictureUrl || entry.profilePicture || '',
+        totalAchievements: Number(entry.totalAchievements || entry.achievementCount || 0),
+        totalPoints: Number(entry.totalPoints || entry.points || 0),
+        rating: Number(entry.rating || 0),
+        reviewsReceived: Number(entry.reviewsReceived || entry.reviewCount || 0),
+      }))
+    },
     leaderboardRankingLabel() {
       const board = this.activeBoard
       return board === 'tutor' ? 'Top Tutors Ranking' : board === 'tutee' ? 'Top Tutees Ranking' : 'Overall Ranking'
@@ -98,12 +110,12 @@ export default {
     },
     filteredLeaderboard() {
       if (this.activeBoard === 'tutor') {
-        return this.leaderboardState.filter((e) => String(e.role).toLowerCase() === 'tutor')
+        return this.normalizedLeaderboard.filter((e) => String(e.role).toLowerCase() === 'tutor')
       }
       if (this.activeBoard === 'tutee') {
-        return this.leaderboardState.filter((e) => String(e.role).toLowerCase() === 'tutee')
+        return this.normalizedLeaderboard.filter((e) => String(e.role).toLowerCase() === 'tutee')
       }
-      return this.leaderboardState
+      return this.normalizedLeaderboard
     },
   },
   methods: {
@@ -200,20 +212,8 @@ export default {
 }
 
 .chip {
-  border: 1px solid #c41e3a;
-  background: #000;
-  color: #fff;
-  border-radius: 999px;
-  padding: 8px 16px;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.chip:hover {
-  background: #c41e3a;
-  border-color: #c41e3a;
 }
 
 .leaderboard-tabs {

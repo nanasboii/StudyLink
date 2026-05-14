@@ -32,12 +32,12 @@
               @input="debouncedSearch"
             />
             <div class="search-inline-actions">
-              <button class="icon-chip" type="button" aria-label="Search">
+              <button class="icon-chip" type="button" aria-label="Search" @click="visibleCount = pageSize">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
                 </svg>
               </button>
-              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters">
+              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
                 </svg>
@@ -173,11 +173,11 @@
             </div>
 
             <div class="profile-actions">
+              <button class="chip" @click="viewPublicProfile">
+                View Profile
+              </button>
               <button v-if="currentUserRole === 'tutee'" class="chip-strong" @click="bookTutor">
                 Book This Tutor
-              </button>
-              <button v-else class="chip" disabled>
-                View Profile
               </button>
             </div>
           </div>
@@ -271,8 +271,8 @@ const selectTutor = async (tutor) => {
   tutorReviews.value = []
 
   try {
-    const reviews = await api(`/tutors/${tutor.id}/reviews`)
-    tutorReviews.value = Array.isArray(reviews) ? reviews : []
+    const response = await api(`/users/${tutor.id}/public/reviews`)
+    tutorReviews.value = Array.isArray(response?.reviews) ? response.reviews : []
   } catch (error) {
     console.error('Failed to load reviews:', error)
   }
@@ -283,6 +283,16 @@ const bookTutor = () => {
     localStorage.setItem('prefillTutorId', String(selectedTutorData.value.id))
     router.push('/session')
   }
+}
+
+const viewPublicProfile = () => {
+  if (!selectedTutorData.value) {
+    return
+  }
+
+  const tutorId = selectedTutorData.value.id
+  selectedTutorData.value = null
+  router.push(`/users/${tutorId}`)
 }
 
 onMounted(() => {
@@ -441,30 +451,9 @@ onMounted(() => {
 }
 
 .chip {
-  border: 2px solid #c41e3a;
-  background: #1a1a1a;
-  color: #fff;
-  border-radius: 999px;
-  padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 150ms ease;
   white-space: nowrap;
-}
-
-.chip:hover:not(:disabled) {
-  border-color: #e63a52;
-  background: #2d2d2d;
-}
-
-.chip-strong {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
-}
-
-.chip-active {
-  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
 }
 
 .search-row.compact {

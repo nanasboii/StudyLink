@@ -1,0 +1,185 @@
+/* ==========================================================================
+   Global iPhone-style glass theme
+   Applies to buttons, chips, links, and form helpers across the whole app.
+   Darker pink palette for stronger contrast.
+   ========================================================================== */
+
+:root {
+  --glass-pink-strong: #9e0f3f;
+  --glass-pink-strong-hover: #b31449;
+  --glass-pink-deep: #6f0a2e;
+  --glass-pink-ink: #4d0f2a;
+  --glass-pink-muted: #7a4a5f;
+  --glass-pink-border: rgba(153, 31, 73, 0.32);
+  --glass-pink-border-strong: rgba(110, 14, 49, 0.5);
+  --glass-pink-surface: rgba(255, 255, 255, 0.78);
+  --glass-pink-surface-strong: rgba(255, 255, 255, 0.92);
+  --glass-pink-glow: rgba(167, 21, 69, 0.22);
+  --glass-shadow: 0 12px 30px rgba(95, 14, 43, 0.22);
+}
+
+/* ---------- Glass button base ------------------------------------------- */
+button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn),
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.chip {
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.16));
+  color: var(--glass-pink-ink);
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -12px 24px rgba(255, 255, 255, 0.07),
+    0 10px 26px rgba(90, 11, 37, 0.26);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease,
+    background 200ms ease,
+    color 150ms ease;
+}
+
+button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn):hover,
+.btn:hover,
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-ghost:hover,
+.chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -14px 22px rgba(255, 255, 255, 0.08),
+    0 14px 30px rgba(90, 11, 37, 0.32);
+}
+
+button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn):active,
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active,
+.chip:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 2px 4px rgba(90, 11, 37, 0.16),
+    0 6px 18px rgba(90, 11, 37, 0.22);
+}
+
+button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn):focus-visible,
+.btn:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--glass-pink-strong);
+  outline-offset: 2px;
+}
+
+button:disabled,
+.btn:disabled,
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Primary action button (darker pink) ------------------------- */
+.btn-primary,
+button[type="submit"],
+button.primary {
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)),
+    linear-gradient(165deg, var(--glass-pink-strong), var(--glass-pink-deep));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -12px 22px rgba(255, 255, 255, 0.05),
+    0 12px 26px rgba(110, 14, 49, 0.38);
+}
+
+.btn-primary:hover,
+button[type="submit"]:hover,
+button.primary:hover {
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.05)),
+    linear-gradient(165deg, var(--glass-pink-strong-hover), var(--glass-pink-strong));
+}
+
+/* ---------- Secondary / ghost ------------------------------------------- */
+.btn-secondary,
+.btn-ghost {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.28));
+  color: var(--glass-pink-ink);
+}
+
+/* ---------- Chip overrides for darker palette --------------------------- */
+.chip {
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  border-radius: 999px;
+  color: var(--glass-pink-ink);
+}
+
+.chip.is-active,
+.chip-active {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)),
+    linear-gradient(165deg, var(--glass-pink-strong), var(--glass-pink-deep));
+}
+
+/* Link-style buttons keep the accent color without glass treatment */
+.link-btn {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--glass-pink-strong);
+  padding: 4px 6px;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  color: var(--glass-pink-strong-hover);
+}
+
+/* Reset for borderless icon buttons (search icon, filter icon, topbar icons handled separately) */
+button.icon-chip,
+button.icon-only,
+button.ghost-icon {
+  /* These buttons opt out of glass styling entirely; keep their own scoped styles. */
+  background: transparent;
+}
+
+/* ---------- Form controls accent --------------------------------------- */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--glass-pink-strong) !important;
+  box-shadow: 0 0 0 3px var(--glass-pink-glow) !important;
+}
+
+/* Required indicator shared across pages */
+.required {
+  color: var(--glass-pink-strong);
+  font-weight: 700;
+  margin-left: 4px;
+}

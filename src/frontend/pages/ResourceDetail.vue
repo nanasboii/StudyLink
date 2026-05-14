@@ -121,7 +121,14 @@ const route = useRoute();
 const router = useRouter();
 
 // State Variables
-const resourceId = computed(() => route.query.id);
+const resourceId = computed(() => {
+  const raw = route.params.resourceId ?? route.query.id;
+  const normalized = String(raw ?? '').trim();
+  if (!normalized || normalized === 'undefined' || normalized === 'null') {
+    return '';
+  }
+  return normalized;
+});
 const resource = ref(null);
 const reviews = ref([]);
 
@@ -209,6 +216,11 @@ const loadResource = async () => {
     return;
   }
 
+  if (!/^\d+$/.test(resourceId.value)) {
+    resourceDetailMessage.value = 'Invalid resource id.';
+    return;
+  }
+
   try {
     const data = await api(`/resources/${encodeURIComponent(resourceId.value)}`);
     if (!data.resource) {
@@ -224,6 +236,11 @@ const loadResource = async () => {
 
 const loadComments = async () => {
   if (!resourceId.value) return;
+
+  if (!/^\d+$/.test(resourceId.value)) {
+    isLoadingComments.value = false;
+    return;
+  }
   
   isLoadingComments.value = true;
   try {
@@ -242,6 +259,11 @@ const loadComments = async () => {
 const submitReview = async () => {
   const rating = Number(selectedRating.value || 0);
   const commentText = String(comment.value || '').trim();
+
+  if (!resourceId.value || !/^\d+$/.test(resourceId.value)) {
+    resourceReviewMessage.value = 'Invalid resource id.';
+    return;
+  }
 
   if (!rating || rating < 1 || rating > 5) {
     resourceReviewMessage.value = 'Please select a rating between 1 and 5.';

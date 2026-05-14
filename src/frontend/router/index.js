@@ -33,7 +33,7 @@ const routes = [
   { path: '/tutors', component: Tutors, name: 'Tutors', meta: { requiresAuth: true } },
   { path: '/review/:resourceId', component: Review, name: 'Review', meta: { requiresAuth: true } },
   { path: '/leaderboards', component: Leaderboards, name: 'Leaderboards', meta: { requiresAuth: true } },
-  { path: '/session/:sessionId', component: Session, name: 'Session', meta: { requiresAuth: true } },
+  { path: '/session/:sessionId?', component: Session, name: 'Session', meta: { requiresAuth: true } },
   { path: '/verification', component: Verification, name: 'Verification', meta: { requiresAuth: true } },
   { path: '/admin/verifications', component: AdminVerifications, name: 'AdminVerifications', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/resources', component: AdminResources, name: 'AdminResources', meta: { requiresAuth: true, requiresAdmin: true } },
