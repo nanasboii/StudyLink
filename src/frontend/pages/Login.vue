@@ -103,7 +103,10 @@
           <button class="primary login-submit" type="submit">Sign In</button>
         </form>
 
-        <router-link class="alt-link" to="/register">No account? Register here!</router-link>
+        <div class="login-footer-links">
+          <router-link class="alt-link" to="/forgot-password">Forgot password?</router-link>
+          <router-link class="alt-link" to="/register">No account? Register here!</router-link>
+        </div>
         
         <p v-if="authMessage" class="message">{{ authMessage }}</p>
       </section>
@@ -699,6 +702,17 @@ const handleLogin = async () => {
 
 .alt-link:hover {
   text-decoration: underline;
+}
+
+.login-footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.login-footer-links .alt-link {
+  margin-top: 0;
 }
 
 .message {
