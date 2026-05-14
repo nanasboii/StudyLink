@@ -6,8 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy the full project and build the frontend (vite build -> dist)
-COPY . .
+# Copy only files needed for build to keep context stable
+COPY src ./src
+COPY index.html ./index.html
 RUN npm run build
 
 FROM node:20-alpine AS runtime
