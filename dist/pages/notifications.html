@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Notifications</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/pages/notifications.css" />
+  </head>
+  <body>
+    <main class="page-bg">
+      <section class="phone-shell">
+        <header id="topbar" class="topbar"></header>
+        <div class="view page active">
+          <div class="notifications-header">
+            <h2>Notifications</h2>
+            <button id="markAllReadBtn" class="chip" type="button">Mark all as read</button>
+          </div>
+
+          <div class="notifications-filters">
+            <button class="filter-btn active" data-filter="all" type="button">All</button>
+            <button class="filter-btn" data-filter="unread" type="button">Unread</button>
+          </div>
+
+          <div id="notificationsList" class="list"></div>
+          <p id="notificationsMessage" class="message"></p>
+        </div>
+        <nav id="bottomNav" class="bottom-nav"></nav>
+      </section>
+    </main>
+    <script type="module" src="/ui/js/pages/notifications.js"></script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Leaderboards</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/pages/leaderboards.css" />
+  </head>
+  <body>
+    <main class="page-bg">
+      <section class="phone-shell">
+        <header id="topbar" class="topbar"></header>
+        <div class="view page active">
+          <div class="leaderboard-header">
+            <div>
+              <p class="leaderboard-kicker">Community standings</p>
+              <h2>Total Achievement Leaderboard</h2>
+            </div>
+            <button id="refreshBtn" class="chip" type="button">Refresh</button>
+          </div>
+          <div class="leaderboard-tabs" id="leaderboardTabs" role="tablist" aria-label="Leaderboard type">
+            <button class="chip tab-btn is-active" type="button" role="tab" aria-selected="true" data-board="overall">Overall</button>
+            <button class="chip tab-btn" type="button" role="tab" aria-selected="false" data-board="tutor">Top Tutors</button>
+            <button class="chip tab-btn" type="button" role="tab" aria-selected="false" data-board="tutee">Top Tutees</button>
+          </div>
+          <p id="leaderboardSummary" class="leaderboard-summary">Loading current standings...</p>
+          <div id="leaderboardList" class="list"></div>
+        </div>
+        <nav id="bottomNav" class="bottom-nav"></nav>
+      </section>
+    </main>
+    <script type="module" src="/ui/js/pages/leaderboards.js"></script>
+  </body>
+</html>

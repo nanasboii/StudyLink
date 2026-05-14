@@ -1,0 +1,20 @@
+﻿export const PAGES = {
+  login: '/ui/pages/login.html',
+  register: '/ui/pages/register.html',
+  resources: '/ui/pages/resources.html',
+  tutors: '/ui/pages/tutors.html',
+  review: '/ui/pages/review.html',
+  leaderboards: '/ui/pages/leaderboards.html',
+  session: '/ui/pages/session.html',
+  verification: '/ui/pages/verification.html',
+  adminVerifications: '/ui/pages/admin-verifications.html',
+  adminResources: '/ui/pages/admin-resources.html',
+  adminAnalytics: '/ui/pages/admin-analytics.html',
+  adminActivity: '/ui/pages/admin-activity.html',
+  adminErrors: '/ui/pages/admin-errors.html',
+  notifications: '/ui/pages/notifications.html',
+  achievements: '/ui/pages/achievements.html',
+  profile: '/ui/pages/profile.html',
+  publicProfile: '/ui/pages/public-profile.html',
+  resourceDetail: '/ui/pages/resource-detail.html'
+};

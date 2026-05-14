@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyLink - Public Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Josefin+Sans:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/ui/css/base.css" />
+    <link rel="stylesheet" href="/ui/css/pages/public-profile.css" />
+  </head>
+  <body>
+    <main class="page-bg">
+      <section class="phone-shell">
+        <header id="topbar" class="topbar"></header>
+        <div class="view page active">
+          <div class="public-profile-header">
+            <div>
+              <p class="public-profile-kicker">Community profile</p>
+              <h2 id="publicProfileTitle">User Profile</h2>
+            </div>
+            <button id="backToLeaderboardBtn" class="chip" type="button">Back to Leaderboard</button>
+          </div>
+
+          <div id="publicProfileCard" class="card public-profile-card hidden">
+            <div class="public-profile-top">
+              <img id="publicProfilePicture" class="public-profile-pic" alt="Profile picture" />
+              <div>
+                <h3 id="publicProfileName">-</h3>
+                <p id="publicProfileRole" class="public-profile-role">-</p>
+                <p id="publicProfileMatric" class="public-profile-meta">Matric: -</p>
+              </div>
+            </div>
+
+            <div class="public-profile-stats">
+              <div class="public-profile-stat"><span>Achievements</span><strong id="publicProfileAchievements">0</strong></div>
+              <div class="public-profile-stat"><span>Points</span><strong id="publicProfilePoints">0</strong></div>
+              <div class="public-profile-stat"><span>Rating</span><strong id="publicProfileRating">0.00</strong></div>
+              <div class="public-profile-stat"><span>Reviews</span><strong id="publicProfileReviews">0</strong></div>
+              <div class="public-profile-stat"><span>Status</span><strong id="publicProfileVerified">Not verified</strong></div>
+            </div>
+
+            <div class="public-profile-grid">
+              <div class="public-profile-row"><span>Major</span><strong id="publicProfileMajor">-</strong></div>
+              <div class="public-profile-row"><span>Year of Study</span><strong id="publicProfileYear">-</strong></div>
+              <div class="public-profile-row"><span>Expertise</span><strong id="publicProfileExpertise">-</strong></div>
+              <div class="public-profile-row"><span>Target Subjects</span><strong id="publicProfileTargets">-</strong></div>
+            </div>
+
+            <div class="public-profile-bio">
+              <p class="public-profile-bio-label">Bio</p>
+              <p id="publicProfileBio">No bio provided.</p>
+            </div>
+
+            <div class="public-profile-actions" id="publicProfileActions"></div>
+          </div>
+
+          <p id="publicProfileMessage" class="message"></p>
+        </div>
+        <nav id="bottomNav" class="bottom-nav"></nav>
+      </section>
+    </main>
+    <script type="module" src="/ui/js/pages/public-profile.js"></script>
+  </body>
+</html>

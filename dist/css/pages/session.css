@@ -1,0 +1,9 @@
+#bookingList .item {
+  border-left: 5px solid var(--accent);
+  background: linear-gradient(180deg, #ffffff, #fffdf7);
+}
+
+#recentTutorsList .item {
+  border-left: 5px solid var(--accent-2);
+  background: linear-gradient(180deg, #ffffff, #f6fbff);
+}
