@@ -46,7 +46,7 @@ For details on the migration process, see [VUE_MIGRATION.md](VUE_MIGRATION.md).
 - Notifications with unread indicators
 - Tutor verification workflow and admin decision/reupload request
 - Admin analytics, admin activity logs, server error logs, and resource moderation views
-- Daily login streak + monthly activity calendar modal bb
+- Daily login streak + monthly activity calendar modal bb.
 
 ### Login Streak and Activity Calendar
 
