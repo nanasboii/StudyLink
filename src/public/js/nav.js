@@ -1,5 +1,5 @@
 import { getUser, clearSession, api } from './api.js';
-import { PAGES } from './routes.js';
+import { PAGES } from '../../frontend/routes.js';
 
 const NOTIFICATIONS_UPDATED_EVENT = 'studylink:notifications-updated';
 const NOTIFICATION_POLL_MS = 30000;

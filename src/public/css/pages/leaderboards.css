@@ -266,35 +266,38 @@
 }
 
 .leaderboard-action-btn {
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.18) 100%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 245, 248, 0.82));
-  color: #5c4452;
+  border: 2px solid #999999;
+  background: #f5f5f5;
+  color: #1a1a1a;
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(231, 126, 156, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 150ms ease;
 }
 
 .leaderboard-action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(231, 126, 156, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  border-color: #666666;
+  background: #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .leaderboard-action-btn.is-primary {
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%),
-    linear-gradient(135deg, #ffc8d6 0%, #ffb7c5 55%, #ffa9bc 100%);
+  border: 2px solid #c41e3a;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   color: #fff;
-  box-shadow: 0 10px 22px rgba(231, 126, 156, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+  transition: all 200ms ease;
 }
 
 .leaderboard-action-btn.is-primary:hover {
-  box-shadow: 0 14px 28px rgba(231, 126, 156, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
+  border-color: #e63a52;
+  box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
+  transform: translateY(-2px);
 }
 
 .stat-chip {

@@ -6,7 +6,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+<<<<<<< HEAD
 # Copy only files needed for build to keep context stable
+=======
+COPY index.html vite.config.js ./
+>>>>>>> laptop
 COPY src ./src
 COPY index.html ./index.html
 RUN npm run build
@@ -22,5 +26,10 @@ RUN npm install --production
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/dist ./dist
 
+RUN npm run build
+
 EXPOSE 3000
+<<<<<<< HEAD
 CMD ["node", "src/server.js"]
+=======
+>>>>>>> laptop

@@ -461,31 +461,35 @@
 }
 
 .star-rating button {
-  border: 2px solid #1d2c37;
+  border: 2px solid #c41e3a;
   border-radius: 999px;
-  background: #fff;
-  color: #c3cad1;
+  background: #1a1a1a;
+  color: #999999;
   width: 34px;
   height: 34px;
   padding: 0;
   font-size: 16px;
   line-height: 1;
+  transition: all 120ms ease;
 }
 
 .star-rating button:hover {
-  background: #fff7d6;
+  background: #2d2d2d;
+  border-color: #e63a52;
 }
 
 .star-rating button.is-previewed,
 .star-rating button:hover,
 .star-rating button:focus-visible {
-  color: #f0b300;
-  background: #fff7d6;
+  color: #ffd700;
+  background: #2d2d2d;
+  border-color: #e63a52;
 }
 
 .star-rating button.is-active {
-  color: #f0b300;
-  background: #fff2bf;
+  color: #ffd700;
+  background: #3d3d3d;
+  border-color: #c41e3a;
 }
 
 .star-rating button.is-active.is-previewed {
@@ -872,20 +876,21 @@ body.upload-modal-open {
 
 .upload-panel .primary {
   min-height: 46px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 2px solid #c41e3a;
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%),
-    linear-gradient(135deg, #ffc8d6 0%, #ffb7c5 55%, #ffa9bc 100%);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   color: #ffffff;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 22px rgba(231, 126, 156, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
+  transition: all 200ms ease;
 }
 
 .upload-panel .primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(231, 126, 156, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
+  border-color: #e63a52;
+  box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
 }
 
 .upload-panel .message {

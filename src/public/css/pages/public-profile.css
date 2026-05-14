@@ -138,9 +138,15 @@
 }
 
 .public-profile-actions .chip.primary-action {
-  background: #2f4f66;
-  border-color: #2f4f66;
+  background: #1a1a1a;
+  border-color: #c41e3a;
   color: #fff;
+  transition: all 200ms ease;
+}
+
+.public-profile-actions .chip.primary-action:hover {
+  background: #2d2d2d;
+  border-color: #e63a52;
 }
 
 @media (max-width: 640px) {
