@@ -1,4 +1,4 @@
-import { PAGES } from './routes.js';
+import { PAGES } from '../../frontend/routes.js';
 
 const TOKEN_KEY = 'studylinkToken';
 const USER_KEY = 'studylinkUser';

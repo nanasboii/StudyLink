@@ -350,58 +350,67 @@ body.streak-modal-open {
   gap: 6px;
 }
 
+/* NEW PREMIUM CALENDAR DAY STYLES */
 .streak-day {
-  min-height: 50px;
-  padding: 7px 8px 8px;
+  min-height: 64px;
+  padding: 8px;
   border-radius: 12px;
   background: #ffffff;
-  border: 1px solid #e3ebe3;
-  display: grid;
+  border: 2px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
-  align-content: space-between;
-  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .streak-day.is-active {
-  background: #eef6f1;
-  border-color: #c8ddcf;
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(63, 111, 87, 0.06);
+  background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+  border-color: #38a169;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.35);
+  transform: translateY(-3px);
 }
 
 .streak-day.is-today {
-  outline: 1px solid rgba(63, 111, 87, 0.18);
-  outline-offset: 0;
+  border-color: #38a169;
+  border-width: 2px;
 }
 
 .streak-day.is-outside-month {
   opacity: 0.45;
+  background: #f8fafc;
 }
 
 .streak-day.is-outside-month.is-active {
-  opacity: 0.65;
+  opacity: 0.7;
 }
 
 .streak-day-name {
-  font-size: 0.64rem;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: 0.78;
+  color: #a0aec0;
+}
+
+.streak-day.is-active .streak-day-name {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .streak-day-number {
   font-family: 'Josefin Sans', sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   line-height: 1;
+  color: #2d3748;
 }
 
-.streak-day.is-active .streak-day-name,
 .streak-day.is-active .streak-day-number {
-  color: #335545;
-  opacity: 1;
+  color: #ffffff;
 }
+/* END CALENDAR DAY STYLES */
 
 .streak-footnote {
   position: relative;
@@ -627,10 +636,8 @@ select:focus {
 }
 
 button.primary {
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.14) 100%),
-    linear-gradient(135deg, #ffc8d6 0%, #ffb7c5 55%, #ffa9bc 100%);
+  border: 1px solid #c41e3a;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   color: #ffffff;
   border-radius: 10px;
   padding: 14px 24px;
@@ -639,24 +646,33 @@ button.primary {
   font-weight: 600;
   cursor: pointer;
   transition: all 200ms ease;
-  border: none;
-  box-shadow: 0 10px 22px rgba(231, 126, 156, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  border: 2px solid #c41e3a;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
 }
 
 button.primary:hover {
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
+  border-color: #e63a52;
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(231, 126, 156, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
 }
 
 button.primary:active {
   transform: translateY(0);
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
 }
 
 .link-btn {
   border: 0;
   background: transparent;
-  color: #a54e66;
+  color: #c41e3a;
   text-decoration: underline;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.link-btn:hover {
+  color: #e63a52;
 }
 
 .message {
@@ -689,25 +705,26 @@ button.primary:active {
 }
 
 .chip {
-  border: 1px solid #ffd6e2;
+  border: 2px solid #c41e3a;
   border-radius: 999px;
   padding: 10px 16px;
-  background: #fff;
+  background: #1a1a1a;
   white-space: nowrap;
   font-size: 13px;
   cursor: pointer;
   transition: all 150ms ease;
+  color: #ffffff;
 }
 
 .chip:hover {
-  background: #fff5f8;
-  border-color: #ffbfd0;
+  background: #2d2d2d;
+  border-color: #e63a52;
 }
 
 .chip-active {
-  background: linear-gradient(135deg, #ffc4d4 0%, #ffb7c5 100%);
-  color: #fff;
-  border-color: #ffb7c5;
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
+  color: #ffffff;
+  border-color: #c41e3a;
 }
 
 .list {
@@ -787,9 +804,9 @@ button.primary:active {
 }
 
 .item button {
-  border: 1.5px solid #c8d5de;
+  border: 2px solid #c41e3a;
   border-radius: 10px;
-  background: linear-gradient(135deg, #ffffff, #f5f9fc);
+  background: #1a1a1a;
   padding: 10px 14px;
   font-size: 12px;
   font-weight: 600;
@@ -797,13 +814,13 @@ button.primary:active {
   transition: all 200ms ease;
   flex: 1;
   min-width: 90px;
-  color: #2c4556;
+  color: #ffffff;
 }
 
 .item button:hover {
-  border-color: #8ab8d0;
-  background: linear-gradient(135deg, #eef7fc, #ddf3fb);
-  box-shadow: 0 4px 12px rgba(138, 184, 208, 0.15);
+  border-color: #e63a52;
+  background: #2d2d2d;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
   transform: translateY(-2px);
 }
 

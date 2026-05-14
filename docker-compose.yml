@@ -1,24 +1,59 @@
+
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: studylink-postgres
+    environment:
+      POSTGRES_USER: studylink
+      POSTGRES_PASSWORD: studylink_password
+      POSTGRES_DB: studylink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studylink"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin - PostgreSQL Web Interface
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: studylink-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@studylink.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_CONFIG_PROXY_X_FOR_COUNT: 1
+      PGADMIN_CONFIG_PROXY_X_PROTO_COUNT: 1
+      PGADMIN_CONFIG_PROXY_X_HOST_COUNT: 1
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # StudyLink Backend App
   app:
     build: .
     container_name: studylink-app
     ports:
-      - "6767:6767"
-    env_file:
-      - .env
+      - "3000:3000"
     environment:
-      PORT: 6767
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      DB_SSL: ${DB_SSL}
-      DB_SSL_REJECT_UNAUTHORIZED: ${DB_SSL_REJECT_UNAUTHORIZED}
-      SKIP_DB_INIT: ${SKIP_DB_INIT}
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://studylink:studylink_password@postgres:5432/studylink
+      SKIP_DB_INIT: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - app_uploads:/app/src/uploads
+      - .:/app
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   app_uploads:
