@@ -3,11 +3,11 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --production
 
-COPY index.html vite.config.js ./
 COPY src ./src
-
-RUN npm run build
+COPY dist ./dist
 
 EXPOSE 3000
+
+CMD ["node", "src/server.js"]
