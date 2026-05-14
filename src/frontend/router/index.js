@@ -18,12 +18,17 @@ const AdminErrors = () => import('../pages/AdminErrors.vue')
 const Notifications = () => import('../pages/Notifications.vue')
 const Achievements = () => import('../pages/Achievements.vue')
 const Profile = () => import('../pages/Profile.vue')
+const Settings = () => import('../pages/Settings.vue')
+const ForgotPassword = () => import('../pages/ForgotPassword.vue')
+const ResetPassword = () => import('../pages/ResetPassword.vue')
 const PublicProfile = () => import('../pages/PublicProfile.vue')
 const ResourceDetail = () => import('../pages/ResourceDetail.vue')
 
 const routes = [
   { path: '/login', component: Login, name: 'Login' },
   { path: '/register', component: Register, name: 'Register' },
+  { path: '/forgot-password', component: ForgotPassword, name: 'ForgotPassword' },
+  { path: '/reset-password', component: ResetPassword, name: 'ResetPassword' },
   { path: '/resources', component: Resources, name: 'Resources', meta: { requiresAuth: true } },
   { path: '/tutors', component: Tutors, name: 'Tutors', meta: { requiresAuth: true } },
   { path: '/review/:resourceId', component: Review, name: 'Review', meta: { requiresAuth: true } },
@@ -38,6 +43,7 @@ const routes = [
   { path: '/notifications', component: Notifications, name: 'Notifications', meta: { requiresAuth: true } },
   { path: '/achievements', component: Achievements, name: 'Achievements', meta: { requiresAuth: true } },
   { path: '/profile', component: Profile, name: 'Profile', meta: { requiresAuth: true } },
+  { path: '/settings', component: Settings, name: 'Settings', meta: { requiresAuth: true } },
   { path: '/users/:userId', component: PublicProfile, name: 'PublicProfile', meta: { requiresAuth: true } },
   { path: '/resources/:resourceId', component: ResourceDetail, name: 'ResourceDetail', meta: { requiresAuth: true } },
   { path: '/', redirect: '/resources' }

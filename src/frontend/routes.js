@@ -1,6 +1,8 @@
 ﻿export const PAGES = {
   login: '/login',
   register: '/register',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   resources: '/resources',
   tutors: '/tutors',
   review: '/review',
@@ -19,6 +21,7 @@
   notifications: '/notifications',
   achievements: '/achievements',
   profile: '/profile',
+  settings: '/settings',
   publicProfile: '/public-profile',
   resourceDetail: '/resource-detail'
 };

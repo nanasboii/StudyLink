@@ -20,7 +20,10 @@ const topbarRef = ref(null)
 
 onMounted(async () => {
   // If not authenticated, redirect to login
-  if (!isAuthenticated.value && router.currentRoute.value.name !== 'Login' && router.currentRoute.value.name !== 'Register') {
+  if (
+    !isAuthenticated.value &&
+    !['Login', 'Register', 'ForgotPassword', 'ResetPassword'].includes(router.currentRoute.value.name)
+  ) {
     router.push('/login')
     return
   }
