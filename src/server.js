@@ -135,10 +135,21 @@ if (!fs.existsSync(profilePictureUploadDir)) {
 
 // Support both DATABASE_URL (Railway) and individual env vars (local)
 const getPoolConfig = () => {
+  const sslEnv = String(process.env.DB_SSL || '').toLowerCase();
+  const sslRequested = sslEnv === 'true' || sslEnv === '1' || sslEnv === 'yes';
+  const sslDisabled = sslEnv === 'false' || sslEnv === '0' || sslEnv === 'no';
+  const rejectUnauthorized =
+    String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true';
+
   if (process.env.DATABASE_URL) {
+    const isLocalDatabaseUrl = /localhost|127\.0\.0\.1/i.test(process.env.DATABASE_URL);
+    const shouldUseSsl = sslRequested || (!sslDisabled && !isLocalDatabaseUrl);
+
     return {
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      ssl: shouldUseSsl
+        ? { rejectUnauthorized }
+        : false
     };
   }
 
@@ -148,9 +159,9 @@ const getPoolConfig = () => {
     user: process.env.DB_USER || 'studylink',
     password: process.env.DB_PASSWORD || 'studylink',
     database: process.env.DB_NAME || 'studylink',
-    ssl: String(process.env.DB_SSL || '').toLowerCase() === 'true'
+    ssl: sslRequested
       ? {
-          rejectUnauthorized: String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true'
+          rejectUnauthorized
         }
       : undefined
   };
@@ -860,19 +871,43 @@ async function initializeDatabase() {
     `);
 
     await client.query(
-      `INSERT INTO achievements (code, name, description, points_required, icon_url)
-       VALUES
-         ('POINTS_15', 'First Steps', 'Reached 15 points by getting active on StudyLink.', 15, '/ui/assets/badges/first-steps.svg'),
-         ('POINTS_50', 'Helping Hand', 'Reached 50 points by consistently helping classmates.', 50, '/ui/assets/badges/helping-hand.svg'),
-         ('POINTS_100', 'Campus Mentor', 'Reached 100 points through tutoring, reviews, and resource sharing.', 100, '/ui/assets/badges/campus-mentor.svg'),
-         ('POINTS_175', 'Community Builder', 'Reached 175 points by staying active across StudyLink.', 175, '/ui/assets/badges/community-builder.svg'),
-         ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as one of the most active members.', 250, '/ui/assets/badges/studylink-champion.svg')
-       ON CONFLICT (code)
-       DO UPDATE SET
-         name = EXCLUDED.name,
-         description = EXCLUDED.description,
-         points_required = EXCLUDED.points_required,
-         icon_url = EXCLUDED.icon_url`
+      `WITH seed(code, name, description, points_required, icon_url) AS (
+         VALUES
+           ('POINTS_15', 'First Steps', 'Reached 15 points by getting active on StudyLink.', 15, '/ui/assets/badges/first-steps.svg'),
+           ('POINTS_50', 'Helping Hand', 'Reached 50 points by consistently helping classmates.', 50, '/ui/assets/badges/helping-hand.svg'),
+           ('POINTS_100', 'Campus Mentor', 'Reached 100 points through tutoring, reviews, and resource sharing.', 100, '/ui/assets/badges/campus-mentor.svg'),
+           ('POINTS_175', 'Community Builder', 'Reached 175 points by staying active across StudyLink.', 175, '/ui/assets/badges/community-builder.svg'),
+           ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as one of the most active members.', 250, '/ui/assets/badges/studylink-champion.svg')
+       ),
+       updated AS (
+         UPDATE achievements a
+            SET name = s.name,
+                description = s.description,
+                points_required = s.points_required,
+                icon_url = s.icon_url
+           FROM seed s
+          WHERE a.code = s.code
+         RETURNING a.code
+       ),
+       missing AS (
+         SELECT s.*
+           FROM seed s
+      LEFT JOIN achievements a ON a.code = s.code
+          WHERE a.code IS NULL
+       ),
+       numbered AS (
+         SELECT
+           ROW_NUMBER() OVER (ORDER BY code) + COALESCE((SELECT MAX(id) FROM achievements), 0) AS id,
+           code,
+           name,
+           description,
+           points_required,
+           icon_url
+           FROM missing
+       )
+       INSERT INTO achievements (id, code, name, description, points_required, icon_url)
+       SELECT id, code, name, description, points_required, icon_url
+         FROM numbered`
     );
 
     await client.query(
