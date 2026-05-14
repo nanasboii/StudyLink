@@ -6,13 +6,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-<<<<<<< HEAD
-# Copy only files needed for build to keep context stable
-=======
+# Copy only files needed for build
 COPY index.html vite.config.js ./
->>>>>>> laptop
 COPY src ./src
-COPY index.html ./index.html
+
+# Build the frontend
 RUN npm run build
 
 FROM node:20-alpine AS runtime
@@ -26,10 +24,7 @@ RUN npm install --production
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/dist ./dist
 
-RUN npm run build
-
 EXPOSE 3000
-<<<<<<< HEAD
+
+# Start the server
 CMD ["node", "src/server.js"]
-=======
->>>>>>> laptop
