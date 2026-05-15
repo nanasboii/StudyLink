@@ -3,14 +3,21 @@
     <section class="card profile-hero">
       <div class="profile-hero-top">
         <div class="profile-pic-container">
-          <img :src="profileData.profilePicture || '/default-avatar.svg'" alt="Profile Picture" class="profile-pic" />
+          <img
+            v-if="avatarSrc"
+            :src="avatarSrc"
+            alt="Profile picture"
+            class="profile-pic"
+            @error="avatarLoadFailed = true"
+          />
+          <div v-else class="profile-avatar-fallback" aria-label="Profile initials">{{ profileInitials }}</div>
         </div>
         <div class="profile-hero-meta">
           <div>
             <h2>{{ profileData.fullName }}</h2>
             <p class="profile-sub">Student ID: {{ profileData.studentId }}</p>
           </div>
-          <span class="role-badge">{{ profileData.role }}</span>
+          <span class="role-badge">{{ roleLabel }}</span>
         </div>
       </div>
       <div class="profile-stats-strip">
@@ -93,7 +100,25 @@ export default {
       isEditing: false,
       profileData: normalizedUser,
       originalProfileData: { ...normalizedUser },
-      message: ''
+      message: '',
+      avatarLoadFailed: false
+    }
+  },
+  computed: {
+    avatarSrc() {
+      if (this.avatarLoadFailed) return ''
+      return this.profileData.profilePicture || ''
+    },
+    profileInitials() {
+      const fullName = String(this.profileData.fullName || '').trim()
+      if (!fullName) return 'SL'
+      const parts = fullName.split(/\s+/).slice(0, 2)
+      return parts.map((part) => part.charAt(0).toUpperCase()).join('')
+    },
+    roleLabel() {
+      const role = String(this.profileData.role || '').trim()
+      if (!role) return 'Member'
+      return role.charAt(0).toUpperCase() + role.slice(1)
     }
   },
   methods: {
@@ -121,6 +146,7 @@ export default {
         const normalized = this.normalizeUser(resp.user || {})
         this.profileData = normalized
         this.originalProfileData = { ...normalized }
+        this.avatarLoadFailed = false
       } catch (err) {
         this.message = `Error: ${err.message}`
       }
@@ -162,3 +188,234 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.view {
+  padding: 22px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  border: 1px solid #efd3dc;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffdfd 0%, #fff7fa 100%);
+  box-shadow: 0 14px 28px rgba(121, 34, 64, 0.08);
+  padding: 20px;
+}
+
+.profile-hero {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.profile-hero-top {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.profile-pic-container {
+  width: 100px;
+  height: 100px;
+}
+
+.profile-pic,
+.profile-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.profile-pic {
+  object-fit: cover;
+  border: 3px solid #f3c4d3;
+  background: #fff;
+  display: block;
+}
+
+.profile-avatar-fallback {
+  display: grid;
+  place-items: center;
+  border: 3px solid #f3c4d3;
+  background: linear-gradient(135deg, #f48fb1 0%, #d81b60 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 0.03em;
+}
+
+.profile-hero-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.profile-hero-meta h2 {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 36px);
+  line-height: 1.05;
+  color: #3a1d2a;
+}
+
+.profile-sub {
+  margin: 6px 0 0;
+  color: #755160;
+  font-size: 0.95rem;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #f0aec2;
+  background: #fff;
+  color: #8f1d47;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.profile-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mini-stat-item {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #f2c8d6;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.mini-stat-label {
+  display: block;
+  font-size: 0.74rem;
+  color: #805362;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.mini-stat-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.24rem;
+  color: #6e1638;
+  font-weight: 800;
+}
+
+.profile-panel {
+  margin-bottom: 12px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.profile-header h3 {
+  margin: 0;
+  color: #4a2735;
+}
+
+.profile-form {
+  display: grid;
+  gap: 10px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5d3b49;
+}
+
+.field-hint {
+  margin-left: 4px;
+  color: #8d7180;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #efc2d1;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  background: #fff;
+  color: #41252f;
+  font-family: inherit;
+}
+
+input:disabled,
+textarea:disabled {
+  background: #fff8fb;
+  color: #8f7380;
+  border-color: #f3d7e0;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: #d81b60;
+  box-shadow: 0 0 0 3px rgba(216, 27, 96, 0.12);
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.message {
+  margin: 8px 2px 0;
+  color: #9d254d;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .view {
+    padding: 14px;
+  }
+
+  .profile-hero-top {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .profile-hero-meta {
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .profile-stats-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-actions {
+    justify-content: stretch;
+  }
+
+  .edit-actions .primary {
+    width: 100%;
+  }
+}
+</style>
