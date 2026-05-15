@@ -74,8 +74,19 @@ export default {
     },
   },
   methods: {
+    normalizeNotification(item) {
+      return {
+        id: item.id,
+        message: item.message,
+        isRead: Boolean(item.is_read ?? item.isRead),
+        createdAt: item.created_at ?? item.createdAt,
+      }
+    },
     relativeTime(dateValue) {
-      const ms = Date.now() - new Date(dateValue).getTime()
+      const timestamp = new Date(dateValue).getTime()
+      if (Number.isNaN(timestamp)) return 'Just now'
+
+      const ms = Math.max(0, Date.now() - timestamp)
       const seconds = Math.max(1, Math.floor(ms / 1000))
       if (seconds < 60) return `${seconds}s ago`
       const minutes = Math.floor(seconds / 60)
@@ -88,7 +99,7 @@ export default {
     async loadNotifications() {
       try {
         const resp = await api('/notifications')
-        this.allNotifications = resp.notifications || []
+        this.allNotifications = (resp.notifications || []).map((item) => this.normalizeNotification(item))
       } catch (err) {
         this.message = `Error: ${err.message}`
       }
