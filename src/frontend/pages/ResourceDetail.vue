@@ -189,24 +189,51 @@ const toDateText = (dateValue) => {
   return value.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-const resolveResourceUrl = async (rawUrl) => {
-  const fileUrl = String(rawUrl || '').trim();
-  if (!fileUrl) return '';
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  if (!fileUrl.startsWith('/')) return fileUrl;
+const canPreviewInBrowser = (rawUrl) => {
+  const url = String(rawUrl || '').trim().toLowerCase();
+  if (!url) return false;
+  if (/^https?:\/\//.test(url)) return true;
 
-  try {
-    const response = await fetch(fileUrl, { method: 'HEAD' });
-    if (response.ok) return fileUrl;
-  } catch (error) {
-    // Ignore fallback to local app url check
-  }
+  const cleanPath = url.split('?')[0].split('#')[0];
+  return [
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.txt',
+    '.md',
+    '.mp4',
+    '.webm',
+    '.mp3',
+    '.wav',
+    '.ogg'
+  ].some((ext) => cleanPath.endsWith(ext));
+};
 
-  if (fileUrl.startsWith('/uploads/') && window.location.port !== '3000') {
-    return `${window.location.protocol}//${window.location.hostname}:3000${fileUrl}`;
-  }
+const openInNewTab = (url) => {
+  if (!url) return;
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
 
-  return fileUrl;
+const triggerBrowserDownload = (url) => {
+  if (!url) return;
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.rel = 'noopener noreferrer';
+  // Let the browser save dialog handle the final filename from response headers.
+  anchor.setAttribute('download', '');
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 };
 
 // API Actions
@@ -297,21 +324,25 @@ const submitReview = async () => {
 
 const openResource = async () => {
   if (!resource.value) return;
-  const url = await resolveResourceUrl(resource.value.file_url);
-  if (!url) {
+
+  if (!canPreviewInBrowser(resource.value.file_url)) {
+    resourceDetailMessage.value = 'This file type cannot be previewed in browser. Use Download to save it.';
+    return;
+  }
+
+  if (!resource.value.id) {
     resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
     return;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
+
+  resourceDetailMessage.value = '';
+  openInNewTab(`/api/resources/${resource.value.id}/file`);
 };
 
 const openDownload = async () => {
   if (!resource.value) return;
   try {
-    const payload = await api(`/resources/${resource.value.id}/download`, 'POST');
-    const fileUrl = await resolveResourceUrl(payload?.resource?.file_url || resource.value.file_url);
-    if (!fileUrl) throw new Error('No downloadable file found for this resource.');
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    triggerBrowserDownload(`/api/resources/${resource.value.id}/file?download=1`);
   } catch (error) {
     resourceDetailMessage.value = `Download failed: ${error.message}`;
   }

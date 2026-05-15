@@ -116,6 +116,35 @@ function toDateText(dateValue) {
   return value.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function canPreviewInBrowser(rawUrl) {
+  const url = String(rawUrl || '').trim().toLowerCase();
+  if (!url) {
+    return false;
+  }
+
+  if (/^https?:\/\//.test(url)) {
+    return true;
+  }
+
+  const cleanPath = url.split('?')[0].split('#')[0];
+  return [
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.txt',
+    '.md',
+    '.mp4',
+    '.webm',
+    '.mp3',
+    '.wav',
+    '.ogg'
+  ].some((ext) => cleanPath.endsWith(ext));
+}
+
 function readResourceId() {
   const params = new URLSearchParams(window.location.search);
   return params.get('id') || '';
@@ -135,34 +164,31 @@ async function loadResourceFromListFallback() {
   };
 }
 
-async function resolveResourceUrl(rawUrl) {
-  const fileUrl = String(rawUrl || '').trim();
-  if (!fileUrl) {
-    return '';
+function openInNewTab(url) {
+  if (!url) {
+    return;
+  }
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+function triggerBrowserDownload(url) {
+  if (!url) {
+    return;
   }
 
-  if (/^https?:\/\//i.test(fileUrl)) {
-    return fileUrl;
-  }
-
-  if (!fileUrl.startsWith('/')) {
-    return fileUrl;
-  }
-
-  try {
-    const response = await fetch(fileUrl, { method: 'HEAD' });
-    if (response.ok) {
-      return fileUrl;
-    }
-  } catch (error) {
-    // Fall back to docker app URL for uploaded files when local dev server cannot serve them.
-  }
-
-  if (fileUrl.startsWith('/uploads/') && window.location.port !== '3000') {
-    return `${window.location.protocol}//${window.location.hostname}:3000${fileUrl}`;
-  }
-
-  return fileUrl;
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.rel = 'noopener noreferrer';
+  anchor.setAttribute('download', '');
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 async function openDownload() {
@@ -171,12 +197,7 @@ async function openDownload() {
   }
 
   try {
-    const payload = await api(`/resources/${state.resource.id}/download`, 'POST');
-    const fileUrl = await resolveResourceUrl(payload?.resource?.file_url || state.resource.file_url);
-    if (!fileUrl) {
-      throw new Error('No downloadable file found for this resource.');
-    }
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    triggerBrowserDownload(`/api/resources/${state.resource.id}/file?download=1`);
   } catch (error) {
     setMessage('resourceDetailMessage', `Download failed: ${error.message}`);
   }
@@ -186,12 +207,16 @@ async function openResource() {
   if (!state.resource) {
     return;
   }
-  const url = await resolveResourceUrl(state.resource.file_url);
-  if (!url) {
+  if (!canPreviewInBrowser(state.resource.file_url)) {
+    setMessage('resourceDetailMessage', 'This file type cannot be previewed in browser. Use Download to save it.');
+    return;
+  }
+  if (!state.resource.id) {
     setMessage('resourceDetailMessage', 'Unable to open this resource because no file URL is available.');
     return;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
+  setMessage('resourceDetailMessage', '', true);
+  openInNewTab(`/api/resources/${state.resource.id}/file`);
 }
 
 function renderResourceCard() {

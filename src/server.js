@@ -2617,12 +2617,74 @@ app.get('/resources/:id/reviews', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/resources/:id/download', requireAuth, async (req, res) => {
+app.get('/resources/:id/file', async (req, res) => {
   const resourceId = Number(req.params.id);
+  if (!Number.isInteger(resourceId) || resourceId < 1) {
+    return res.status(400).json({ message: 'Invalid resource id.' });
+  }
+
+  const forceDownload = ['1', 'true', 'yes'].includes(
+    String(req.query.download || '').toLowerCase()
+  );
 
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, file_url, metadata
+      `SELECT id, title, file_url
+       FROM resources
+       WHERE id = $1
+       LIMIT 1`,
+      [resourceId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: 'Resource not found.' });
+    }
+
+    const resource = rows[0];
+    const rawFileUrl = String(resource.file_url || '').trim();
+    if (!rawFileUrl) {
+      return res.status(404).json({ message: 'Resource file URL is missing.' });
+    }
+
+    if (/^https?:\/\//i.test(rawFileUrl)) {
+      return res.redirect(rawFileUrl);
+    }
+
+    if (rawFileUrl.startsWith('/uploads/resources/')) {
+      const fileName = path.basename(rawFileUrl);
+      const absolutePath = findUploadedFilePath('resources', fileName);
+      if (!absolutePath) {
+        return res.status(404).json({
+          message: 'Uploaded file is not available on server storage.'
+        });
+      }
+
+      if (forceDownload) {
+        const suggestedName = resource.title
+          ? `${String(resource.title).trim() || 'resource'}${path.extname(fileName)}`
+          : fileName;
+        res.setHeader('Content-Disposition', `attachment; filename="${suggestedName.replace(/"/g, '')}"`);
+      }
+
+      return res.sendFile(absolutePath);
+    }
+
+    return res.status(400).json({ message: 'Unsupported resource URL format.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.post('/resources/:id/download', requireAuth, async (req, res) => {
+  const resourceId = Number(req.params.id);
+
+  if (!Number.isInteger(resourceId) || resourceId < 1) {
+    return res.status(400).json({ message: 'Invalid resource id.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, title, file_url
        FROM resources
        WHERE id = $1`,
       [resourceId]
@@ -2633,8 +2695,10 @@ app.post('/resources/:id/download', requireAuth, async (req, res) => {
     }
 
     return res.json({
-      message: 'Use fileUrl to download the resource securely from storage.',
-      resource: rows[0]
+      message: 'Use downloadUrl to access this resource.',
+      resource: rows[0],
+      downloadUrl: `/resources/${resourceId}/file?download=1`,
+      openUrl: `/resources/${resourceId}/file`
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
