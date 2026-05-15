@@ -66,43 +66,99 @@
 </template>
 
 <script>
-import { api, getUser } from '@/api.js'
+import { api, getToken, getUser, setSession } from '@/api.js'
 
 export default {
   name: 'Profile',
   data() {
     const user = getUser() || {}
+    const normalizedUser = {
+      fullName:
+        user.fullName ||
+        [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+        '',
+      email: user.email || '',
+      phoneNumber: user.phoneNumber || '',
+      major: user.major || '',
+      bio: user.bio || '',
+      studentId: user.studentId || '',
+      role: user.role || '',
+      points: Number(user.totalPoints ?? user.points ?? 0),
+      rating: Number(user.rating || 0),
+      isVerified: Boolean(user.isVerified),
+      profilePicture: user.profilePictureUrl || user.profilePicture || ''
+    }
+
     return {
       isEditing: false,
-      profileData: {
-        fullName: user.firstName + ' ' + user.lastName || '',
+      profileData: normalizedUser,
+      originalProfileData: { ...normalizedUser },
+      message: ''
+    }
+  },
+  methods: {
+    normalizeUser(user) {
+      return {
+        fullName:
+          user.fullName ||
+          [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+          '',
         email: user.email || '',
         phoneNumber: user.phoneNumber || '',
         major: user.major || '',
         bio: user.bio || '',
         studentId: user.studentId || '',
         role: user.role || '',
-        points: user.points || 0,
-        rating: user.rating || 0,
-        isVerified: user.isVerified || false,
-        profilePicture: user.profilePicture || '',
-      },
-      message: '',
-    }
-  },
-  methods: {
+        points: Number(user.totalPoints ?? user.points ?? 0),
+        rating: Number(user.rating || 0),
+        isVerified: Boolean(user.isVerified),
+        profilePicture: user.profilePictureUrl || user.profilePicture || ''
+      }
+    },
+    async loadProfile() {
+      try {
+        const resp = await api('/me')
+        const normalized = this.normalizeUser(resp.user || {})
+        this.profileData = normalized
+        this.originalProfileData = { ...normalized }
+      } catch (err) {
+        this.message = `Error: ${err.message}`
+      }
+    },
     toggleEdit() {
+      if (this.isEditing) {
+        this.profileData = { ...this.originalProfileData }
+      }
       this.isEditing = !this.isEditing
     },
     async saveProfile() {
       try {
-        await api('/profile', 'PATCH', this.profileData)
+        const payload = {
+          fullName: this.profileData.fullName,
+          phoneNumber: this.profileData.phoneNumber,
+          major: this.profileData.major,
+          bio: this.profileData.bio
+        }
+
+        const resp = await api('/me/profile', 'PUT', payload)
+        const normalized = this.normalizeUser(resp.user || this.profileData)
+        this.profileData = normalized
+        this.originalProfileData = { ...normalized }
+
+        const token = getToken()
+        if (token && resp.user) {
+          setSession(token, resp.user)
+        }
+
         this.message = 'Profile updated!'
         this.isEditing = false
       } catch (err) {
         this.message = `Error: ${err.message}`
       }
-    },
+    }
   },
+  mounted() {
+    this.loadProfile()
+  }
 }
 </script>
