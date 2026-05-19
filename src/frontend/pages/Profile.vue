@@ -2,7 +2,7 @@
   <div class="view page active">
     <section class="card profile-hero">
       <div class="profile-hero-top">
-        <div class="profile-pic-container">
+        <div class="profile-pic-container" @mouseenter="isAvatarHovered = true" @mouseleave="isAvatarHovered = false">
           <img
             v-if="avatarSrc"
             :src="avatarSrc"
@@ -11,6 +11,21 @@
             @error="avatarLoadFailed = true"
           />
           <div v-else class="profile-avatar-fallback" aria-label="Profile initials">{{ profileInitials }}</div>
+          <div class="profile-pic-overlay" :class="{ visible: isAvatarHovered }">
+            <button class="overlay-action" type="button" @click="triggerProfilePictureUpload" :disabled="uploadingProfilePicture">
+              Edit Profile Picture
+            </button>
+            <button class="overlay-action secondary" type="button" @click="removeProfilePicture" :disabled="uploadingProfilePicture || !avatarSrc">
+              Remove Profile Picture
+            </button>
+          </div>
+          <input
+            ref="profilePictureInput"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+            class="profile-picture-input"
+            @change="handleProfilePictureSelected"
+          />
         </div>
         <div class="profile-hero-meta">
           <div>
@@ -99,6 +114,9 @@ const originalProfileData = ref({ ...profileData.value })
 const isEditing = ref(false)
 const message = ref('')
 const avatarLoadFailed = ref(false)
+const isAvatarHovered = ref(false)
+const uploadingProfilePicture = ref(false)
+const profilePictureInput = ref(null)
 
 const avatarSrc = computed(() => {
   if (avatarLoadFailed.value) return ''
@@ -158,6 +176,75 @@ const saveProfile = async () => {
   }
 }
 
+const triggerProfilePictureUpload = () => {
+  profilePictureInput.value?.click()
+}
+
+const uploadProfilePicture = async (file) => {
+  const formData = new FormData()
+  formData.append('image', file)
+
+  const token = getToken()
+  const headers = {}
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const response = await fetch('/api/uploads/profile-picture', {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.message || `HTTP ${response.status}`)
+  }
+
+  return response.json()
+}
+
+const handleProfilePictureSelected = async (event) => {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+
+  uploadingProfilePicture.value = true
+  try {
+    const uploadResult = await uploadProfilePicture(file)
+    const resp = await api('/me/profile', 'PUT', { profilePictureUrl: uploadResult.fileUrl })
+    const normalized = normalizeUser(resp.user || profileData.value)
+    profileData.value = normalized
+    originalProfileData.value = { ...normalized }
+    const token = getToken()
+    if (token && resp.user) setSession(token, resp.user)
+    avatarLoadFailed.value = false
+    message.value = 'Profile picture updated!'
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  } finally {
+    uploadingProfilePicture.value = false
+  }
+}
+
+const removeProfilePicture = async () => {
+  uploadingProfilePicture.value = true
+  try {
+    const resp = await api('/me/profile', 'PUT', { removeProfilePicture: true })
+    const normalized = normalizeUser(resp.user || profileData.value)
+    profileData.value = normalized
+    originalProfileData.value = { ...normalized }
+    const token = getToken()
+    if (token && resp.user) setSession(token, resp.user)
+    avatarLoadFailed.value = false
+    message.value = 'Profile picture removed.'
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  } finally {
+    uploadingProfilePicture.value = false
+  }
+}
+
 onMounted(() => {
   loadProfile()
 })
@@ -194,6 +281,10 @@ onMounted(() => {
 .profile-pic-container {
   width: 100px;
   height: 100px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+  cursor: pointer;
 }
 
 .profile-pic,
@@ -208,6 +299,56 @@ onMounted(() => {
   border: 3px solid #f3c4d3;
   background: #fff;
   display: block;
+}
+
+.profile-picture-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-pic-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 50%;
+  background: rgba(55, 16, 34, 0.58);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.profile-pic-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlay-action {
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.96);
+  color: #6e1638;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.overlay-action:hover {
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.overlay-action.secondary {
+  background: rgba(255, 243, 247, 0.98);
 }
 
 .profile-avatar-fallback {

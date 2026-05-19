@@ -12,7 +12,9 @@
               <input 
                 id="courseCode"
                 v-model="availability.courseCode" 
+                @input="availability.courseCode = availability.courseCode.toUpperCase()"
                 placeholder="TMF3953"
+                style="text-transform: uppercase;"
                 required
               />
             </div>
@@ -67,7 +69,9 @@
               <input 
                 id="bookingCourse"
                 v-model="booking.courseCode" 
+                @input="booking.courseCode = booking.courseCode.toUpperCase()"
                 placeholder="TMF3953"
+                style="text-transform: uppercase;"
               />
             </div>
 

@@ -36,13 +36,20 @@ const transporter = nodemailer.createTransport({
 });
 
 function getFrontendOrigin() {
+  const liveOrigin = 'https://studylink.up.railway.app';
   const configuredOrigin =
     process.env.FRONTEND_ORIGIN ||
     process.env.RAILWAY_STATIC_URL ||
     process.env.RAILWAY_PUBLIC_DOMAIN ||
-    'http://localhost:5173';
+    liveOrigin;
 
-  return configuredOrigin.replace(/\/$/, '');
+  const normalizedOrigin = configuredOrigin.replace(/\/$/, '');
+
+  if (/localhost|127\.0\.0\.1/.test(normalizedOrigin)) {
+    return liveOrigin;
+  }
+
+  return normalizedOrigin;
 }
 
 // Test SMTP connection on startup
@@ -812,6 +819,12 @@ async function initializeDatabase() {
         notes TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE tutor_availability
+        DROP CONSTRAINT IF EXISTS tutor_availability_course_code_fkey;
+
+      ALTER TABLE bookings
+        DROP CONSTRAINT IF EXISTS bookings_course_code_fkey;
 
       CREATE TABLE IF NOT EXISTS booking_reviews (
         id SERIAL PRIMARY KEY,
