@@ -45,6 +45,7 @@ services:
       PORT: 3000
       NODE_ENV: development
       DATABASE_URL: postgresql://studylink:studylink_password@postgres:5432/studylink
+      DB_SSL: "false"
       SKIP_DB_INIT: "false"
     depends_on:
       postgres:

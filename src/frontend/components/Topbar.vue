@@ -24,6 +24,9 @@
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <span class="notify-badge" v-if="unreadCount" :class="{ unread: unreadCount > 0 }">{{ unreadCount }}</span>
       </button>
+      <button class="icon-btn" @click="navigateToMessages" title="Messages">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      </button>
       <button class="icon-btn" @click="showUserMenu" title="User menu">
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
       </button>
@@ -99,7 +102,13 @@
       <router-link to="/achievements" class="menu-item" @click="isUserMenuOpen = false">
         🏆 Achievements
       </router-link>
-      <router-link to="/verification" class="menu-item" @click="isUserMenuOpen = false">
+      <router-link to="/redeem" class="menu-item" @click="isUserMenuOpen = false">
+        🎁 Redeem Points
+      </router-link>
+      <router-link to="/messages" class="menu-item" @click="isUserMenuOpen = false">
+        💬 Messages
+      </router-link>
+      <router-link v-if="currentUser?.role === 'tutor'" to="/verification" class="menu-item" @click="isUserMenuOpen = false">
         ✓ Verification
       </router-link>
       <div class="user-menu-divider"></div>
@@ -111,7 +120,7 @@
 </template>
 
 <script>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser, clearSession } from '@/api.js'
 
@@ -120,6 +129,7 @@ export default {
   setup() {
     const router = useRouter()
     const currentUser = computed(() => getUser())
+    const homeRoute = '/resources'
     const streakCount = ref(0)
     const unreadCount = ref(0)
     const isStreakModalOpen = ref(false)
@@ -245,8 +255,27 @@ export default {
       generateCalendar()
     }
 
-    const navigateToNotifications = () => {
-      router.push('/notifications')
+    const goHome = async () => {
+      if (router.currentRoute.value.path !== homeRoute) {
+        await router.push(homeRoute)
+      }
+    }
+
+    const toggleRoute = async (targetPath) => {
+      if (router.currentRoute.value.path === targetPath) {
+        await goHome()
+        return
+      }
+
+      await router.push(targetPath)
+    }
+
+    const navigateToNotifications = async () => {
+      await toggleRoute('/notifications')
+    }
+
+    const navigateToMessages = async () => {
+      await toggleRoute('/messages')
     }
 
     const showStreakModal = async () => {
@@ -305,6 +334,7 @@ export default {
       if (currentUser.value) {
         streakCount.value = currentUser.value.login_streak || 0
         await loadUnreadNotifications()
+        window.addEventListener('studylink-notifications-changed', loadUnreadNotifications)
 
         // Auto-open the streak modal once after a fresh login.
         if (sessionStorage.getItem('studylinkShowStreakAfterLogin') === '1') {
@@ -312,6 +342,10 @@ export default {
           await showStreakModal()
         }
       }
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('studylink-notifications-changed', loadUnreadNotifications)
     })
 
     return {
@@ -326,6 +360,7 @@ export default {
       brandRoleLabel,
       navItems,
       navigateToNotifications,
+      navigateToMessages,
       showStreakModal,
       showStreakModalAuto,
       showUserMenu,

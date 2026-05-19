@@ -21,49 +21,38 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api.js'
-export default {
-  name: 'AdminErrors',
-  data() {
-    return {
-      errors: [],
-      searchQuery: '',
-      message: '',
-    }
-  },
-  computed: {
-    filteredErrors() {
-      if (!this.searchQuery) return this.errors
-      const q = this.searchQuery.toLowerCase()
-      return this.errors.filter(
-        (err) =>
-          err.path.toLowerCase().includes(q) ||
-          err.method.toLowerCase().includes(q) ||
-          err.status.toString().includes(q) ||
-          err.message.toLowerCase().includes(q)
-      )
-    },
-  },
-  methods: {
-    async loadErrors() {
-      try {
-        const resp = await api('/admin/error-logs')
-        this.errors = resp.errors || []
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadErrors()
-  },
+
+const errors = ref([])
+const searchQuery = ref('')
+const message = ref('')
+
+const filteredErrors = computed(() => {
+  if (!searchQuery.value) return errors.value
+  const q = searchQuery.value.toLowerCase()
+  return errors.value.filter(
+    (err) =>
+      (err.path || '').toLowerCase().includes(q) ||
+      (err.method || '').toLowerCase().includes(q) ||
+      String(err.status || '').includes(q) ||
+      (err.message || '').toLowerCase().includes(q)
+  )
+})
+
+const loadErrors = async () => {
+  try {
+    const resp = await api('/admin/error-logs')
+    errors.value = resp.errors || []
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
+
+onMounted(() => {
+  loadErrors()
+})
 </script>
 
 <style scoped>

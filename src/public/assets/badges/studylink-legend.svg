@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#EF5350"/>
+      <stop offset="100%" stop-color="#7F0000"/>
+    </radialGradient>
+  </defs>
+  <circle cx="40" cy="40" r="38" fill="url(#bg)"/>
+  <circle cx="40" cy="40" r="38" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+  <!-- Trophy cup -->
+  <path d="M28 18 L52 18 L52 38 C52 47 46 52 40 54 C34 52 28 47 28 38 Z" fill="white" opacity="0.95"/>
+  <!-- Trophy handles -->
+  <path d="M28 22 C22 22 20 28 22 32 C23 34 26 36 28 35" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <path d="M52 22 C58 22 60 28 58 32 C57 34 54 36 52 35" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+  <!-- Trophy stem -->
+  <rect x="37" y="54" width="6" height="8" rx="1" fill="white" opacity="0.95"/>
+  <!-- Trophy base -->
+  <rect x="30" y="61" width="20" height="5" rx="2.5" fill="white" opacity="0.95"/>
+  <!-- Star on cup -->
+  <polygon points="40,25 41.5,29.5 46,29.5 42.5,32.5 44,37 40,34 36,37 37.5,32.5 34,29.5 38.5,29.5" fill="#EF5350" opacity="0.9"/>
+</svg>

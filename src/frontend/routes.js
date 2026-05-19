@@ -11,11 +11,11 @@
   verification: '/verification',
   
   // Admin Routes
-  adminVerifications: '/admin-verifications',
-  adminResources: '/admin-resources',
-  adminAnalytics: '/admin-analytics',
-  adminActivity: '/admin-activity',
-  adminErrors: '/admin-errors',
+  adminVerifications: '/admin/verifications',
+  adminResources: '/admin/resources',
+  adminAnalytics: '/admin/analytics',
+  adminActivity: '/admin/activity',
+  adminErrors: '/admin/errors',
   
   // User Routes
   notifications: '/notifications',

@@ -72,85 +72,75 @@
   </main>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/api.js'
-export default {
-  name: 'Leaderboards',
-  data() {
-    return {
-      activeBoard: 'overall',
-      leaderboardState: [],
-    }
-  },
-  computed: {
-    normalizedLeaderboard() {
-      return (this.leaderboardState || []).map((entry) => ({
-        id: entry.id,
-        fullName: String(entry.fullName || 'Unknown User'),
-        role: String(entry.role || 'tutee'),
-        profilePictureUrl: entry.profilePictureUrl || entry.profilePicture || '',
-        totalAchievements: Number(entry.totalAchievements || entry.achievementCount || 0),
-        totalPoints: Number(entry.totalPoints || entry.points || 0),
-        rating: Number(entry.rating || 0),
-        reviewsReceived: Number(entry.reviewsReceived || entry.reviewCount || 0),
-      }))
-    },
-    leaderboardRankingLabel() {
-      const board = this.activeBoard
-      return board === 'tutor' ? 'Top Tutors Ranking' : board === 'tutee' ? 'Top Tutees Ranking' : 'Overall Ranking'
-    },
-    updateTime() {
-      const now = new Date()
-      return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    leaderboardSummary() {
-      const now = new Date()
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      return `${this.leaderboardState.length} users • Updated ${timeStr}`
-    },
-    filteredLeaderboard() {
-      if (this.activeBoard === 'tutor') {
-        return this.normalizedLeaderboard.filter((e) => String(e.role).toLowerCase() === 'tutor')
-      }
-      if (this.activeBoard === 'tutee') {
-        return this.normalizedLeaderboard.filter((e) => String(e.role).toLowerCase() === 'tutee')
-      }
-      return this.normalizedLeaderboard
-    },
-  },
-  methods: {
-    getRankColor(index) {
-      const colors = ['#FFD700', '#C0C0C0', '#CD7F32', '#9575CD', '#64B5F6', '#81C784']
-      return colors[index % colors.length]
-    },
-    roleLabel(role) {
-      const v = String(role || 'tutee').toLowerCase()
-      return v === 'admin' ? 'ADMIN' : v === 'tutor' ? 'TUTOR' : 'TUTEE'
-    },
-    boardLabel(board) {
-      return board === 'tutor' ? 'Top Tutors' : board === 'tutee' ? 'Top Tutees' : 'Overall'
-    },
-    goToProfile(userId) {
-      this.$router.push({ name: 'PublicProfile', params: { userId } })
-    },
-    async refreshLeaderboard() {
-      try {
-        const resp = await api('/leaderboard')
-        this.leaderboardState = resp.leaderboard || []
-      } catch (err) {
-        console.error('Failed to load leaderboard:', err)
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.refreshLeaderboard()
-  },
+
+const router = useRouter()
+
+const activeBoard = ref('overall')
+const leaderboardState = ref([])
+
+const normalizedLeaderboard = computed(() =>
+  (leaderboardState.value || []).map((entry) => ({
+    id: entry.id,
+    fullName: String(entry.fullName || 'Unknown User'),
+    role: String(entry.role || 'tutee'),
+    profilePictureUrl: entry.profilePictureUrl || entry.profilePicture || '',
+    totalAchievements: Number(entry.totalAchievements || entry.achievementCount || 0),
+    totalPoints: Number(entry.totalPoints || entry.points || 0),
+    rating: Number(entry.rating || 0),
+    reviewsReceived: Number(entry.reviewsReceived || entry.reviewCount || 0),
+  }))
+)
+
+const leaderboardRankingLabel = computed(() => {
+  const board = activeBoard.value
+  return board === 'tutor' ? 'Top Tutors Ranking' : board === 'tutee' ? 'Top Tutees Ranking' : 'Overall Ranking'
+})
+
+const updateTime = computed(() =>
+  new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+)
+
+const filteredLeaderboard = computed(() => {
+  if (activeBoard.value === 'tutor')
+    return normalizedLeaderboard.value.filter((e) => String(e.role).toLowerCase() === 'tutor')
+  if (activeBoard.value === 'tutee')
+    return normalizedLeaderboard.value.filter((e) => String(e.role).toLowerCase() === 'tutee')
+  return normalizedLeaderboard.value
+})
+
+const getRankColor = (index) => {
+  const colors = ['#FFD700', '#C0C0C0', '#CD7F32', '#9575CD', '#64B5F6', '#81C784']
+  return colors[index % colors.length]
 }
+
+const roleLabel = (role) => {
+  const v = String(role || 'tutee').toLowerCase()
+  return v === 'admin' ? 'ADMIN' : v === 'tutor' ? 'TUTOR' : 'TUTEE'
+}
+
+const boardLabel = (board) =>
+  board === 'tutor' ? 'Top Tutors' : board === 'tutee' ? 'Top Tutees' : 'Overall'
+
+const goToProfile = (userId) => {
+  router.push({ name: 'PublicProfile', params: { userId } })
+}
+
+const refreshLeaderboard = async () => {
+  try {
+    const resp = await api('/leaderboard')
+    leaderboardState.value = resp.leaderboard || []
+  } catch (err) {
+    console.error('Failed to load leaderboard:', err)
+  }
+}
+
+onMounted(() => {
+  refreshLeaderboard()
+})
 </script>
 
 <style scoped>

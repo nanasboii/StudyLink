@@ -5,7 +5,26 @@ const multer = require('multer');
 const path = require('path');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 require('dotenv').config();
+
+// ── VAPID setup ──────────────────────────────────────────────────────────────
+// Generate stable keys once and store in env vars (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).
+// On first run without env vars, new keys are generated and printed so you can persist them.
+let vapidKeys;
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  vapidKeys = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
+} else {
+  vapidKeys = webpush.generateVAPIDKeys();
+  console.log('⚠  No VAPID keys in env – generated ephemeral keys (push subs will break on restart):');
+  console.log('   VAPID_PUBLIC_KEY=' + vapidKeys.publicKey);
+  console.log('   VAPID_PRIVATE_KEY=' + vapidKeys.privateKey);
+}
+webpush.setVapidDetails(
+  'mailto:' + (process.env.ADMIN_EMAIL || 'admin@studylink.local'),
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -36,7 +55,7 @@ transporter.verify((error, success) => {
 });
 
 const app = express();
-// Use 3000 as the production default port to match the Dockerfile and common conventions.
+// Use the configured PORT (defaults to 3000 in .env) so the frontend proxy can stay in sync.
 const defaultPort = Number(process.env.PORT || 3000);
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
@@ -91,7 +110,7 @@ async function removeProfilePictureFile(fileUrl) {
   }
 }
 
-function startServer(preferredPort, attemptsLeft = 20) {
+function startServer(preferredPort) {
   const server = app.listen(preferredPort, () => {
     const address = server.address();
     const activePort = typeof address === 'object' && address ? address.port : preferredPort;
@@ -103,15 +122,8 @@ function startServer(preferredPort, attemptsLeft = 20) {
   });
 
   server.on('error', (error) => {
-    if (error && error.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      const nextPort = preferredPort + 1;
-      console.warn(`Port ${preferredPort} is in use. Retrying on ${nextPort}...`);
-      startServer(nextPort, attemptsLeft - 1);
-      return;
-    }
-
     if (error && error.code === 'EADDRINUSE') {
-      console.error(`Unable to bind a port starting from ${defaultPort}. Set PORT to a free port.`);
+      console.error(`Unable to bind PORT=${preferredPort}. Stop the process using that port or change PORT in .env.`);
       process.exit(1);
     }
 
@@ -425,6 +437,23 @@ async function createNotification(client, recipientId, message) {
      VALUES ($1, $2)`,
     [recipientId, message]
   );
+
+  // Fire push notifications to all subscribed devices (best-effort, non-blocking)
+  try {
+    const { rows: subs } = await client.query(
+      `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1`,
+      [recipientId]
+    );
+    const payload = JSON.stringify({ title: 'StudyLink', body: message });
+    for (const sub of subs) {
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      ).catch(() => {}); // ignore individual delivery failures silently
+    }
+  } catch {
+    // Never let push errors break the main notification insert
+  }
 }
 
 async function logAdminAction(client, adminId, action, targetType, targetId, details = null) {
@@ -868,7 +897,85 @@ async function initializeDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         reviewed_at TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS point_rewards (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT NOT NULL,
+        points_cost INTEGER NOT NULL,
+        icon TEXT NOT NULL DEFAULT '🎁',
+        is_active BOOLEAN NOT NULL DEFAULT TRUE
+      );
+
+      CREATE TABLE IF NOT EXISTS redemptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reward_id INTEGER NOT NULL REFERENCES point_rewards(id),
+        points_spent INTEGER NOT NULL,
+        redeemed_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS conversations (
+        id SERIAL PRIMARY KEY,
+        is_support BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS conversation_participants (
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_read_at TIMESTAMP,
+        PRIMARY KEY (conversation_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (user_id, endpoint)
+      );
     `);
+
+    await client.query(
+      `WITH seed(code, name, description, points_cost, icon) AS (
+         VALUES
+           ('FREE_SESSION', 'Free Tutoring Session', 'Redeem for one free 1-hour peer tutoring session with any available tutor.', 80, '📚'),
+           ('RESOURCE_PACK', 'Resource Pack Access', 'Unlock an exclusive curated bundle of study materials for your enrolled courses.', 60, '📦'),
+           ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking a tutor for 7 days.', 100, '⚡'),
+           ('CAMPUS_VOUCHER', 'Campus Store Voucher', 'Receive a RM10 voucher redeemable at the campus bookstore or print shop.', 150, '🎟️'),
+           ('PROFILE_SPOTLIGHT', 'Profile Spotlight', 'Have your tutor profile highlighted at the top of tutor listings for 3 days.', 40, '🌟')
+       ),
+       updated AS (
+         UPDATE point_rewards r
+            SET name = s.name,
+                description = s.description,
+                points_cost = s.points_cost,
+                icon = s.icon
+           FROM seed s
+          WHERE r.code = s.code
+         RETURNING r.code
+       ),
+       missing AS (
+         SELECT s.* FROM seed s
+         LEFT JOIN point_rewards r ON r.code = s.code
+         WHERE r.code IS NULL
+       )
+       INSERT INTO point_rewards (code, name, description, points_cost, icon)
+       SELECT code, name, description, points_cost, icon FROM missing`
+    );
 
     await client.query(
       `WITH seed(code, name, description, points_required, icon_url) AS (
@@ -877,7 +984,12 @@ async function initializeDatabase() {
            ('POINTS_50', 'Helping Hand', 'Reached 50 points by consistently helping classmates.', 50, '/ui/assets/badges/helping-hand.svg'),
            ('POINTS_100', 'Campus Mentor', 'Reached 100 points through tutoring, reviews, and resource sharing.', 100, '/ui/assets/badges/campus-mentor.svg'),
            ('POINTS_175', 'Community Builder', 'Reached 175 points by staying active across StudyLink.', 175, '/ui/assets/badges/community-builder.svg'),
-           ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as one of the most active members.', 250, '/ui/assets/badges/studylink-champion.svg')
+          ('POINTS_250', 'StudyLink Champion', 'Reached 250 points as one of the most active members.', 250, '/ui/assets/badges/studylink-champion.svg'),
+          ('WELCOME_ABOARD', 'Welcome Aboard', 'Completed your first activity on StudyLink. Every great journey starts with a single step!', 5, '/ui/assets/badges/welcome-aboard.svg'),
+          ('RISING_STAR', 'Rising Star', 'Earned 350 points through consistent contributions to the StudyLink community.', 350, '/ui/assets/badges/rising-star.svg'),
+          ('KNOWLEDGE_TITAN', 'Knowledge Titan', 'Accumulated 500 points by sharing knowledge and empowering peers to learn.', 500, '/ui/assets/badges/knowledge-titan.svg'),
+          ('ELITE_SCHOLAR', 'Elite Scholar', 'Reached 750 points — a mark of exceptional dedication to learning and teaching.', 750, '/ui/assets/badges/elite-scholar.svg'),
+          ('STUDYLINK_LEGEND', 'StudyLink Legend', 'Amassed 1000 points and earned legendary status among StudyLink''s top contributors.', 1000, '/ui/assets/badges/studylink-legend.svg')
        ),
        updated AS (
          UPDATE achievements a
@@ -3467,20 +3579,406 @@ app.get('/achievements/me', requireAuth, async (req, res) => {
               a.description,
               a.points_required,
               a.icon_url,
+              u.total_points,
               (
                 $2 = 'admin'
                 OR ua.user_id IS NOT NULL
-                OR $3 >= a.points_required
+                OR u.total_points >= a.points_required
               ) AS is_unlocked
        FROM achievements a
+       JOIN users u ON u.id = $1
        LEFT JOIN user_achievements ua
          ON ua.achievement_id = a.id
         AND ua.user_id = $1
        ORDER BY a.points_required ASC`,
-      [req.auth.user.id, req.auth.user.role, Number(req.auth.user.totalPoints || 0)]
+      [req.auth.user.id, req.auth.user.role]
     );
 
-    return res.json({ achievements: rows });
+    const totalPoints = rows.length > 0 ? Number(rows[0].total_points || 0) : 0;
+    return res.json({ achievements: rows, totalPoints });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /redeem/rewards — list all active rewards with user's current balance
+app.get('/redeem/rewards', requireAuth, async (req, res) => {
+  try {
+    const [rewardsResult, userResult] = await Promise.all([
+      pool.query(`SELECT id, code, name, description, points_cost, icon FROM point_rewards WHERE is_active = TRUE ORDER BY points_cost ASC`),
+      pool.query(`SELECT total_points FROM users WHERE id = $1`, [req.auth.user.id])
+    ]);
+    const totalPoints = Number(userResult.rows[0]?.total_points || 0);
+    return res.json({ rewards: rewardsResult.rows, totalPoints });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /redeem/history — user's redemption history
+app.get('/redeem/history', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.id, r.points_spent, r.redeemed_at, pr.name, pr.icon, pr.description
+       FROM redemptions r
+       JOIN point_rewards pr ON pr.id = r.reward_id
+       WHERE r.user_id = $1
+       ORDER BY r.redeemed_at DESC`,
+      [req.auth.user.id]
+    );
+    return res.json({ history: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /redeem/:rewardId — redeem a reward, deducting points
+app.post('/redeem/:rewardId', requireAuth, async (req, res) => {
+  const rewardId = parseInt(req.params.rewardId, 10);
+  if (!rewardId) return res.status(400).json({ message: 'Invalid reward ID.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const rewardResult = await client.query(
+      `SELECT id, name, points_cost FROM point_rewards WHERE id = $1 AND is_active = TRUE`,
+      [rewardId]
+    );
+    if (!rewardResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Reward not found.' });
+    }
+    const reward = rewardResult.rows[0];
+
+    const userResult = await client.query(
+      `SELECT total_points FROM users WHERE id = $1 FOR UPDATE`,
+      [req.auth.user.id]
+    );
+    const currentPoints = Number(userResult.rows[0]?.total_points || 0);
+
+    if (currentPoints < reward.points_cost) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: `Not enough points. You need ${reward.points_cost} pts but have ${currentPoints} pts.` });
+    }
+
+    await client.query(
+      `UPDATE users SET total_points = total_points - $1 WHERE id = $2`,
+      [reward.points_cost, req.auth.user.id]
+    );
+
+    await client.query(
+      `INSERT INTO redemptions (user_id, reward_id, points_spent) VALUES ($1, $2, $3)`,
+      [req.auth.user.id, rewardId, reward.points_cost]
+    );
+
+    await client.query(
+      `INSERT INTO user_points_log (user_id, points, reason) VALUES ($1, $2, $3)`,
+      [req.auth.user.id, -reward.points_cost, 'redemption']
+    );
+
+    await createNotification(client, req.auth.user.id, `You redeemed "${reward.name}" for ${reward.points_cost} points.`);
+
+    await client.query('COMMIT');
+    return res.json({ message: `Successfully redeemed "${reward.name}"!`, pointsSpent: reward.points_cost });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── CHAT / MESSAGING ────────────────────────────────────────────────────────
+// ─── PUSH NOTIFICATIONS ──────────────────────────────────────────────────────
+
+// GET /push/vapid-public-key — return public VAPID key to client
+app.get('/push/vapid-public-key', requireAuth, (req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+// POST /push/subscribe — save or refresh a push subscription
+app.post('/push/subscribe', requireAuth, async (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    return res.status(400).json({ message: 'Invalid subscription object.' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, endpoint)
+       DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+      [req.auth.user.id, endpoint, keys.p256dh, keys.auth]
+    );
+    return res.json({ message: 'Subscribed.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /push/unsubscribe — remove a push subscription
+app.delete('/push/unsubscribe', requireAuth, async (req, res) => {
+  const { endpoint } = req.body || {};
+  try {
+    if (endpoint) {
+      await pool.query(
+        `DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2`,
+        [req.auth.user.id, endpoint]
+      );
+    } else {
+      await pool.query(`DELETE FROM push_subscriptions WHERE user_id = $1`, [req.auth.user.id]);
+    }
+    return res.json({ message: 'Unsubscribed.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── CHAT / MESSAGING ────────────────────────────────────────────────────────
+
+const attachAdminsToSupportConversations = async (dbClient, conversationId = null) => {
+  const params = conversationId ? [conversationId] : []
+  const conversationFilter = conversationId ? 'AND c.id = $1' : ''
+
+  await dbClient.query(
+    `INSERT INTO conversation_participants (conversation_id, user_id)
+     SELECT c.id, u.id
+     FROM conversations c
+     JOIN users u ON u.role = 'admin'
+     WHERE c.is_support = TRUE ${conversationFilter}
+     ON CONFLICT DO NOTHING`,
+    params
+  )
+}
+
+// GET /conversations — list all conversations for the current user
+app.get('/conversations', requireAuth, async (req, res) => {
+  try {
+    if (req.auth.user.role === 'admin') {
+      await attachAdminsToSupportConversations(pool)
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+         c.id,
+         c.is_support,
+         c.updated_at,
+         (
+           SELECT json_build_object('id', u.id, 'fullName', u.full_name, 'role', u.role, 'profilePicture', u.profile_picture_url)
+           FROM conversation_participants cp2
+           JOIN users u ON u.id = cp2.user_id
+           WHERE cp2.conversation_id = c.id AND cp2.user_id <> $1
+           LIMIT 1
+         ) AS other_user,
+         (
+           SELECT m.content FROM chat_messages m
+           WHERE m.conversation_id = c.id
+           ORDER BY m.created_at DESC LIMIT 1
+         ) AS last_message,
+         (
+           SELECT COUNT(*) FROM chat_messages m
+           WHERE m.conversation_id = c.id
+             AND m.sender_id <> $1
+             AND m.created_at > COALESCE(
+               (SELECT cp3.last_read_at FROM conversation_participants cp3
+                WHERE cp3.conversation_id = c.id AND cp3.user_id = $1), '1970-01-01'
+             )
+         ) AS unread_count
+       FROM conversations c
+       JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
+       ORDER BY c.updated_at DESC`,
+      [req.auth.user.id]
+    );
+    return res.json({ conversations: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /conversations — start a new direct conversation with another user
+app.post('/conversations', requireAuth, async (req, res) => {
+  const { userId } = req.body;
+  const myId = req.auth.user.id;
+  if (!userId || userId === myId) return res.status(400).json({ message: 'Invalid user.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Check if conversation already exists between these two users
+    const existing = await client.query(
+      `SELECT c.id FROM conversations c
+       JOIN conversation_participants cp1 ON cp1.conversation_id = c.id AND cp1.user_id = $1
+       JOIN conversation_participants cp2 ON cp2.conversation_id = c.id AND cp2.user_id = $2
+       WHERE c.is_support = FALSE
+       LIMIT 1`,
+      [myId, userId]
+    );
+    if (existing.rows.length) {
+      await client.query('ROLLBACK');
+      return res.json({ conversationId: existing.rows[0].id, existed: true });
+    }
+    const conv = await client.query(
+      `INSERT INTO conversations DEFAULT VALUES RETURNING id`
+    );
+    const convId = conv.rows[0].id;
+    await client.query(
+      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2), ($1, $3)`,
+      [convId, myId, userId]
+    );
+    await client.query('COMMIT');
+    return res.json({ conversationId: convId, existed: false });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /conversations/support — open (or reuse) a support conversation with admin
+app.post('/conversations/support', requireAuth, async (req, res) => {
+  const myId = req.auth.user.id;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Reuse existing support conversation if any
+    const existing = await client.query(
+      `SELECT c.id FROM conversations c
+       JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
+       WHERE c.is_support = TRUE LIMIT 1`,
+      [myId]
+    );
+    if (existing.rows.length) {
+      await client.query('ROLLBACK');
+      return res.json({ conversationId: existing.rows[0].id });
+    }
+    const adminResult = await client.query(
+      `SELECT id FROM users WHERE role = 'admin' LIMIT 1`
+    );
+    if (!adminResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'No admin user found.' });
+    }
+
+    const conv = await client.query(
+      `INSERT INTO conversations (is_support) VALUES (TRUE) RETURNING id`
+    );
+    const convId = conv.rows[0].id;
+
+    await attachAdminsToSupportConversations(client, convId)
+    await client.query(
+      `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
+      [convId, myId]
+    )
+    await client.query('COMMIT');
+    return res.json({ conversationId: convId });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /conversations/:id/messages — fetch messages in a conversation
+app.get('/conversations/:id/messages', requireAuth, async (req, res) => {
+  const convId = parseInt(req.params.id, 10);
+  try {
+    // Verify user is a participant
+    const check = await pool.query(
+      `SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+      [convId, req.auth.user.id]
+    );
+    if (!check.rows.length) return res.status(403).json({ message: 'Access denied.' });
+
+    const { rows } = await pool.query(
+      `SELECT m.id, m.content, m.created_at,
+              json_build_object('id', u.id, 'fullName', u.full_name, 'profilePicture', u.profile_picture_url) AS sender
+       FROM chat_messages m
+       JOIN users u ON u.id = m.sender_id
+       WHERE m.conversation_id = $1
+       ORDER BY m.created_at ASC`,
+      [convId]
+    );
+
+    // Mark as read
+    await pool.query(
+      `UPDATE conversation_participants SET last_read_at = NOW()
+       WHERE conversation_id = $1 AND user_id = $2`,
+      [convId, req.auth.user.id]
+    );
+
+    return res.json({ messages: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /conversations/:id/messages — send a message
+app.post('/conversations/:id/messages', requireAuth, async (req, res) => {
+  const convId = parseInt(req.params.id, 10);
+  const content = String(req.body.content || '').trim();
+  if (!content) return res.status(400).json({ message: 'Message cannot be empty.' });
+  if (content.length > 2000) return res.status(400).json({ message: 'Message too long.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const check = await client.query(
+      `SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+      [convId, req.auth.user.id]
+    );
+    if (!check.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    const msgResult = await client.query(
+      `INSERT INTO chat_messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING id, created_at`,
+      [convId, req.auth.user.id, content]
+    );
+
+    await client.query(
+      `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
+      [convId]
+    );
+
+    // Notify the other participant(s)
+    const others = await client.query(
+      `SELECT user_id FROM conversation_participants WHERE conversation_id = $1 AND user_id <> $2`,
+      [convId, req.auth.user.id]
+    );
+    for (const row of others.rows) {
+      await createNotification(client, row.user_id, `New message from ${req.auth.user.fullName}`);
+    }
+
+    await client.query('COMMIT');
+    return res.json({ id: msgResult.rows[0].id, createdAt: msgResult.rows[0].created_at });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /users/search — search users to start a new conversation
+app.get('/users/search', requireAuth, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ users: [] });
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, full_name, role, profile_picture_url
+       FROM users
+       WHERE id <> $1
+         AND role <> 'admin'
+         AND (full_name ILIKE $2 OR email ILIKE $2)
+       ORDER BY full_name ASC
+       LIMIT 10`,
+      [req.auth.user.id, `%${q}%`]
+    );
+    return res.json({ users: rows });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

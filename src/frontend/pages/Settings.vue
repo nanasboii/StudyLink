@@ -34,12 +34,29 @@
             <button @click="showPasswordModal = true" class="chip">Change</button>
           </div>
         </div>
+
+        <div class="settings-item">
+          <div class="settings-item-info">
+            <label>Push Notifications</label>
+            <p class="settings-hint">Receive browser notifications for messages, points and activity</p>
+          </div>
+          <div class="settings-item-action">
+            <button
+              @click="togglePush"
+              class="chip"
+              :class="{ active: pushEnabled }"
+              :disabled="pushLoading || !pushSupported"
+            >
+              {{ pushLoading ? '...' : pushEnabled ? 'Enabled' : 'Disabled' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-divider"></div>
 
       <div class="settings-section">
-        <h3>Danger Zone</h3>
+        <h3>Account Deletion</h3>
         
         <div class="settings-item danger">
           <div class="settings-item-info">
@@ -118,96 +135,107 @@
   </div>
 </template>
 
-<script>
-import { api, getUser, clearSession } from '@/api.js'
+<script setup>
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { api, getUser, clearSession } from '@/api.js'
+import { isPushSupported, subscribeToPush, unsubscribeFromPush, getCurrentSubscription } from '@/push.js'
 
-export default {
-  name: 'Settings',
-  setup() {
-    const router = useRouter()
-    const user = getUser() || {}
+const router = useRouter()
+const user = getUser() || {}
 
-    return {
-      router,
-      userEmail: user.email || '',
-      twoFactorEnabled: user.two_factor_enabled || false,
-      showPasswordModal: false,
-      showDeleteModal: false,
-      passwordForm: {
-        current: '',
-        new: '',
-        confirm: ''
-      },
-      deleteForm: {
-        confirmEmail: '',
-        password: ''
-      },
-      message: '',
-      messageType: 'success'
+const userEmail = ref(user.email || '')
+const twoFactorEnabled = ref(user.two_factor_enabled || user.twoFactorEnabled || false)
+const pushEnabled = ref(false)
+const pushLoading = ref(false)
+const pushSupported = ref(false)
+const showPasswordModal = ref(false)
+const showDeleteModal = ref(false)
+const passwordForm = ref({ current: '', new: '', confirm: '' })
+const deleteForm = ref({ confirmEmail: '', password: '' })
+const message = ref('')
+const messageType = ref('success')
+
+const toggle2FA = async () => {
+  const togglePush = async () => {
+    pushLoading.value = true
+    try {
+      if (pushEnabled.value) {
+        await unsubscribeFromPush()
+        pushEnabled.value = false
+        message.value = 'Push notifications disabled.'
+      } else {
+        await subscribeToPush()
+        pushEnabled.value = true
+        message.value = 'Push notifications enabled!'
+      }
+      messageType.value = 'success'
+    } catch (err) {
+      message.value = err.message || 'Failed to update push notifications.'
+      messageType.value = 'error'
+    } finally {
+      pushLoading.value = false
     }
-  },
-  methods: {
-    async toggle2FA() {
-      try {
-        await api('/auth/2fa/toggle', 'POST', {
-          enable: !this.twoFactorEnabled
-        })
-        this.twoFactorEnabled = !this.twoFactorEnabled
-        this.message = `2FA ${this.twoFactorEnabled ? 'enabled' : 'disabled'}`
-        this.messageType = 'success'
-      } catch (error) {
-        this.message = error.message || 'Failed to update 2FA'
-        this.messageType = 'error'
-      }
-    },
+  }
 
-    async changePassword() {
-      if (this.passwordForm.new !== this.passwordForm.confirm) {
-        this.message = 'Passwords do not match'
-        this.messageType = 'error'
-        return
-      }
+  try {
+    await api('/auth/2fa/toggle', 'POST', { enable: !twoFactorEnabled.value })
+    twoFactorEnabled.value = !twoFactorEnabled.value
+    message.value = `2FA ${twoFactorEnabled.value ? 'enabled' : 'disabled'}`
+    messageType.value = 'success'
+  } catch (error) {
+    message.value = error.message || 'Failed to update 2FA'
+    messageType.value = 'error'
+  }
+}
 
-      if (this.passwordForm.new.length < 8) {
-        this.message = 'Password must be at least 8 characters'
-        this.messageType = 'error'
-        return
-      }
+const changePassword = async () => {
+  if (passwordForm.value.new !== passwordForm.value.confirm) {
+    message.value = 'Passwords do not match'
+    messageType.value = 'error'
+    return
+  }
+  if (passwordForm.value.new.length < 8) {
+    message.value = 'Password must be at least 8 characters'
+    messageType.value = 'error'
+    return
+  }
+  try {
+    await api('/me/password', 'PUT', {
+      currentPassword: passwordForm.value.current,
+      newPassword: passwordForm.value.new,
+    })
+    message.value = 'Password changed successfully'
+    messageType.value = 'success'
+    showPasswordModal.value = false
+    passwordForm.value = { current: '', new: '', confirm: '' }
+  } catch (error) {
+    message.value = error.message || 'Failed to change password'
+    messageType.value = 'error'
+  }
+}
 
-      try {
-        await api('/auth/change-password', 'POST', {
-          currentPassword: this.passwordForm.current,
-          newPassword: this.passwordForm.new
-        })
-        this.message = 'Password changed successfully'
-        this.messageType = 'success'
-        this.showPasswordModal = false
-        this.passwordForm = { current: '', new: '', confirm: '' }
-      } catch (error) {
-        this.message = error.message || 'Failed to change password'
-        this.messageType = 'error'
-      }
-    },
+const deleteAccount = async () => {
+  if (deleteForm.value.confirmEmail !== userEmail.value) {
+    message.value = 'Email does not match'
+    messageType.value = 'error'
+    return
+  }
+  try {
+    await api('/auth/delete-account', 'POST', { password: deleteForm.value.password })
+    clearSession()
+    router.push('/login')
+  } catch (error) {
+    message.value = error.message || 'Failed to delete account'
 
-    async deleteAccount() {
-      if (this.deleteForm.confirmEmail !== this.userEmail) {
-        this.message = 'Email does not match'
-        this.messageType = 'error'
-        return
+    onMounted(async () => {
+      pushSupported.value = await isPushSupported()
+      if (pushSupported.value) {
+        const sub = await getCurrentSubscription()
+        pushEnabled.value = !!sub
       }
-
-      try {
-        await api('/auth/delete-account', 'POST', {
-          password: this.deleteForm.password
-        })
-        clearSession()
-        this.router.push('/login')
-      } catch (error) {
-        this.message = error.message || 'Failed to delete account'
-        this.messageType = 'error'
-      }
-    }
+    })
+    messageType.value = 'error'
   }
 }
 </script>

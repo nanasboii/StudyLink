@@ -34,6 +34,8 @@
           :key="badge.code"
           class="badge-item"
           :class="{ unlocked: badge.isUnlocked }"
+            style="cursor: pointer;"
+            @click="openBadge(badge)"
         >
           <img :src="badge.iconUrl" :alt="badge.name" class="badge-icon" @error="onBadgeIconError" />
           <h4 class="badge-name">{{ badge.name }}</h4>
@@ -60,118 +62,153 @@
     </section>
 
     <p v-if="message" class="message">{{ message }}</p>
+
+    <!-- Badge detail modal -->
+    <Transition name="modal-fade">
+      <div v-if="selectedBadge" class="modal-backdrop" @click.self="selectedBadge = null">
+        <div class="modal-card" role="dialog" aria-modal="true">
+          <button class="modal-close" @click="selectedBadge = null" aria-label="Close">&times;</button>
+
+          <div class="modal-badge-icon" :class="{ 'modal-icon-locked': !selectedBadge.isUnlocked }">
+            <img :src="selectedBadge.iconUrl" :alt="selectedBadge.name" @error="onBadgeIconError" />
+          </div>
+
+          <div class="modal-status-pill" :class="selectedBadge.isUnlocked ? 'pill-unlocked' : 'pill-locked'">
+            {{ selectedBadge.isUnlocked ? '✓ Unlocked' : '🔒 Locked' }}
+          </div>
+
+          <h3 class="modal-title">{{ selectedBadge.name }}</h3>
+          <p class="modal-desc">{{ selectedBadge.description }}</p>
+
+          <div class="modal-points-row">
+            <div class="modal-stat">
+              <span class="modal-stat-label">Required</span>
+              <strong class="modal-stat-value">{{ selectedBadge.pointsRequired }} pts</strong>
+            </div>
+            <div class="modal-stat">
+              <span class="modal-stat-label">Your Points</span>
+              <strong class="modal-stat-value">{{ totalPoints }}</strong>
+            </div>
+            <div v-if="!selectedBadge.isUnlocked" class="modal-stat">
+              <span class="modal-stat-label">Still Need</span>
+              <strong class="modal-stat-value need">{{ remainingPoints(selectedBadge) }} pts</strong>
+            </div>
+          </div>
+
+          <div class="modal-progress-wrap">
+            <div class="modal-progress-bar">
+              <div class="modal-progress-fill" :style="{ width: `${progressPercent(selectedBadge)}%` }"></div>
+            </div>
+            <span class="modal-progress-pct">{{ progressPercent(selectedBadge) }}%</span>
+          </div>
+
+          <p class="modal-tip">
+            <template v-if="selectedBadge.isUnlocked">🎉 You've earned this badge — great work!</template>
+            <template v-else>💡 Keep tutoring, uploading resources, and leaving reviews to earn more points.</template>
+          </p>
+        </div>
+      </div>
+    </Transition>
   </main>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api.js'
 
-export default {
-  name: 'Achievements',
-  data() {
-    return {
-      achievements: [],
-      totalPoints: 0,
-      message: ''
-    }
-  },
-  computed: {
-    unlockedCount() {
-      return this.achievements.filter((a) => a.isUnlocked).length
-    },
-    lockedCount() {
-      return this.achievements.filter((a) => !a.isUnlocked).length
-    },
-    nextTarget() {
-      return this.achievements
-        .filter((a) => !a.isUnlocked)
-        .sort((a, b) => a.pointsRequired - b.pointsRequired)
-        .find((a) => a.pointsRequired > this.totalPoints)
-    },
-    nextTargetLabel() {
-      if (!this.nextTarget) {
-        return 'All unlocked'
-      }
+const achievements = ref([])
+const totalPoints = ref(0)
+const message = ref('')
+const selectedBadge = ref(null)
+const openBadge = (badge) => { selectedBadge.value = badge }
 
-      return `${this.nextTarget.name} (${this.remainingPoints(this.nextTarget)} pts left)`
-    }
-  },
-  methods: {
-    resolveBadgeIcon(item) {
-      const code = String(item.code || '').toLowerCase().trim()
-      const iconByCode = {
-        first_steps: '/assets/badges/first-steps.svg',
-        helping_hand: '/assets/badges/helping-hand.svg',
-        campus_mentor: '/assets/badges/campus-mentor.svg',
-        community_builder: '/assets/badges/community-builder.svg',
-        rising_contributor: '/assets/badges/rising-contributor.svg',
-        studylink_champion: '/assets/badges/studylink-champion.svg'
-      }
+const unlockedCount = computed(() => achievements.value.filter((a) => a.isUnlocked).length)
+const lockedCount = computed(() => achievements.value.filter((a) => !a.isUnlocked).length)
+const nextTarget = computed(() =>
+  achievements.value
+    .filter((a) => !a.isUnlocked)
+    .sort((a, b) => a.pointsRequired - b.pointsRequired)
+    .find((a) => a.pointsRequired > totalPoints.value)
+)
+const nextTargetLabel = computed(() => {
+  if (!nextTarget.value) return 'All unlocked'
+  return `${nextTarget.value.name} (${remainingPoints(nextTarget.value)} pts left)`
+})
 
-      if (iconByCode[code]) {
-        return iconByCode[code]
-      }
+const resolveBadgeIcon = (item) => {
+  const code = String(item.code || '').toLowerCase().trim()
+  const iconByCode = {
+    first_steps: '/assets/badges/first-steps.svg',
+    helping_hand: '/assets/badges/helping-hand.svg',
+    campus_mentor: '/assets/badges/campus-mentor.svg',
+    community_builder: '/assets/badges/community-builder.svg',
+    rising_contributor: '/assets/badges/rising-contributor.svg',
+    studylink_champion: '/assets/badges/studylink-champion.svg',
+      welcome_aboard: '/assets/badges/welcome-aboard.svg',
+      rising_star: '/assets/badges/rising-star.svg',
+      knowledge_titan: '/assets/badges/knowledge-titan.svg',
+      elite_scholar: '/assets/badges/elite-scholar.svg',
+      studylink_legend: '/assets/badges/studylink-legend.svg',
+      points_15: '/assets/badges/first-steps.svg',
+      points_50: '/assets/badges/helping-hand.svg',
+      points_100: '/assets/badges/campus-mentor.svg',
+      points_175: '/assets/badges/community-builder.svg',
+      points_250: '/assets/badges/studylink-champion.svg',
+  }
+  if (iconByCode[code]) return iconByCode[code]
+  const iconFromApi = String(item.iconUrl || item.icon_url || '').trim()
+  if (iconFromApi) {
+    if (iconFromApi.startsWith('http://') || iconFromApi.startsWith('https://')) return iconFromApi
+    const cleanPath = iconFromApi
+      .replace(/^\.\//, '')
+      .replace(/^\/ui\//, '/')
+      .replace(/^public\//, '')
+    return cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`
+  }
+  return '/assets/badges/first-steps.svg'
+}
 
-      const iconFromApi = String(item.iconUrl || item.icon_url || '').trim()
-      if (iconFromApi) {
-        if (iconFromApi.startsWith('http://') || iconFromApi.startsWith('https://')) {
-          return iconFromApi
-        }
+const normalizeAchievement = (item) => ({
+  code: String(item.code || ''),
+  name: String(item.name || 'Achievement'),
+  description: String(item.description || ''),
+  pointsRequired: Number(item.pointsRequired ?? item.points_required ?? 0),
+  iconUrl: resolveBadgeIcon(item),
+  isUnlocked: Boolean(item.isUnlocked ?? item.is_unlocked),
+})
 
-        const cleanPath = iconFromApi
-          .replace(/^\.\//, '')
-          .replace(/^\/ui\//, '/')
-          .replace(/^public\//, '')
-
-        return cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`
-      }
-
-      return iconByCode[code] || '/assets/badges/first-steps.svg'
-    },
-    normalizeAchievement(item) {
-      return {
-        code: String(item.code || ''),
-        name: String(item.name || 'Achievement'),
-        description: String(item.description || ''),
-        pointsRequired: Number(item.pointsRequired ?? item.points_required ?? 0),
-        iconUrl: this.resolveBadgeIcon(item),
-        isUnlocked: Boolean(item.isUnlocked ?? item.is_unlocked)
-      }
-    },
-    onBadgeIconError(event) {
-      const fallback = '/assets/badges/first-steps.svg'
-      const target = event?.target
-      if (target && target.src && !target.src.endsWith(fallback)) {
-        target.onerror = null
-        target.src = fallback
-      }
-    },
-    remainingPoints(badge) {
-      return Math.max(Number(badge.pointsRequired || 0) - this.totalPoints, 0)
-    },
-    progressPercent(badge) {
-      const target = Math.max(Number(badge.pointsRequired || 0), 1)
-      return Math.min(100, Math.round((this.totalPoints / target) * 100))
-    },
-    async loadAchievements() {
-      try {
-        const [meData, achievementsData] = await Promise.all([
-          api('/me'),
-          api('/achievements/me')
-        ])
-
-        this.totalPoints = Number(meData.user?.totalPoints || 0)
-        this.achievements = (achievementsData.achievements || []).map(this.normalizeAchievement)
-          .sort((a, b) => a.pointsRequired - b.pointsRequired)
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    }
-  },
-  mounted() {
-    this.loadAchievements()
+const onBadgeIconError = (event) => {
+  const fallback = '/assets/badges/first-steps.svg'
+  const target = event?.target
+  if (target && target.src && !target.src.endsWith(fallback)) {
+    target.onerror = null
+    target.src = fallback
   }
 }
+
+const remainingPoints = (badge) =>
+  Math.max(Number(badge.pointsRequired || 0) - totalPoints.value, 0)
+
+const progressPercent = (badge) => {
+  const target = Math.max(Number(badge.pointsRequired || 0), 1)
+  return Math.min(100, Math.round((totalPoints.value / target) * 100))
+}
+
+const loadAchievements = async () => {
+  try {
+    const achievementsData = await api('/achievements/me')
+    totalPoints.value = Number(achievementsData.totalPoints || 0)
+    achievements.value = (achievementsData.achievements || [])
+      .map(normalizeAchievement)
+      .sort((a, b) => a.pointsRequired - b.pointsRequired)
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+onMounted(() => {
+  loadAchievements()
+})
 </script>
 
 <style scoped>
@@ -299,7 +336,13 @@ export default {
   text-align: center;
   gap: 6px;
   opacity: 0.82;
+    transition: transform 140ms ease, box-shadow 140ms ease;
 }
+
+  .badge-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(162, 35, 86, 0.15);
+  }
 
 .badge-item.unlocked {
   border-color: #e88eb1;
@@ -385,6 +428,176 @@ export default {
 .message {
   margin: 10px 2px 0;
   color: #9a244b;
+
+  /* ── Modal ── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(30, 10, 18, 0.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    background: linear-gradient(160deg, #fff 0%, #fff6f9 100%);
+    border: 1px solid #f0c8d8;
+    border-radius: 22px;
+    padding: 32px 28px 28px;
+    box-shadow: 0 24px 60px rgba(120, 20, 60, 0.22);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #9a6070;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background 120ms;
+  }
+  .modal-close:hover { background: #fde8ef; }
+
+  .modal-badge-icon {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff4f8;
+    border: 2px solid #f2c4d4;
+    padding: 10px;
+  }
+  .modal-badge-icon.modal-icon-locked {
+    filter: grayscale(0.7);
+    opacity: 0.65;
+  }
+  .modal-badge-icon img {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+  }
+
+  .modal-status-pill {
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .pill-unlocked { background: #d4edda; color: #155724; }
+  .pill-locked   { background: #f3e8f5; color: #6a1b9a; }
+
+  .modal-title {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #3f1828;
+    font-weight: 800;
+  }
+
+  .modal-desc {
+    margin: 0;
+    color: #6e445a;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    max-width: 320px;
+  }
+
+  .modal-points-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .modal-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 70px;
+    background: #fff;
+    border: 1px solid #f2d4e0;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .modal-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #9e7080;
+    font-weight: 700;
+  }
+  .modal-stat-value {
+    font-size: 1.1rem;
+    color: #5d1838;
+    font-weight: 800;
+  }
+  .modal-stat-value.need { color: #c0254f; }
+
+  .modal-progress-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .modal-progress-bar {
+    flex: 1;
+    height: 10px;
+    border-radius: 999px;
+    background: #f2e3e9;
+    overflow: hidden;
+  }
+  .modal-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #d91c5c, #8f1c46);
+    transition: width 400ms ease;
+  }
+  .modal-progress-pct {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #96264f;
+    min-width: 36px;
+  }
+
+  .modal-tip {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #7a5060;
+    background: #fff4f8;
+    border: 1px solid #f2d4e0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Transition */
+  .modal-fade-enter-active,
+  .modal-fade-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
+  .modal-fade-enter-from,
+  .modal-fade-leave-to { opacity: 0; }
+  .modal-fade-enter-from .modal-card,
+  .modal-fade-leave-to .modal-card { transform: scale(0.94) translateY(12px); }
   font-weight: 600;
 }
 

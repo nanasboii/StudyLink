@@ -17,46 +17,35 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api.js'
-export default {
-  name: 'AdminActivity',
-  data() {
-    return {
-      activityLogs: [],
-      searchQuery: '',
-      message: '',
-    }
-  },
-  computed: {
-    filteredActivity() {
-      if (!this.searchQuery) return this.activityLogs
-      const q = this.searchQuery.toLowerCase()
-      return this.activityLogs.filter(
-        (log) =>
-          log.action.toLowerCase().includes(q) ||
-          log.adminName.toLowerCase().includes(q) ||
-          log.targetId.toString().includes(q)
-      )
-    },
-  },
-  methods: {
-    async loadActivity() {
-      try {
-        const resp = await api('/admin/activity-logs')
-        this.activityLogs = resp.logs || []
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadActivity()
-  },
+
+const activityLogs = ref([])
+const searchQuery = ref('')
+const message = ref('')
+
+const filteredActivity = computed(() => {
+  if (!searchQuery.value) return activityLogs.value
+  const q = searchQuery.value.toLowerCase()
+  return activityLogs.value.filter(
+    (log) =>
+      (log.action || '').toLowerCase().includes(q) ||
+      (log.adminName || '').toLowerCase().includes(q) ||
+      String(log.targetId || '').includes(q)
+  )
+})
+
+const loadActivity = async () => {
+  try {
+    const resp = await api('/admin/activity-logs')
+    activityLogs.value = resp.logs || []
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
+
+onMounted(() => {
+  loadActivity()
+})
 </script>

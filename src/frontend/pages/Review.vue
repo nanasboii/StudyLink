@@ -30,55 +30,53 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { api } from '@/api.js'
-export default {
-  name: 'Review',
-  data() {
-    return {
-      completedBookings: [],
-      reviewData: { bookingId: 0, comment: '', rating: 0 },
-      message: '',
-    }
-  },
-  methods: {
-    selectBooking(booking) {
-      this.reviewData.bookingId = booking.id
-    },
-    async loadCompletedBookings() {
-      try {
-        const resp = await api('/bookings/inbox')
-        // Filter for completed bookings
-        this.completedBookings = (resp.bookings || []).filter(b => b.status === 'completed')
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async submitReview() {
-      if (!this.reviewData.bookingId) {
-        this.message = 'Please select or enter a Booking ID'
-        return
-      }
-      try {
-        await api(`/bookings/${this.reviewData.bookingId}/review`, 'POST', {
-          comment: this.reviewData.comment,
-          rating: this.reviewData.rating
-        })
-        this.message = 'Review submitted!'
-        this.reviewData = { bookingId: 0, comment: '', rating: 0 }
-        await this.loadCompletedBookings()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadCompletedBookings()
-  },
+
+const route = useRoute()
+
+const completedBookings = ref([])
+const reviewData = ref({ bookingId: 0, comment: '', rating: 0 })
+const message = ref('')
+
+// Pre-fill bookingId from route if coming from ResourceDetail
+onMounted(async () => {
+  if (route.params.resourceId) {
+    reviewData.value.bookingId = Number(route.params.resourceId) || 0
+  }
+  await loadCompletedBookings()
+})
+
+const selectBooking = (booking) => {
+  reviewData.value.bookingId = booking.id
+}
+
+const loadCompletedBookings = async () => {
+  try {
+    const resp = await api('/bookings/inbox')
+    completedBookings.value = (resp.bookings || []).filter((b) => b.status === 'completed')
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const submitReview = async () => {
+  if (!reviewData.value.bookingId) {
+    message.value = 'Please select or enter a Booking ID'
+    return
+  }
+  try {
+    await api(`/bookings/${reviewData.value.bookingId}/review`, 'POST', {
+      comment: reviewData.value.comment,
+      rating: reviewData.value.rating,
+    })
+    message.value = 'Review submitted!'
+    reviewData.value = { bookingId: 0, comment: '', rating: 0 }
+    await loadCompletedBookings()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
 </script>

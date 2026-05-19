@@ -47,68 +47,75 @@
   </div>
 </template>
 
-<script>
-import { api } from '@/api.js'
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { api, getUser } from '@/api.js'
 
-export default {
-  name: 'Verification',
-  data() {
-    return {
-      verification: { courseCode: '' },
-      verificationFile: null,
-      applications: [],
-      verificationNotifications: [],
-      message: '',
-    }
-  },
-  methods: {
-    handleFileChange(event) {
-      this.verificationFile = event.target.files[0]
-    },
-    async submitVerification() {
-      if (!this.verificationFile) {
-        this.message = 'Please select a file'
-        return
-      }
-      try {
-        const formData = new FormData()
-        formData.append('courseCode', this.verification.courseCode)
-        formData.append('document', this.verificationFile)
-        await api('/tutor-verifications', 'POST', formData)
-        this.message = 'Verification submitted!'
-        this.verification = { courseCode: '' }
-        this.verificationFile = null
-        await this.loadApplications()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async loadApplications() {
-      try {
-        const resp = await api('/tutor-verifications/me')
-        this.applications = resp.applications || []
-      } catch (err) {
-        console.error('Failed to load applications:', err)
-      }
-    },
-    async loadNotifications() {
-      try {
-        const resp = await api('/tutor-verifications/me')
-        // Display verification status as notification
-        this.verificationNotifications = resp.applications || []
-      } catch (err) {
-        console.error('Failed to load notifications:', err)
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadApplications()
-    this.loadNotifications()
-  },
+const router = useRouter()
+const currentUser = getUser()
+if (!currentUser || currentUser.role !== 'tutor') {
+  router.replace('/resources')
 }
+
+const verification = ref({ courseCode: '' })
+const verificationFile = ref(null)
+const applications = ref([])
+const verificationNotifications = ref([])
+const message = ref('')
+
+const handleFileChange = (event) => {
+  verificationFile.value = event.target.files[0] || null
+}
+
+const submitVerification = async () => {
+  if (!verificationFile.value) {
+    message.value = 'Please select a file'
+    return
+  }
+  try {
+    const formData = new FormData()
+    formData.append('courseCode', verification.value.courseCode)
+    formData.append('document', verificationFile.value)
+    await api('/tutor-verifications', 'POST', formData)
+    message.value = 'Verification submitted!'
+    verification.value = { courseCode: '' }
+    verificationFile.value = null
+    await loadApplications()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const loadApplications = async () => {
+  try {
+    const resp = await api('/tutor-verifications/me')
+    applications.value = (resp.applications || []).map((item) => ({
+      id: item.id,
+      courseCode: item.course_code || item.courseCode || '',
+      status: item.status || 'PENDING',
+      createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : '',
+    }))
+  } catch (err) {
+    console.error('Failed to load applications:', err)
+  }
+}
+
+const loadNotifications = async () => {
+  try {
+    const resp = await api('/tutor-verifications/me')
+    verificationNotifications.value = (resp.applications || []).map((item) => ({
+      id: item.id,
+      message: `${item.course_code || item.courseCode}: ${item.status || 'PENDING'}`,
+      createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : '',
+    }))
+  } catch (err) {
+    console.error('Failed to load notifications:', err)
+  }
+}
+
+onMounted(() => {
+  loadApplications()
+  loadNotifications()
+})
 </script>

@@ -135,101 +135,85 @@
   </main>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
 import { api, getUser } from '@/api.js'
 
-export default {
-  name: 'Session',
-  data() {
-    const user = getUser()
-    return {
-      userRole: user?.role || 'tutee',
-      availability: { courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' },
-      booking: { tutorId: '', courseCode: '', sessionTime: '' },
-      sessionList: [],
-      days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      message: '',
-    }
-  },
-  methods: {
-    async submitAvailability() {
-      try {
-        await api('/availability', 'POST', this.availability)
-        this.message = 'Session updated!'
-        this.availability = { courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' }
-        await this.loadSessions()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async submitBooking() {
-      try {
-        await api('/bookings', 'POST', this.booking)
-        this.message = 'Booking sent!'
-        this.booking = { tutorId: '', courseCode: '', sessionTime: '' }
-        await this.loadSessions()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async loadSessions() {
-      try {
-        if (this.userRole === 'tutor') {
-          const resp = await api('/availability/me')
-          this.sessionList = (resp.availability || []).map((item) => ({
-            id: item.id,
-            status: 'available',
-            sessionTime: item.start_time && item.end_time ? `${item.start_time} - ${item.end_time}` : item.start_time || '',
-            courseCode: item.course_code || '',
-            dayOfWeek: item.day_of_week || ''
-          }))
-          return
-        }
+const user = getUser()
+const userRole = ref(user?.role || 'tutee')
+const availability = ref({ courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' })
+const booking = ref({ tutorId: '', courseCode: '', sessionTime: '' })
+const sessionList = ref([])
+const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const message = ref('')
 
-        const resp = await api('/bookings/inbox')
-        this.sessionList = (resp.bookings || []).map((item) => ({
-          id: item.id,
-          status: item.status,
-          tutorName: item.tutor_name,
-          tuteeName: item.tutee_name,
-          sessionTime: item.session_time,
-          courseCode: item.course_code,
-        }))
-      } catch (err) {
-        console.error('Failed to load sessions:', err)
-      }
-    },
-    formatSessionTime(raw) {
-      if (!raw) return 'N/A'
-
-      const text = String(raw)
-      if (text.includes(' - ')) {
-        return text
-      }
-
-      const parsed = new Date(text)
-      if (Number.isNaN(parsed.getTime())) {
-        return text
-      }
-
-      return parsed.toLocaleString('en-MY', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadSessions()
-  },
+const submitAvailability = async () => {
+  try {
+    await api('/availability', 'POST', availability.value)
+    message.value = 'Session updated!'
+    availability.value = { courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' }
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
+
+const submitBooking = async () => {
+  try {
+    await api('/bookings', 'POST', booking.value)
+    message.value = 'Booking sent!'
+    booking.value = { tutorId: '', courseCode: '', sessionTime: '' }
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const loadSessions = async () => {
+  try {
+    if (userRole.value === 'tutor') {
+      const resp = await api('/availability/me')
+      sessionList.value = (resp.availability || []).map((item) => ({
+        id: item.id,
+        status: 'available',
+        sessionTime: item.start_time && item.end_time ? `${item.start_time} - ${item.end_time}` : item.start_time || '',
+        courseCode: item.course_code || '',
+        dayOfWeek: item.day_of_week || '',
+      }))
+      return
+    }
+    const resp = await api('/bookings/inbox')
+    sessionList.value = (resp.bookings || []).map((item) => ({
+      id: item.id,
+      status: item.status,
+      tutorName: item.tutor_name,
+      tuteeName: item.tutee_name,
+      sessionTime: item.session_time,
+      courseCode: item.course_code,
+    }))
+  } catch (err) {
+    console.error('Failed to load sessions:', err)
+  }
+}
+
+const formatSessionTime = (raw) => {
+  if (!raw) return 'N/A'
+  const text = String(raw)
+  if (text.includes(' - ')) return text
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime())) return text
+  return parsed.toLocaleString('en-MY', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+onMounted(() => {
+  loadSessions()
+})
 </script>
 
 <style scoped>

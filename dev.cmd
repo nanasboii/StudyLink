@@ -4,11 +4,11 @@ echo ============================================
 echo  StudyLink - Vue Development Server
 echo ============================================
 echo.
-echo Starting backend on port 3000...
+echo Starting backend on port 3001...
 echo Starting frontend on port 5173...
 echo.
 echo Navigate to: http://localhost:5173
-echo API: http://localhost:3000/api
+echo API: http://localhost:3001/api
 echo.
 echo Press Ctrl+C to stop both servers
 echo.

@@ -1,301 +1,657 @@
 # StudyLink
 
-StudyLink is a Node.js + Express + PostgreSQL tutoring platform with a multi-page frontend. It includes authentication, profiles, resources, booking/sessions, reviews, achievements, notifications, tutor verification, and admin monitoring tools.
+A comprehensive Node.js + Express + PostgreSQL tutoring platform featuring multi-role authentication, resource management, booking lifecycle, real-time notifications, and admin analytics.
 
-## Services (local)
+**[📖 Full Documentation](#table-of-contents) | [🚀 Quick Start](#quick-start) | [🐳 Docker](#docker-setup) | [🔧 Development](#development)**
 
-- App/API: http://localhost:3000
-- UI: http://localhost:3000/ui/
-- PostgreSQL: localhost:5432
+---
 
-## Quick Start (local)
+## Table of Contents
 
-1. Install Node.js (v18+) and PostgreSQL or Docker Desktop.
-2. Create a local `.env` (see **Environment** below) or run with Docker Compose:
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Technology Stack](#technology-stack)
+- [Development](#development)
+- [Docker Setup](#docker-setup)
+- [API Documentation](#api-endpoints)
+- [Environment Variables](#environment-variables)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Overview
+
+StudyLink is a full-featured tutoring platform with:
+
+- **Role-based access**: Tutee, Tutor, Admin dashboards
+- **Resource management**: Upload, browse, review, and track downloads
+- **Booking system**: Request → Accept/Reject → Complete → Review workflow
+- **User achievements**: Leaderboards, badges, daily streaks, activity calendar
+- **Verification workflow**: Tutor identity verification with admin approval
+- **Real-time notifications**: Activity feeds with unread indicators
+- **Admin tools**: User management, analytics, activity logs, error monitoring
+
+### Key Features
+
+- Timezone-aware login streaks and activity calendar
+- File and link-based resource uploads
+- Public tutor profiles and reviews
+- Admin moderation and analytics dashboard
+- Email notifications (SMTP integration)
+- Session-based authentication with bearer tokens
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js** v18 or higher ([download](https://nodejs.org/))
+- **PostgreSQL** 12+ OR **Docker Desktop**
+- **Git**
+
+### Option A: Docker (Recommended)
 
 ```bash
+# Clone the repository
+git clone https://github.com/nanasboii/StudyLink.git
+cd StudyLink
+
+# Start all services
 docker compose up -d --build
-```
 
-3. Start the app (without Docker):
+# Verify services are running
+docker compose ps
 
-```bash
-npm install
-npm run dev
-```
-
-4. Verify health:
-
-```bash
+# Check app health
 curl http://localhost:3000/health
 ```
 
-## Current UI Pages
+Services available:
+- **API**: http://localhost:3000
+- **UI**: http://localhost:3000/ui/
+- **pgAdmin**: http://localhost:5050 (admin@studylink.com / admin_password)
+- **Database**: localhost:5432
 
-- `src/public/pages/login.html`
-- `src/public/pages/register.html`
-- `src/public/pages/resources.html`
-- `src/public/pages/resource-detail.html`
-- `src/public/pages/tutors.html`
-- `src/public/pages/session.html`
-- `src/public/pages/review.html`
-- `src/public/pages/leaderboards.html`
-- `src/public/pages/achievements.html`
-- `src/public/pages/notifications.html`
-- `src/public/pages/profile.html`
-- `src/public/pages/public-profile.html`
-- `src/public/pages/verification.html`
-- `src/public/pages/admin-verifications.html`
-- `src/public/pages/admin-resources.html`
-- `src/public/pages/admin-analytics.html`
-- `src/public/pages/admin-activity.html`
-- `src/public/pages/admin-errors.html`
+### Option B: Local Development
 
-Shared frontend modules:
+```bash
+# Install dependencies
+npm install
 
-- `src/public/js/api.js`
-- `src/public/js/nav.js`
-- `src/public/js/routes.js`
-- `src/public/css/base.css`
-- `src/public/css/pages/*.css`
+# Create .env file (see Environment Variables section)
+cp .env.example .env  # if available, or create manually
 
-## Key Features
+# Start development server
+npm run dev
 
-- Role-based UX for `tutee`, `tutor`, and `admin`
-- Resource upload (file/link), browse, detail view, download tracking, and reviews
-- Tutor discovery and booking lifecycle (request, decision, complete, cancel)
-- Booking reviews and public profile reviews
-- Leaderboards and achievements
-- Notifications with unread indicators
-- Tutor verification workflow and admin decision/reupload request
-- Admin analytics, admin activity logs, server error logs, and resource moderation views
-- Daily login streak + monthly activity calendar modal
+# In another terminal, start database
+# (ensure PostgreSQL is running locally)
 
-### Login Streak and Activity Calendar
+# Verify health
+curl http://localhost:3000/health
+```
 
-- Streak data is stored on `users.login_streak` and `users.last_login_at`
-- Per-day login history is stored in `user_login_history`
-- Calendar highlights real login dates, supports full-month view, and lets users navigate past months
-- Day boundary logic is timezone-aware via `STREAK_TIMEZONE`
-- If a user has streak data but no history rows yet, history is backfilled
+---
+
+## Project Structure
+
+```
+StudyLink/
+├── src/
+│   ├── server.js                 # Express API server
+│   ├── seed.js                   # Database seeding
+│   ├── frontend/                 # Vue 3 frontend (migration in progress)
+│   │   ├── App.vue
+│   │   ├── main.js
+│   │   ├── routes.js
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── stores/
+│   └── public/                   # Legacy static frontend
+│       ├── pages/                # HTML pages
+│       ├── js/                   # Page-specific logic
+│       └── css/                  # Styling
+├── tests/
+│   └── critical-flows.integration.test.mjs
+├── Dockerfile                    # Container build config
+├── docker-compose.yml            # Multi-service orchestration
+├── railway.json                  # Railway deployment config
+├── studylink_backup.sql          # Database backup for seeding
+├── vite.config.js                # Vue 3 build config
+├── package.json
+└── .env.example                  # Environment template
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Node.js, Express, PostgreSQL |
+| **Frontend** | Vue 3 (in progress), vanilla JavaScript, CSS |
+| **Build** | Vite |
+| **Deployment** | Docker, Railway |
+| **Testing** | Vitest / custom integration tests |
+
+---
+
+## Development
+
+### Available Scripts
+
+```bash
+# Start development server (with hot reload)
+npm run dev
+
+# Build for production
+npm run build
+
+# Run integration tests
+npm run test:flows
+
+# Seed database with sample data
+npm run seed
+```
+
+### Running Tests
+
+```bash
+npm run test:flows
+# Output: Integration test results for critical user flows
+```
+
+### Database Management
+
+The app auto-initializes the schema on startup unless `SKIP_DB_INIT=true`.
+
+**To import existing data:**
+
+```bash
+psql -h localhost -U studylink -d studylink -f studylink_backup.sql
+```
+
+**To reset database (local only):**
+
+```bash
+# Drop all data (development only!)
+psql -h localhost -U studylink -d studylink -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+# Reinitialize
+npm run dev
+```
+
+---
+
+## Docker Setup
+
+### Starting Services
+
+```bash
+# Build and start all services
+docker compose up -d --build
+
+# View service status
+docker compose ps
+
+# View logs for specific service
+docker compose logs -f app      # Backend
+docker compose logs -f postgres  # Database
+docker compose logs -f pgadmin   # Admin panel
+```
+
+### Common Docker Tasks
+
+```bash
+# Stop all services
+docker compose down
+
+# Remove volumes (clears database)
+docker compose down -v
+
+# Rebuild specific service
+docker compose build --no-cache app
+
+# Access container shell
+docker exec -it studylink-app bash
+
+# View database from pgAdmin
+# Navigate to http://localhost:5050
+# Login: admin@studylink.com / admin_password
+```
+
+### Troubleshooting Docker
+
+**App won't start / SSL connection error:**
+- Ensure `DB_SSL: "false"` is set in docker-compose.yml environment
+- Run: `docker compose logs app` to check error details
+
+**Port already in use:**
+```bash
+# Change port in docker-compose.yml or release the port
+lsof -i :3000  # Find process on port 3000
+kill -9 <PID>  # Kill the process
+```
+
+**Database not initializing:**
+```bash
+docker compose exec postgres psql -U studylink -d studylink -c "\dt"
+# Shows all tables if initialized successfully
+```
+
+---
+
+## Services (Local)
+
+- **App/API**: http://localhost:3000
+- **UI**: http://localhost:3000/ui/
+- **pgAdmin**: http://localhost:5050
+- **PostgreSQL**: localhost:5432
+
+---
 
 ## API Endpoints
 
-### Public and System
-- `GET /`
-- `GET /health`
-- `GET /ui/*`
+### Summary by Resource
 
-### Auth
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
+<u>Public</u>: `GET /`, `GET /health`
 
-### User and Profile
-- `GET /me`
-- `GET /me/login-history`
-- `PUT /me/profile`
-- `PUT /me/password`
-- `DELETE /me`
-- `POST /uploads/profile-picture`
+<u>Auth</u>: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`
 
-### Courses and Discovery
-- `GET /courses`
-- `GET /tutors`
+<u>User & Profile</u>: `GET /me`, `GET /me/login-history`, `PUT /me/profile`, `PUT /me/password`, `DELETE /me`, `POST /uploads/profile-picture`
 
-### Availability and Booking
-- `POST /availability`
-- `GET /availability/me`
-- `POST /bookings`
-- `GET /bookings/inbox`
-- `POST /bookings/:id/decision`
-- `POST /bookings/:id/complete`
-- `POST /bookings/:id/cancel`
-- `POST /bookings/:id/review`
-- `GET /bookings/:id/reviews`
+<u>Discovery</u>: `GET /courses`, `GET /tutors`, `GET /leaderboard`, `GET /users/:id/public`, `GET /users/:id/public/reviews`
 
-### Resources
-- `POST /resources`
-- `GET /resources`
-- `GET /resources/:id`
-- `PUT /resources/:id`
-- `DELETE /resources/:id`
-- `POST /resources/upload`
-- `POST /resources/:id/download`
-- `GET /resources/:id/reviews`
-- `POST /resources/:id/reviews`
+<u>Bookings</u>: `POST /bookings`, `GET /bookings/inbox`, `POST /bookings/:id/decision`, `POST /bookings/:id/complete`, `POST /bookings/:id/cancel`, `POST /bookings/:id/review`, `GET /bookings/:id/reviews`
 
-### Public Profiles and Leaderboard
-- `GET /leaderboard`
-- `GET /users/:id/public`
-- `GET /users/:id/public/reviews`
+<u>Availability</u>: `POST /availability`, `GET /availability/me`
 
-### Notifications and Achievements
-- `GET /notifications`
-- `POST /notifications/:id/read`
-- `GET /achievements/me`
+<u>Resources</u>: `POST /resources`, `GET /resources`, `GET /resources/:id`, `PUT /resources/:id`, `DELETE /resources/:id`, `POST /resources/upload`, `POST /resources/:id/download`, `GET /resources/:id/reviews`, `POST /resources/:id/reviews`
 
-### Tutor Verification
-- `POST /tutor-verifications`
-- `GET /tutor-verifications/me`
-- `POST /uploads/verification`
+<u>Notifications & Achievements</u>: `GET /notifications`, `POST /notifications/:id/read`, `GET /achievements/me`
 
-### Admin
-- `GET /admin/users`
-- `PATCH /admin/users/:id`
-- `GET /admin/tutor-verifications`
-- `POST /admin/tutor-verifications/:id/decision`
-- `POST /admin/tutor-verifications/:id/request-reupload`
-- `GET /admin/resources`
-- `GET /admin/analytics`
-- `GET /admin/activity-logs`
-- `GET /admin/error-logs`
+<u>Verification</u>: `POST /tutor-verifications`, `GET /tutor-verifications/me`, `POST /uploads/verification`
 
-## API Appendix (Method, Path, Auth)
+<u>Admin</u>: `GET /admin/users`, `PATCH /admin/users/:id`, `GET /admin/tutor-verifications`, `POST /admin/tutor-verifications/:id/decision`, `POST /admin/tutor-verifications/:id/request-reupload`, `GET /admin/resources`, `GET /admin/analytics`, `GET /admin/activity-logs`, `GET /admin/error-logs`
 
-| Method | Path | Access | Notes |
+### Detailed API Reference
+
+**See [API Reference Table](#api-reference-table) below for method, path, and access control.**
+
+### API Reference Table
+
+| Method | Endpoint | Access | Purpose |
 |---|---|---|---|
 | GET | `/` | Public | API status summary |
 | GET | `/health` | Public | DB connectivity check |
 | GET | `/ui/*` | Public | Serves frontend shell |
-| POST | `/auth/register` | Public | Create new account |
-| POST | `/auth/login` | Public | Issues token + streak payload |
-| POST | `/auth/logout` | Authenticated (`tutee`/`tutor`/`admin`) | Invalidates session token |
-| GET | `/me` | Authenticated (`tutee`/`tutor`/`admin`) | Current user profile |
-| GET | `/me/login-history` | Authenticated (`tutee`/`tutor`/`admin`) | Daily login dates for calendar |
-| PUT | `/me/profile` | Authenticated (`tutee`/`tutor`/`admin`) | Update own profile |
-| PUT | `/me/password` | Authenticated (`tutee`/`tutor`/`admin`) | Change own password |
-| DELETE | `/me` | Authenticated (`tutee`/`tutor`/`admin`) | Delete own account |
-| POST | `/uploads/profile-picture` | Authenticated (`tutee`/`tutor`/`admin`) | Upload avatar image |
-| GET | `/courses` | Authenticated (`tutee`/`tutor`/`admin`) | List courses |
-| GET | `/tutors` | Authenticated (`tutee`/`tutor`/`admin`) | Tutor discovery/filtering |
-| POST | `/availability` | Authenticated (`tutor`) | Set tutor schedule slots |
-| GET | `/availability/me` | Authenticated (`tutor`) | Get tutor's own availability |
-| POST | `/bookings` | Authenticated (`tutee`) | Create booking request |
-| GET | `/bookings/inbox` | Authenticated (`tutee`/`tutor`) | Booking list/inbox |
-| POST | `/bookings/:id/decision` | Authenticated (`tutor`) | Accept or reject booking |
-| POST | `/bookings/:id/complete` | Authenticated (`tutor`) | Mark session completed |
-| POST | `/bookings/:id/cancel` | Authenticated (`tutee`/`tutor`) | Cancel booking |
-| POST | `/bookings/:id/review` | Authenticated (`tutee`/`tutor`) | Submit booking review |
-| GET | `/bookings/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | View booking reviews |
-| POST | `/resources` | Authenticated (`tutee`/`tutor`/`admin`) | Create resource entry |
-| GET | `/resources` | Authenticated (`tutee`/`tutor`/`admin`) | Browse/search resources |
-| GET | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Resource detail |
-| PUT | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Update resource (owner/admin flow) |
-| DELETE | `/resources/:id` | Authenticated (`tutee`/`tutor`/`admin`) | Delete resource (owner/admin flow) |
-| POST | `/resources/upload` | Authenticated (`tutee`/`tutor`/`admin`) | Upload resource file |
-| POST | `/resources/:id/download` | Authenticated (`tutee`/`tutor`/`admin`) | Track download action |
-| GET | `/resources/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | List resource ratings/comments |
-| POST | `/resources/:id/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | Add resource rating/comment |
-| GET | `/leaderboard` | Authenticated (`tutee`/`tutor`/`admin`) | Points/ranking data |
-| GET | `/users/:id/public` | Authenticated (`tutee`/`tutor`/`admin`) | Public profile summary |
-| GET | `/users/:id/public/reviews` | Authenticated (`tutee`/`tutor`/`admin`) | Public-facing review list |
-| GET | `/notifications` | Authenticated (`tutee`/`tutor`/`admin`) | User notifications |
-| POST | `/notifications/:id/read` | Authenticated (`tutee`/`tutor`/`admin`) | Mark notification read |
-| GET | `/achievements/me` | Authenticated (`tutee`/`tutor`/`admin`) | User badges/achievements |
-| POST | `/tutor-verifications` | Authenticated (`tutor`) | Submit verification request |
-| GET | `/tutor-verifications/me` | Authenticated (`tutor`) | Own verification status/history |
-| POST | `/uploads/verification` | Authenticated (`tutor`) | Upload verification document |
-| GET | `/admin/users` | Authenticated (`admin`) | User management list |
-| PATCH | `/admin/users/:id` | Authenticated (`admin`) | Update user role/verification |
-| GET | `/admin/tutor-verifications` | Authenticated (`admin`) | Review verification queue |
-| POST | `/admin/tutor-verifications/:id/decision` | Authenticated (`admin`) | Approve/reject verification |
-| POST | `/admin/tutor-verifications/:id/request-reupload` | Authenticated (`admin`) | Request new proof upload |
-| GET | `/admin/resources` | Authenticated (`admin`) | Admin resource moderation list |
-| GET | `/admin/analytics` | Authenticated (`admin`) | KPI/trend dashboard data |
-| GET | `/admin/activity-logs` | Authenticated (`admin`) | Admin action audit trail |
-| GET | `/admin/error-logs` | Authenticated (`admin`) | Server error monitoring feed |
-
-## Environment Variables
-
-Recommended runtime variables (set in `.env` for local development or in Railway/host variables for production):
-
-Application:
-
-- `PORT` (default: `3000`)
-- `SESSION_DURATION_HOURS` (default: `24`)
-- `STREAK_TIMEZONE` (default: `Asia/Kuala_Lumpur`)
-
-Database (two supported methods):
-
-- Use a single connection string: `DATABASE_URL` (recommended for hosted DBs like Railway/Supabase)
-- Or set individual vars: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-
-Production additions (Railway / hosted):
-
-- `NODE_ENV=production`
-- `PORT=3000` (should match `Dockerfile` EXPOSE)
-- `SKIP_DB_INIT=true` to skip schema initialization if you import the SQL manually
-
-Notes:
-- Do NOT commit an `.env` file. This repo already ignores `.env` in `.gitignore`.
-- If you accidentally committed secrets, rotate credentials immediately (regenerate DB password / connection string).
-
-## Default Credentials (local/dev)
-
-These are only used when no external DB is provided and are suitable for local testing:
-
-- Database user: `studylink` / password: `studylink` / database: `studylink`
-- Seed admin account created on DB init: `admin@studylink.local` / `admin123`
-
-If you publish your repo or share screenshots, rotate any exposed credentials immediately.
-
-## Auth Header
-
-Use bearer token for protected routes:
-
-`Authorization: Bearer <token>`
-
-## Deployment (Railway)
-
-1. Create a Railway project and connect the GitHub repo `nanasboii/StudyLink`.
-2. Add the PostgreSQL plugin (Railway will provision a database).
-3. In the Railway service variables, set either:
-
-	- `DATABASE_URL` = the connection string from the plugin
-
-	Or (if you prefer individual vars):
-
-	- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-
-4. Also add:
-
-	- `NODE_ENV=production`
-	- `PORT=3000`
-	- `SKIP_DB_INIT=true` (if you import the provided `studylink_backup.sql` instead of letting the app create schema)
-
-5. Railway will build using the included `Dockerfile` (the repo contains `railway.json` to use the Dockerfile builder).
-
-6. After deploy, monitor logs in Railway. You should see startup messages including "StudyLink API listening on port 3000" and DB connection success.
-
-## Production security reminder
-
-- Never store secrets in the repository. Use Railway env variables or a secrets manager.
-- If secrets were committed, rotate them immediately.
-
-## Local DB initialization / migration
-
-- The app will attempt to create missing tables on startup unless `SKIP_DB_INIT=true`.
-- To import a prebuilt dataset, use the provided `studylink_backup.sql`:
-
-```bash
-psql -h <host> -U <user> -d <db> -f studylink_backup.sql
-```
-
-## Running tests
-
-```bash
-npm run test:flows
-```
-
-## Useful files
-
-- Server: [src/server.js](src/server.js)
-- Dockerfile: [Dockerfile](Dockerfile)
-- Railway config: [railway.json](railway.json)
-- Sample DB backup: [studylink_backup.sql](studylink_backup.sql)
-- Integration tests: [tests/critical-flows.integration.test.mjs](tests/critical-flows.integration.test.mjs)
+| **Auth** | | | |
+| POST | `/auth/register` | Public | Create account |
+| POST | `/auth/login` | Public | Login (issues bearer token) |
+| POST | `/auth/logout` | Authenticated | Invalidate session |
+| **User** | | | |
+| GET | `/me` | Authenticated | Current user profile |
+| GET | `/me/login-history` | Authenticated | Daily login dates (calendar) |
+| PUT | `/me/profile` | Authenticated | Update profile |
+| PUT | `/me/password` | Authenticated | Change password |
+| DELETE | `/me` | Authenticated | Delete account |
+| POST | `/uploads/profile-picture` | Authenticated | Upload avatar |
+| **Discovery** | | | |
+| GET | `/courses` | Authenticated | List courses |
+| GET | `/tutors` | Authenticated | Search tutors |
+| GET | `/leaderboard` | Authenticated | Rankings/points |
+| GET | `/users/:id/public` | Authenticated | Public profile view |
+| GET | `/users/:id/public/reviews` | Authenticated | Public reviews |
+| **Booking** | | | |
+| POST | `/bookings` | Tutee | Request session |
+| GET | `/bookings/inbox` | Tutee/Tutor | View bookings |
+| POST | `/bookings/:id/decision` | Tutor | Accept/reject request |
+| POST | `/bookings/:id/complete` | Tutor | Mark session done |
+| POST | `/bookings/:id/cancel` | Tutee/Tutor | Cancel booking |
+| POST | `/bookings/:id/review` | Tutee/Tutor | Submit review |
+| GET | `/bookings/:id/reviews` | Authenticated | View reviews |
+| **Availability** | | | |
+| POST | `/availability` | Tutor | Set schedule slots |
+| GET | `/availability/me` | Tutor | Get tutor schedule |
+| **Resources** | | | |
+| POST | `/resources` | Authenticated | Create resource |
+| GET | `/resources` | Authenticated | Browse/search |
+| GET | `/resources/:id` | Authenticated | View resource |
+| PUT | `/resources/:id` | Owner/Admin | Update |
+| DELETE | `/resources/:id` | Owner/Admin | Delete |
+| POST | `/resources/upload` | Authenticated | Upload file |
+| POST | `/resources/:id/download` | Authenticated | Track download |
+| GET | `/resources/:id/reviews` | Authenticated | View ratings |
+| POST | `/resources/:id/reviews` | Authenticated | Add rating |
+| **Notifications** | | | |
+| GET | `/notifications` | Authenticated | Activity feed |
+| POST | `/notifications/:id/read` | Authenticated | Mark read |
+| **Achievements** | | | |
+| GET | `/achievements/me` | Authenticated | User badges |
+| **Verification** | | | |
+| POST | `/tutor-verifications` | Tutor | Submit for review |
+| GET | `/tutor-verifications/me` | Tutor | Check status |
+| POST | `/uploads/verification` | Tutor | Upload proof doc |
+| **Admin** | | | |
+| GET | `/admin/users` | Admin | User management |
+| PATCH | `/admin/users/:id` | Admin | Update user role |
+| GET | `/admin/tutor-verifications` | Admin | Review queue |
+| POST | `/admin/tutor-verifications/:id/decision` | Admin | Approve/reject |
+| POST | `/admin/tutor-verifications/:id/request-reupload` | Admin | Request new doc |
+| GET | `/admin/resources` | Admin | Moderation queue |
+| GET | `/admin/analytics` | Admin | KPI dashboard |
+| GET | `/admin/activity-logs` | Admin | Audit trail |
+| GET | `/admin/error-logs` | Admin | Error monitoring |
 
 ---
 
-If you want, I can also add a `README.example.env` file with recommended variables (without secrets) and a small deploy checklist for Railway. Would you like that?
+### Authentication
+
+All protected endpoints require the bearer token header:
+
+```
+Authorization: Bearer <token>
+```
+
+Obtained from `/auth/login` response.
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root. **Do not commit this file.**
+
+### Application Settings
+
+```env
+# Server
+PORT=3000
+NODE_ENV=development
+SESSION_DURATION_HOURS=24
+STREAK_TIMEZONE=Asia/Kuala_Lumpur
+```
+
+### Database (Choose One Method)
+
+**Method 1: Connection String (recommended for hosted databases)**
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+DB_SSL=false  # Set to false for local Docker
+```
+
+**Method 2: Individual Variables (for local PostgreSQL)**
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=studylink
+DB_PASSWORD=studylink
+DB_NAME=studylink
+DB_SSL=false
+```
+
+### Email (SMTP)
+
+```env
+SMTP_HOST=smtp.ethereal.email
+SMTP_PORT=587
+SMTP_USER=your-email@ethereal.email
+SMTP_PASS=your-email-password
+```
+
+### Production / Deployment
+
+```env
+NODE_ENV=production
+SKIP_DB_INIT=true  # If you import database manually
+```
+
+### Default Credentials (Local Development)
+
+If no external database is configured:
+
+- **Database user**: `studylink` / password: `studylink` / database: `studylink`
+- **Admin account**: `admin@studylink.local` / `admin123`
+
+⚠️ **Security**: Never publish repositories with exposed credentials. Rotate immediately if committed.
+
+### Security Notes
+
+- **Never commit `.env`** — this repository already includes `.env` in `.gitignore`
+- Store sensitive values in environment variables on your hosting platform (Railway, etc.)
+- If you accidentally commit secrets, **rotate credentials immediately**
+
+---
+
+## Deployment
+
+### Railway (Recommended)
+
+1. **Connect Repository**
+   - Create a [Railway](https://railway.app) project
+   - Link your GitHub repo (`nanasboii/StudyLink`)
+
+2. **Add PostgreSQL Plugin**
+   - Railway will auto-provision a managed database
+   - Copy the connection string from the plugin
+
+3. **Configure Environment**
+   - Set `DATABASE_URL` or individual `DB_*` variables
+   - Set `NODE_ENV=production`
+   - Set `PORT=3000`
+   - Optionally set `SKIP_DB_INIT=true` if importing database manually
+
+4. **Deploy**
+   - Railway auto-builds using `Dockerfile` (via `railway.json`)
+   - Monitor logs for successful startup
+
+5. **Verify**
+   - Check Railway logs: should see "StudyLink API listening on port 3000"
+   - Verify DB connection in logs
+   - Test health endpoint
+
+### Other Platforms
+
+The `Dockerfile` is compatible with any Docker-hosting platform (AWS ECS, Heroku, DigitalOcean, etc.). Adjust environment variables as needed for each platform.
+
+### Production Checklist
+
+- [ ] Set `NODE_ENV=production`
+- [ ] Rotate any committed secrets
+- [ ] Configure `DATABASE_URL` with hosted database
+- [ ] Enable SSL for database if available
+- [ ] Set up SMTP credentials for email notifications
+- [ ] Test critical flows (login, booking, resource upload)
+- [ ] Monitor error logs in dashboard
+- [ ] Set up alerts for high error rates
+
+---
+
+## Database Management
+
+### Schema Initialization
+
+The app auto-initializes schema on startup unless `SKIP_DB_INIT=true`.
+
+### Importing Data
+
+To load a prebuilt dataset:
+
+```bash
+psql -h localhost -U studylink -d studylink -f studylink_backup.sql
+```
+
+### Resetting (Development Only)
+
+```bash
+# Drop all data and schema
+psql -h localhost -U studylink -d studylink -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+# Reinitialize on next app start
+npm run dev
+```
+
+---
+
+## Troubleshooting
+
+### App Won't Start
+
+**SSL Connection Error**
+```
+Error: The server does not support SSL connections
+```
+- **Cause**: App tries to use SSL with a local Postgres that doesn't support it
+- **Fix**: Set `DB_SSL=false` in `.env` or docker-compose environment
+- **Docker**: Rebuild and restart: `docker compose up -d --build app`
+
+**Port Already in Use**
+```bash
+# Find process on port 3000
+lsof -i :3000
+# Kill the process
+kill -9 <PID>
+```
+
+**Database Connection Refused**
+```
+Error: connect ECONNREFUSED 127.0.0.1:5432
+```
+- Ensure PostgreSQL is running: `pg_isready -h localhost`
+- Check `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` in `.env`
+- Verify database exists: `psql -l`
+
+### Docker Issues
+
+**Containers won't start**
+```bash
+# View detailed logs
+docker compose logs app
+
+# Rebuild from scratch
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
+```
+
+**Volume permissions**
+```bash
+# If running Linux, ensure Docker has proper volume permissions
+sudo chown -R $USER:$USER src/uploads
+```
+
+### Authentication Issues
+
+**Login fails with "Invalid credentials"**
+- Check that user exists in database
+- Verify password hash in `users` table
+- Check SMTP is configured if email verification is enabled
+
+**Bearer token rejected**
+- Token may have expired (check `SESSION_DURATION_HOURS`)
+- Verify token format: `Authorization: Bearer <token>`
+- Check server logs for validation errors
+
+### Database Issues
+
+**Tables not created**
+- Ensure `SKIP_DB_INIT=false` (default)
+- Check app logs for schema creation errors
+- Manually create schema: `psql -f studylink_backup.sql`
+
+**Migrations needed**
+- This project auto-initializes; no manual migrations needed
+- If modifying schema, update initialization logic in [src/server.js](src/server.js)
+
+---
+
+## Contributing
+
+### Getting Started
+
+1. **Fork & Clone**
+   ```bash
+   git clone https://github.com/nanasboii/StudyLink.git
+   cd StudyLink
+   ```
+
+2. **Install & Setup**
+   ```bash
+   npm install
+   cp .env.example .env  # Create your local .env
+   docker compose up -d  # or: npm run dev (with local Postgres)
+   ```
+
+3. **Create a Branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+### Code Guidelines
+
+- **Node.js**: Follow ES6+ conventions
+- **Frontend**: Vanilla JS or Vue 3 (migration in progress)
+- **API Routes**: Keep endpoints RESTful
+- **Database**: Use prepared statements to prevent SQL injection
+- **Testing**: Write integration tests in `tests/critical-flows.integration.test.mjs`
+
+### Testing Your Changes
+
+```bash
+# Run integration tests
+npm run test:flows
+
+# Verify no obvious errors
+curl http://localhost:3000/health
+```
+
+### Commit Message Format
+
+```
+feat: add new feature
+fix: resolve bug
+docs: update documentation
+refactor: improve code structure
+test: add/update tests
+```
+
+### Submitting a Pull Request
+
+1. **Push to your fork**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+2. **Open PR on GitHub**
+   - Link any related issues
+   - Describe changes and testing performed
+   - Ensure CI/tests pass
+
+3. **Code Review**
+   - Address feedback from maintainers
+   - Update PR as needed
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) file for details.
+
+---
+
+## Support & Contact
+
+For issues, feature requests, or questions:
+- **Open an issue** on GitHub
+- **Email**: nanasboii@example.com (if applicable)
+- **Documentation**: See [VUE_MIGRATION.md](VUE_MIGRATION.md) for frontend migration status
+
+---
+
+**Made with ❤️ for the education community**

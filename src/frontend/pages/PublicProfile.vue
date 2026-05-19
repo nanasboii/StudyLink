@@ -68,66 +68,57 @@
   </main>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api.js'
-export default {
-  name: 'PublicProfile',
-  data() {
-    return {
-      profileData: {},
-      message: '',
-    }
-  },
-  computed: {
-    profile() {
-      const row = this.profileData || {}
-      const expertise = Array.isArray(row.expertise) ? row.expertise : []
 
-      return {
-        id: row.id,
-        fullName: String(row.fullName || 'Unknown User'),
-        role: String(row.role || 'tutee'),
-        profilePictureUrl: row.profilePictureUrl || '',
-        targetSubjects: row.targetSubjects || '',
-        major: row.major || '',
-        yearOfStudy: row.yearOfStudy || '',
-        totalAchievements: Number(row.totalAchievements || 0),
-        totalPoints: Number(row.totalPoints || 0),
-        rating: Number(row.rating || 0),
-        reviewsReceived: Number(row.reviewsReceived || 0),
-        isVerified: Boolean(row.isVerified),
-        bio: row.bio || '',
-        expertiseText: expertise.length ? expertise.join(', ') : 'N/A',
-      }
-    },
-  },
-  methods: {
-    roleLabel(role) {
-      const value = String(role || 'tutee').toLowerCase()
-      return value.charAt(0).toUpperCase() + value.slice(1)
-    },
-    async loadProfile() {
-      try {
-        const userId = this.$route.params.userId
-        const resp = await api(`/users/${userId}/public`)
-        this.profileData = resp.user || {}
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    goBack() {
-      this.$router.back()
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadProfile()
-  },
+const route = useRoute()
+const router = useRouter()
+
+const profileData = ref({})
+const message = ref('')
+
+const profile = computed(() => {
+  const row = profileData.value || {}
+  const expertise = Array.isArray(row.expertise) ? row.expertise : []
+  return {
+    id: row.id,
+    fullName: String(row.fullName || 'Unknown User'),
+    role: String(row.role || 'tutee'),
+    profilePictureUrl: row.profilePictureUrl || '',
+    targetSubjects: row.targetSubjects || '',
+    major: row.major || '',
+    yearOfStudy: row.yearOfStudy || '',
+    totalAchievements: Number(row.totalAchievements || 0),
+    totalPoints: Number(row.totalPoints || 0),
+    rating: Number(row.rating || 0),
+    reviewsReceived: Number(row.reviewsReceived || 0),
+    isVerified: Boolean(row.isVerified),
+    bio: row.bio || '',
+    expertiseText: expertise.length ? expertise.join(', ') : 'N/A',
+  }
+})
+
+const roleLabel = (role) => {
+  const value = String(role || 'tutee').toLowerCase()
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
+
+const loadProfile = async () => {
+  try {
+    const resp = await api(`/users/${route.params.userId}/public`)
+    profileData.value = resp.user || {}
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const goBack = () => router.back()
+
+onMounted(() => {
+  loadProfile()
+})
 </script>
 
 <style scoped>

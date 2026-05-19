@@ -43,44 +43,34 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
 import { api } from '@/api.js'
-export default {
-  name: 'AdminAnalytics',
-  data() {
-    return {
-      stats: {
-        totalUsers: 0,
-        verifiedTutors: 0,
-        activeBookings: 0,
-        totalResources: 0,
-        totalPoints: 0,
-        totalBadges: 0,
-      },
-      trends: [],
-      message: '',
-    }
-  },
-  methods: {
-    async loadAnalytics() {
-      try {
-        const resp = await api('/admin/analytics')
-        this.stats = resp.stats || {}
-        this.trends = resp.trends || []
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadAnalytics()
-  },
+
+const stats = ref({
+  totalUsers: 0,
+  verifiedTutors: 0,
+  activeBookings: 0,
+  totalResources: 0,
+  totalPoints: 0,
+  totalBadges: 0,
+})
+const trends = ref([])
+const message = ref('')
+
+const loadAnalytics = async () => {
+  try {
+    const resp = await api('/admin/analytics')
+    stats.value = resp.stats || stats.value
+    trends.value = resp.trends || []
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
+
+onMounted(() => {
+  loadAnalytics()
+})
 </script>
 
 <style scoped>

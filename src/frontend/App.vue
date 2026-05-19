@@ -1,6 +1,6 @@
 <template>
   <div class="phone-shell">
-    <Topbar v-if="isAuthenticated && currentPage !== 'login' && currentPage !== 'register'" ref="topbarRef" />
+    <Topbar v-if="isAuthenticated && !noTopbarPages.includes(currentPage)" ref="topbarRef" />
     <router-view />
   </div>
 </template>
@@ -16,6 +16,7 @@ const sessionToken = ref(getToken())
 const isAuthenticated = computed(() => !!sessionToken.value)
 const currentUser = computed(() => getUser())
 const currentPage = computed(() => router.currentRoute.value.name?.toLowerCase() || '')
+const noTopbarPages = ['login', 'register', 'forgotpassword', 'resetpassword']
 const showStreakModalOnMount = ref(false)
 const topbarRef = ref(null)
 

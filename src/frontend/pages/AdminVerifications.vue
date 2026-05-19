@@ -16,61 +16,61 @@
         </div>
         <p class="meta">{{ app.documentUrl }}</p>
         <div class="admin-app-actions">
-          <button v-if="app.status === 'PENDING'" @click="approveApplication(app.id)" class="chip" type="button">Approve</button>
-          <button v-if="app.status === 'PENDING'" @click="rejectApplication(app.id)" class="chip" type="button">Reject</button>
+          <button v-if="app.status === 'PENDING'" @click="decide(app.id, 'approved')" class="chip" type="button">Approve</button>
+          <button v-if="app.status === 'PENDING'" @click="decide(app.id, 'rejected')" class="chip" type="button">Reject</button>
+          <button v-if="app.status === 'PENDING'" @click="requestReupload(app.id)" class="chip" type="button">Request Re-upload</button>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue'
 import { api } from '@/api.js'
-export default {
-  name: 'AdminVerifications',
-  data() {
-    return {
-      applications: [],
-      message: '',
-    }
-  },
-  methods: {
-    async loadApplications() {
-      try {
-        const resp = await api('/admin/verifications')
-        this.applications = resp.applications || []
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async approveApplication(appId) {
-      try {
-        await api(`/admin/verifications/${appId}/approve`, 'PATCH')
-        this.message = 'Application approved!'
-        await this.loadApplications()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    async rejectApplication(appId) {
-      try {
-        await api(`/admin/verifications/${appId}/reject`, 'PATCH')
-        this.message = 'Application rejected.'
-        await this.loadApplications()
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-  },
-  mounted() {
-    const viewEl = document.querySelector('.view')
-    const topbar = document.querySelector('.topbar')
-    if (viewEl) {
-      viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-    }
-    this.loadApplications()
-  },
+
+const applications = ref([])
+const message = ref('')
+
+const loadApplications = async () => {
+  try {
+    const resp = await api('/admin/tutor-verifications')
+    applications.value = (resp.verifications || resp.applications || []).map(item => ({
+      id: item.id,
+      userName: item.user_name || item.userName || 'Unknown',
+      courseCode: item.course_code || item.courseCode || '',
+      createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : '',
+      status: (item.status || 'PENDING').toUpperCase(),
+      documentUrl: item.document_url || item.documentUrl || ''
+    }))
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
 }
+
+const decide = async (appId, decision) => {
+  try {
+    await api(`/admin/tutor-verifications/${appId}/decision`, 'POST', { decision })
+    message.value = decision === 'approved' ? 'Application approved!' : 'Application rejected.'
+    await loadApplications()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const requestReupload = async (appId) => {
+  try {
+    await api(`/admin/tutor-verifications/${appId}/request-reupload`, 'POST', {})
+    message.value = 'Re-upload requested.'
+    await loadApplications()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+onMounted(() => {
+  loadApplications()
+})
 </script>
 
 <style scoped>

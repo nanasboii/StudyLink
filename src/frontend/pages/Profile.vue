@@ -72,121 +72,95 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, onMounted } from 'vue'
 import { api, getToken, getUser, setSession } from '@/api.js'
 
-export default {
-  name: 'Profile',
-  data() {
-    const user = getUser() || {}
-    const normalizedUser = {
-      fullName:
-        user.fullName ||
-        [user.firstName, user.lastName].filter(Boolean).join(' ') ||
-        '',
-      email: user.email || '',
-      phoneNumber: user.phoneNumber || '',
-      major: user.major || '',
-      bio: user.bio || '',
-      studentId: user.studentId || '',
-      role: user.role || '',
-      points: Number(user.totalPoints ?? user.points ?? 0),
-      rating: Number(user.rating || 0),
-      isVerified: Boolean(user.isVerified),
-      profilePicture: user.profilePictureUrl || user.profilePicture || ''
-    }
+const normalizeUser = (user) => ({
+  fullName:
+    user.fullName ||
+    [user.firstName, user.lastName].filter(Boolean).join(' ') ||
+    '',
+  email: user.email || '',
+  phoneNumber: user.phoneNumber || '',
+  major: user.major || '',
+  bio: user.bio || '',
+  studentId: user.studentId || '',
+  role: user.role || '',
+  points: Number(user.totalPoints ?? user.points ?? 0),
+  rating: Number(user.rating || 0),
+  isVerified: Boolean(user.isVerified),
+  profilePicture: user.profilePictureUrl || user.profilePicture || '',
+})
 
-    return {
-      isEditing: false,
-      profileData: normalizedUser,
-      originalProfileData: { ...normalizedUser },
-      message: '',
-      avatarLoadFailed: false
-    }
-  },
-  computed: {
-    avatarSrc() {
-      if (this.avatarLoadFailed) return ''
-      return this.profileData.profilePicture || ''
-    },
-    profileInitials() {
-      const fullName = String(this.profileData.fullName || '').trim()
-      if (!fullName) return 'SL'
-      const parts = fullName.split(/\s+/).slice(0, 2)
-      return parts.map((part) => part.charAt(0).toUpperCase()).join('')
-    },
-    roleLabel() {
-      const role = String(this.profileData.role || '').trim()
-      if (!role) return 'Member'
-      return role.charAt(0).toUpperCase() + role.slice(1)
-    }
-  },
-  methods: {
-    normalizeUser(user) {
-      return {
-        fullName:
-          user.fullName ||
-          [user.firstName, user.lastName].filter(Boolean).join(' ') ||
-          '',
-        email: user.email || '',
-        phoneNumber: user.phoneNumber || '',
-        major: user.major || '',
-        bio: user.bio || '',
-        studentId: user.studentId || '',
-        role: user.role || '',
-        points: Number(user.totalPoints ?? user.points ?? 0),
-        rating: Number(user.rating || 0),
-        isVerified: Boolean(user.isVerified),
-        profilePicture: user.profilePictureUrl || user.profilePicture || ''
-      }
-    },
-    async loadProfile() {
-      try {
-        const resp = await api('/me')
-        const normalized = this.normalizeUser(resp.user || {})
-        this.profileData = normalized
-        this.originalProfileData = { ...normalized }
-        this.avatarLoadFailed = false
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    },
-    toggleEdit() {
-      if (this.isEditing) {
-        this.profileData = { ...this.originalProfileData }
-      }
-      this.isEditing = !this.isEditing
-    },
-    async saveProfile() {
-      try {
-        const payload = {
-          fullName: this.profileData.fullName,
-          phoneNumber: this.profileData.phoneNumber,
-          major: this.profileData.major,
-          bio: this.profileData.bio
-        }
+const initialUser = getUser() || {}
+const profileData = ref(normalizeUser(initialUser))
+const originalProfileData = ref({ ...profileData.value })
+const isEditing = ref(false)
+const message = ref('')
+const avatarLoadFailed = ref(false)
 
-        const resp = await api('/me/profile', 'PUT', payload)
-        const normalized = this.normalizeUser(resp.user || this.profileData)
-        this.profileData = normalized
-        this.originalProfileData = { ...normalized }
+const avatarSrc = computed(() => {
+  if (avatarLoadFailed.value) return ''
+  return profileData.value.profilePicture || ''
+})
 
-        const token = getToken()
-        if (token && resp.user) {
-          setSession(token, resp.user)
-        }
+const profileInitials = computed(() => {
+  const fullName = String(profileData.value.fullName || '').trim()
+  if (!fullName) return 'SL'
+  const parts = fullName.split(/\s+/).slice(0, 2)
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('')
+})
 
-        this.message = 'Profile updated!'
-        this.isEditing = false
-      } catch (err) {
-        this.message = `Error: ${err.message}`
-      }
-    }
-  },
-  mounted() {
-    this.loadProfile()
+const roleLabel = computed(() => {
+  const role = String(profileData.value.role || '').trim()
+  if (!role) return 'Member'
+  return role.charAt(0).toUpperCase() + role.slice(1)
+})
+
+const loadProfile = async () => {
+  try {
+    const resp = await api('/me')
+    const normalized = normalizeUser(resp.user || {})
+    profileData.value = normalized
+    originalProfileData.value = { ...normalized }
+    avatarLoadFailed.value = false
+  } catch (err) {
+    message.value = `Error: ${err.message}`
   }
 }
+
+const toggleEdit = () => {
+  if (isEditing.value) {
+    profileData.value = { ...originalProfileData.value }
+  }
+  isEditing.value = !isEditing.value
+}
+
+const saveProfile = async () => {
+  try {
+    const payload = {
+      fullName: profileData.value.fullName,
+      phoneNumber: profileData.value.phoneNumber,
+      major: profileData.value.major,
+      bio: profileData.value.bio,
+    }
+    const resp = await api('/me/profile', 'PUT', payload)
+    const normalized = normalizeUser(resp.user || profileData.value)
+    profileData.value = normalized
+    originalProfileData.value = { ...normalized }
+    const token = getToken()
+    if (token && resp.user) setSession(token, resp.user)
+    message.value = 'Profile updated!'
+    isEditing.value = false
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+onMounted(() => {
+  loadProfile()
+})
 </script>
 
 <style scoped>

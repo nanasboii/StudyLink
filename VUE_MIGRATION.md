@@ -48,33 +48,42 @@ src/
 
 ## Pages to Migrate
 
-All 18 pages have placeholder components ready:
-- [ ] Login.vue - Basic login form structure
-- [ ] Register.vue
-- [ ] Resources.vue
-- [ ] Tutors.vue
-- [ ] Review.vue
-- [ ] Leaderboards.vue
-- [ ] Session.vue
-- [ ] Verification.vue
-- [ ] AdminVerifications.vue
-- [ ] AdminResources.vue
-- [ ] AdminAnalytics.vue
-- [ ] AdminActivity.vue
-- [ ] AdminErrors.vue
-- [ ] Notifications.vue
-- [ ] Achievements.vue
-- [ ] Profile.vue
-- [ ] PublicProfile.vue
-- [ ] ResourceDetail.vue
+All 21 pages are fully migrated to Vue 3 `<script setup>`:
 
-## Next Steps
+- [x] Login.vue — `<script setup>`, full UNIMAS-branded UI, auth flow
+- [x] Register.vue — `<script setup>`, role-based fields, validation
+- [x] ForgotPassword.vue — `<script setup>`, request reset email
+- [x] ResetPassword.vue — `<script setup>`, reads token from query param
+- [x] Resources.vue — `<script setup>`, search, Shopee-style filter panel, upload modal, pagination
+- [x] ResourceDetail.vue — `<script setup>`, metadata, download, reviews
+- [x] Tutors.vue — `<script setup>`, search, skill chips, booking modal
+- [x] Review.vue — `<script setup>`, completed bookings list, review form, pre-fills bookingId from route
+- [x] Session.vue — `<script setup>`, role-based (tutor availability / tutee booking), session list
+- [x] Verification.vue — `<script setup>`, file upload, applications list, status notifications
+- [x] Leaderboards.vue — `<script setup>`, tabs (overall/tutor/tutee), rank cards, links to PublicProfile
+- [x] Profile.vue — `<script setup>`, hero card, edit mode, avatar with initials fallback
+- [x] PublicProfile.vue — `<script setup>`, public stats card, back navigation
+- [x] Settings.vue — `<script setup>`, 2FA toggle, change password modal, delete account modal
+- [x] Notifications.vue — `<script setup>`, filter (all/unread), relative timestamps, load more
+- [x] Achievements.vue — `<script setup>`, badge grid, progress bars, points display
+- [x] AdminVerifications.vue — `<script setup>`, approve/reject/re-upload, correct API endpoint
+- [x] AdminResources.vue — `<script setup>`, search, delete
+- [x] AdminAnalytics.vue — `<script setup>`, stats grid, 7-day trends
+- [x] AdminActivity.vue — `<script setup>`, searchable activity logs
+- [x] AdminErrors.vue — `<script setup>`, searchable error logs with status badges
 
-1. **Complete Login/Register pages** with API integration
-2. **Migrate Resources page** with search, filters, upload
-3. **Add state management** (Pinia) for shared data
-4. **Migrate remaining pages** one by one
-5. **Build for production**: `npm run build`
+## Bug Fixes Applied
+
+- **Router**: `/review/:resourceId?` — optional param so `/review` (no ID) still matches
+- **Router guard**: `beforeEach` now enforces `requiresAdmin` meta — non-admin users are redirected to `/resources`
+- **App.vue**: Topbar is now hidden on ForgotPassword and ResetPassword routes
+- **AdminVerifications**: Fixed wrong endpoint (`/admin/verifications` → `/admin/tutor-verifications`)
+- **routes.js PAGES**: Fixed all admin paths (`/admin-verifications` → `/admin/verifications`, etc.)
+- **Settings**: Fixed wrong endpoint (`/auth/change-password` → `PUT /me/password`)
+
+## Migration Status: ✅ Complete
+
+All pages migrated. No Options API components remain in `src/frontend/pages/`.
 
 ## API Integration
 

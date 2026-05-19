@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#1B5E20"/>
+    </radialGradient>
+  </defs>
+  <circle cx="40" cy="40" r="38" fill="url(#bg)"/>
+  <circle cx="40" cy="40" r="38" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+  <!-- Sparkle star -->
+  <polygon points="40,20 43.5,32.5 56,36 43.5,39.5 40,52 36.5,39.5 24,36 36.5,32.5" fill="white" opacity="0.95"/>
+  <!-- Small accent dots -->
+  <circle cx="57" cy="23" r="3.5" fill="white" opacity="0.55"/>
+  <circle cx="23" cy="23" r="2.5" fill="white" opacity="0.4"/>
+  <circle cx="58" cy="55" r="2" fill="white" opacity="0.35"/>
+</svg>
