@@ -35,6 +35,18 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+function getMailFrom(displayName = 'StudyLink') {
+  const smtpFrom = String(process.env.SMTP_FROM || '').trim();
+  const smtpUser = String(process.env.SMTP_USER || '').trim();
+  const candidate = smtpFrom || smtpUser;
+
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidate)) {
+    return `"${displayName}" <${candidate}>`;
+  }
+
+  return `"${displayName}" <noreply@studylink.up.railway.app>`;
+}
+
 function getFrontendOrigin(req) {
   const liveOrigin = 'https://studylink.up.railway.app';
 
@@ -1122,7 +1134,7 @@ app.get('/health', async (req, res) => {
     try {
       console.log(`Sending test email to ${email}...`);
       const info = await transporter.sendMail({
-        from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+        from: getMailFrom('StudyLink Security'),
         to: email,
         subject: 'StudyLink Test Email',
         text: 'This is a test email from StudyLink. If you received this, your email configuration is working correctly!',
@@ -1249,7 +1261,7 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
       try {
         console.log(`Sending OTP email to ${user.email}...`);
         const info = await transporter.sendMail({
-          from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+          from: getMailFrom('StudyLink Security'),
           to: user.email,
           subject: 'Your StudyLink Login OTP',
           text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
@@ -1518,7 +1530,7 @@ app.post('/auth/forgot-password', authRateLimiter, async (req, res) => {
       const resetUrl = `${getFrontendOrigin(req)}/reset-password?token=${token}`;
       console.log(`Sending password reset email to ${user.email} with url ${resetUrl}`);
       const info = await transporter.sendMail({
-        from: process.env.SMTP_FROM || '"StudyLink" <noreply@studylink.local>',
+        from: getMailFrom('StudyLink'),
         to: user.email,
         subject: 'StudyLink Password Reset',
         text: `Click the link to reset your password: ${resetUrl}`,
@@ -1600,7 +1612,7 @@ app.post('/auth/resend-otp', authRateLimiter, async (req, res) => {
     try {
       console.log(`Resending OTP email to ${user.email}...`);
       const info = await transporter.sendMail({
-        from: `"StudyLink Security" <${process.env.SMTP_FROM}>`,
+        from: getMailFrom('StudyLink Security'),
         to: user.email,
         subject: 'Your StudyLink Login OTP (Resent)',
         text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
