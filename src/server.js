@@ -35,8 +35,23 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-function getFrontendOrigin() {
+function getFrontendOrigin(req) {
   const liveOrigin = 'https://studylink.up.railway.app';
+
+  if (process.env.NODE_ENV === 'production' && req) {
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').trim();
+    const hostHeader = String(req.headers.host || '').trim();
+    const originHeader = String(req.headers.origin || '').trim();
+    const candidate = forwardedHost || hostHeader || originHeader;
+
+    if (candidate) {
+      const normalizedCandidate = candidate.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (!/localhost|127\.0\.0\.1/.test(normalizedCandidate)) {
+        return candidate.startsWith('http') ? candidate.replace(/\/$/, '') : `https://${normalizedCandidate}`;
+      }
+    }
+  }
+
   const configuredOrigin =
     process.env.FRONTEND_ORIGIN ||
     process.env.RAILWAY_STATIC_URL ||
@@ -1500,7 +1515,7 @@ app.post('/auth/forgot-password', authRateLimiter, async (req, res) => {
     await client.query('COMMIT');
 
     try {
-      const resetUrl = `${getFrontendOrigin()}/reset-password?token=${token}`;
+      const resetUrl = `${getFrontendOrigin(req)}/reset-password?token=${token}`;
       console.log(`Sending password reset email to ${user.email} with url ${resetUrl}`);
       const info = await transporter.sendMail({
         from: process.env.SMTP_FROM || '"StudyLink" <noreply@studylink.local>',
