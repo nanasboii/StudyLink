@@ -48,12 +48,10 @@ src/
 
 ## Pages to Migrate
 
-All 21 pages are fully migrated to Vue 3 `<script setup>`:
+All active pages are fully migrated to Vue 3 `<script setup>`:
 
 - [x] Login.vue — `<script setup>`, full UNIMAS-branded UI, auth flow
 - [x] Register.vue — `<script setup>`, role-based fields, validation
-- [x] ForgotPassword.vue — `<script setup>`, request reset email
-- [x] ResetPassword.vue — `<script setup>`, reads token from query param
 - [x] Resources.vue — `<script setup>`, search, Shopee-style filter panel, upload modal, pagination
 - [x] ResourceDetail.vue — `<script setup>`, metadata, download, reviews
 - [x] Tutors.vue — `<script setup>`, search, skill chips, booking modal
@@ -76,7 +74,6 @@ All 21 pages are fully migrated to Vue 3 `<script setup>`:
 
 - **Router**: `/review/:resourceId?` — optional param so `/review` (no ID) still matches
 - **Router guard**: `beforeEach` now enforces `requiresAdmin` meta — non-admin users are redirected to `/resources`
-- **App.vue**: Topbar is now hidden on ForgotPassword and ResetPassword routes
 - **AdminVerifications**: Fixed wrong endpoint (`/admin/verifications` → `/admin/tutor-verifications`)
 - **routes.js PAGES**: Fixed all admin paths (`/admin-verifications` → `/admin/verifications`, etc.)
 - **Settings**: Fixed wrong endpoint (`/auth/change-password` → `PUT /me/password`)

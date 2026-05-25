@@ -28,6 +28,16 @@ export default defineConfig(({ mode }) => {
               console.error('Proxy error:', err.message);
             });
           }
+        },
+        '/uploads': {
+          target: `http://localhost:${apiPort}`,
+          changeOrigin: true,
+          ws: true,
+          configure: (proxy) => {
+            proxy.on('error', (err, req, res) => {
+              console.error('Uploads proxy error:', err.message);
+            });
+          }
         }
       }
     },

@@ -8,7 +8,7 @@
             :src="avatarSrc"
             alt="Profile picture"
             class="profile-pic"
-            @error="avatarLoadFailed = true"
+            @error="handleAvatarRenderError"
           />
           <div v-else class="profile-avatar-fallback" aria-label="Profile initials">{{ profileInitials }}</div>
           <div class="profile-pic-overlay" :class="{ visible: isAvatarHovered }">
@@ -91,6 +91,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { api, getToken, getUser, setSession } from '@/api.js'
 
+const normalizeProfilePictureUrl = (rawUrl) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
+  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+}
+
 const normalizeUser = (user) => ({
   fullName:
     user.fullName ||
@@ -105,7 +112,9 @@ const normalizeUser = (user) => ({
   points: Number(user.totalPoints ?? user.points ?? 0),
   rating: Number(user.rating || 0),
   isVerified: Boolean(user.isVerified),
-  profilePicture: user.profilePictureUrl || user.profilePicture || '',
+  profilePicture: normalizeProfilePictureUrl(
+    user.profilePictureUrl || user.profile_picture_url || user.profilePicture || user.profile_picture || ''
+  ),
 })
 
 const initialUser = getUser() || {}
@@ -117,10 +126,54 @@ const avatarLoadFailed = ref(false)
 const isAvatarHovered = ref(false)
 const uploadingProfilePicture = ref(false)
 const profilePictureInput = ref(null)
+const avatarVersion = ref(Date.now())
+const pendingAvatarPreview = ref('')
+const pendingAvatarServerUrl = ref('')
+
+const buildVersionedUrl = (rawUrl, version = Date.now()) => {
+  const src = normalizeProfilePictureUrl(rawUrl)
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
+  const separator = src.includes('?') ? '&' : '?'
+  return `${src}${separator}v=${version}`
+}
+
+const clearPendingAvatarPreview = () => {
+  if (pendingAvatarPreview.value && pendingAvatarPreview.value.startsWith('blob:')) {
+    URL.revokeObjectURL(pendingAvatarPreview.value)
+  }
+  pendingAvatarPreview.value = ''
+  pendingAvatarServerUrl.value = ''
+}
+
+const waitForImageAvailability = async (rawUrl, attempts = 12, delayMs = 250) => {
+  const src = normalizeProfilePictureUrl(rawUrl)
+  if (!src) return false
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const canLoad = await new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => resolve(true)
+      img.onerror = () => resolve(false)
+      img.src = buildVersionedUrl(src, Date.now())
+    })
+
+    if (canLoad) return true
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+
+  return false
+}
+
+const handleAvatarRenderError = () => {
+  // When upload just finished, keep showing local preview until server file becomes reachable.
+  if (pendingAvatarPreview.value) return
+  avatarLoadFailed.value = true
+}
 
 const avatarSrc = computed(() => {
+  if (pendingAvatarPreview.value) return pendingAvatarPreview.value
   if (avatarLoadFailed.value) return ''
-  return profileData.value.profilePicture || ''
+  return buildVersionedUrl(profileData.value.profilePicture, avatarVersion.value)
 })
 
 const profileInitials = computed(() => {
@@ -142,6 +195,7 @@ const loadProfile = async () => {
     const normalized = normalizeUser(resp.user || {})
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
+    avatarVersion.value = Date.now()
     avatarLoadFailed.value = false
   } catch (err) {
     message.value = `Error: ${err.message}`
@@ -167,6 +221,7 @@ const saveProfile = async () => {
     const normalized = normalizeUser(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
+    avatarVersion.value = Date.now()
     const token = getToken()
     if (token && resp.user) setSession(token, resp.user)
     message.value = 'Profile updated!'
@@ -190,18 +245,29 @@ const uploadProfilePicture = async (file) => {
     headers.Authorization = `Bearer ${token}`
   }
 
-  const response = await fetch('/api/uploads/profile-picture', {
-    method: 'POST',
-    headers,
-    body: formData,
-  })
+  const uploadUrls = ['/api/uploads/profile-picture', '/uploads/profile-picture']
+  let lastError = null
 
-  if (!response.ok) {
+  for (let index = 0; index < uploadUrls.length; index += 1) {
+    const response = await fetch(uploadUrls[index], {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    if (response.ok) {
+      return response.json()
+    }
+
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || `HTTP ${response.status}`)
+    lastError = new Error(error.message || `HTTP ${response.status}`)
+    if (index < uploadUrls.length - 1 && response.status === 404) {
+      continue
+    }
+    throw lastError
   }
 
-  return response.json()
+  throw lastError || new Error('Upload failed')
 }
 
 const handleProfilePictureSelected = async (event) => {
@@ -209,18 +275,33 @@ const handleProfilePictureSelected = async (event) => {
   event.target.value = ''
   if (!file) return
 
+  clearPendingAvatarPreview()
+  pendingAvatarPreview.value = URL.createObjectURL(file)
+  avatarLoadFailed.value = false
+  avatarVersion.value = Date.now()
   uploadingProfilePicture.value = true
   try {
     const uploadResult = await uploadProfilePicture(file)
-    const resp = await api('/me/profile', 'PUT', { profilePictureUrl: uploadResult.fileUrl })
+    const uploadedUrl = normalizeProfilePictureUrl(uploadResult.fileUrl || uploadResult.file_url || '')
+    const resp = await api('/me/profile', 'PUT', { profilePictureUrl: uploadedUrl })
     const normalized = normalizeUser(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
     const token = getToken()
     if (token && resp.user) setSession(token, resp.user)
+
+    // Keep local preview until the new server image is actually reachable.
+    pendingAvatarServerUrl.value = normalizeProfilePictureUrl(normalized.profilePicture || uploadedUrl)
+    const avatarReady = await waitForImageAvailability(pendingAvatarServerUrl.value)
+    if (avatarReady) {
+      clearPendingAvatarPreview()
+      avatarVersion.value = Date.now()
+    }
+
     avatarLoadFailed.value = false
     message.value = 'Profile picture updated!'
   } catch (err) {
+    clearPendingAvatarPreview()
     message.value = `Error: ${err.message}`
   } finally {
     uploadingProfilePicture.value = false
@@ -230,10 +311,12 @@ const handleProfilePictureSelected = async (event) => {
 const removeProfilePicture = async () => {
   uploadingProfilePicture.value = true
   try {
+    clearPendingAvatarPreview()
     const resp = await api('/me/profile', 'PUT', { removeProfilePicture: true })
     const normalized = normalizeUser(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
+    avatarVersion.value = Date.now()
     const token = getToken()
     if (token && resp.user) setSession(token, resp.user)
     avatarLoadFailed.value = false

@@ -17,7 +17,17 @@
     </div>
     <div class="topbar-actions">
       <button class="icon-btn streak-btn" @click="showStreakModal" title="Login streak">
-        <svg viewBox="0 0 24 24"><path d="M12 2c5.33 4.55 8 8.48 8 11.8 0 4.98-3.8 8.2-8 8.2s-8-3.22-8-8.2C4 10.48 6.67 6.55 12 2z" fill="#3f6f57"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="17" rx="3" fill="#c41e3a"/>
+          <rect x="3" y="8" width="18" height="3" fill="#ffb7c5"/>
+          <rect x="7" y="2" width="2" height="4" rx="1" fill="#8d1630"/>
+          <rect x="15" y="2" width="2" height="4" rx="1" fill="#8d1630"/>
+          <rect x="6" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
+          <rect x="10.9" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
+          <rect x="15.8" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
+          <rect x="6" y="16.6" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
+          <rect x="10.9" y="16.6" width="7.1" height="2.2" rx="1" fill="#ffdce6"/>
+        </svg>
         <span class="streak-btn-badge" v-if="streakCount">{{ streakCount }}</span>
       </button>
       <button class="icon-btn notify-btn" @click="navigateToNotifications" title="Notifications">
@@ -128,7 +138,8 @@ export default {
   name: 'Topbar',
   setup() {
     const router = useRouter()
-    const currentUser = computed(() => getUser())
+    const currentUserState = ref(getUser())
+    const currentUser = computed(() => currentUserState.value)
     const homeRoute = '/resources'
     const streakCount = ref(0)
     const unreadCount = ref(0)
@@ -261,6 +272,10 @@ export default {
       }
     }
 
+    const syncCurrentUser = () => {
+      currentUserState.value = getUser()
+    }
+
     const toggleRoute = async (targetPath) => {
       if (router.currentRoute.value.path === targetPath) {
         await goHome()
@@ -331,6 +346,10 @@ export default {
     }
 
     onMounted(async () => {
+      window.addEventListener('studylink-session-changed', syncCurrentUser)
+      window.addEventListener('studylink-profile-updated', syncCurrentUser)
+      window.addEventListener('storage', syncCurrentUser)
+
       if (currentUser.value) {
         streakCount.value = currentUser.value.login_streak || 0
         await loadUnreadNotifications()
@@ -345,6 +364,9 @@ export default {
     })
 
     onUnmounted(() => {
+      window.removeEventListener('studylink-session-changed', syncCurrentUser)
+      window.removeEventListener('studylink-profile-updated', syncCurrentUser)
+      window.removeEventListener('storage', syncCurrentUser)
       window.removeEventListener('studylink-notifications-changed', loadUnreadNotifications)
     })
 

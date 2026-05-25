@@ -42,18 +42,30 @@ export function getUser() {
 
 export function setSession(token, user) {
   localStorage.setItem(TOKEN_KEY, token)
+  let nextUser = null
   if (user && typeof user === 'object') {
     localStorage.setItem(USER_KEY, JSON.stringify(user))
+    nextUser = user
   } else {
     localStorage.removeItem(USER_KEY)
   }
-  window.dispatchEvent(new Event('studylink-session-changed'))
+  window.dispatchEvent(new CustomEvent('studylink-session-changed', {
+    detail: { token, user: nextUser }
+  }))
+
+  if (nextUser) {
+    window.dispatchEvent(new CustomEvent('studylink-profile-updated', {
+      detail: { user: nextUser }
+    }))
+  }
 }
 
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
-  window.dispatchEvent(new Event('studylink-session-changed'))
+  window.dispatchEvent(new CustomEvent('studylink-session-changed', {
+    detail: { token: '', user: null }
+  }))
 }
 
 export function requireSession() {

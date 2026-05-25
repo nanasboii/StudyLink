@@ -35,7 +35,18 @@
             
             <div class="leaderboard-content">
               <div class="profile-section">
-                <img :src="entry.profilePictureUrl || '/default-avatar.svg'" :alt="entry.fullName" class="profile-pic" />
+                <img
+                  v-if="hasProfilePicture(entry)"
+                  :src="resolveProfilePictureUrl(entry.profilePictureUrl)"
+                  :alt="`${entry.fullName} profile picture`"
+                  class="profile-pic"
+                  @error="handleAvatarError(entry)"
+                />
+                <div v-else class="profile-pic profile-pic-fallback" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img">
+                    <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+                  </svg>
+                </div>
                 <div class="profile-info">
                   <div class="profile-name">
                     <strong>{{ entry.fullName }}</strong>
@@ -73,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api.js'
 
@@ -81,13 +92,36 @@ const router = useRouter()
 
 const activeBoard = ref('overall')
 const leaderboardState = ref([])
+const avatarLoadErrors = ref({})
+
+const getAvatarKey = (entry) => String(entry.id || entry.fullName || '')
+
+const resolveProfilePictureUrl = (rawUrl) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
+  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+}
+
+const hasProfilePicture = (entry) => {
+  const key = getAvatarKey(entry)
+  return !!resolveProfilePictureUrl(entry.profilePictureUrl) && !avatarLoadErrors.value[key]
+}
+
+const handleAvatarError = (entry) => {
+  const key = getAvatarKey(entry)
+  avatarLoadErrors.value = {
+    ...avatarLoadErrors.value,
+    [key]: true
+  }
+}
 
 const normalizedLeaderboard = computed(() =>
   (leaderboardState.value || []).map((entry) => ({
     id: entry.id,
     fullName: String(entry.fullName || 'Unknown User'),
     role: String(entry.role || 'tutee'),
-    profilePictureUrl: entry.profilePictureUrl || entry.profilePicture || '',
+    profilePictureUrl: entry.profilePictureUrl || entry.profile_picture_url || entry.profilePicture || entry.profile_picture || '',
     totalAchievements: Number(entry.totalAchievements || entry.achievementCount || 0),
     totalPoints: Number(entry.totalPoints || entry.points || 0),
     rating: Number(entry.rating || 0),
@@ -133,6 +167,7 @@ const refreshLeaderboard = async () => {
   try {
     const resp = await api('/leaderboard')
     leaderboardState.value = resp.leaderboard || []
+    avatarLoadErrors.value = {}
   } catch (err) {
     console.error('Failed to load leaderboard:', err)
   }
@@ -140,6 +175,11 @@ const refreshLeaderboard = async () => {
 
 onMounted(() => {
   refreshLeaderboard()
+  window.addEventListener('studylink-profile-updated', refreshLeaderboard)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('studylink-profile-updated', refreshLeaderboard)
 })
 </script>
 
@@ -299,6 +339,21 @@ onMounted(() => {
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.profile-pic-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff4f8;
+  color: #c41e3a;
+  border: 1px solid #f0c4d1;
+}
+
+.profile-pic-fallback svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 .profile-info {

@@ -79,7 +79,17 @@
               @click="selectTutor(tutor)"
             >
               <div class="tutor-avatar">
-                <img :src="tutor.profile_picture_url || defaultProfilePic" :alt="tutor.full_name" />
+                <img
+                  v-if="hasTutorAvatar(tutor)"
+                  :src="resolveTutorAvatar(tutor.profile_picture_url)"
+                  :alt="`${tutor.full_name} profile picture`"
+                  @error="markTutorAvatarError(tutor)"
+                />
+                <div v-else class="tutor-avatar-fallback" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="img">
+                    <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+                  </svg>
+                </div>
               </div>
               <div class="tutor-card-body">
                 <div class="tutor-card-header">
@@ -111,7 +121,18 @@
             <button class="modal-close" @click="selectedTutorData = null">×</button>
             
             <div class="tutor-profile-header">
-              <img :src="selectedTutorData.profile_picture_url || defaultProfilePic" :alt="selectedTutorData.full_name" class="profile-pic" />
+              <img
+                v-if="hasTutorAvatar(selectedTutorData)"
+                :src="resolveTutorAvatar(selectedTutorData.profile_picture_url)"
+                :alt="`${selectedTutorData.full_name} profile picture`"
+                class="profile-pic"
+                @error="markTutorAvatarError(selectedTutorData)"
+              />
+              <div v-else class="profile-pic profile-pic-fallback" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+                </svg>
+              </div>
               <div class="tutor-profile-info">
                 <h2>{{ selectedTutorData.full_name }}</h2>
                 <p class="role-badge">
@@ -188,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser } from '@/api.js'
 
@@ -205,8 +226,31 @@ const visibleCount = ref(10)
 const pageSize = 10
 const selectedTutorData = ref(null)
 const tutorReviews = ref([])
+const tutorAvatarErrors = ref({})
 
-const defaultProfilePic = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E"
+const tutorAvatarKey = (tutor) => String(tutor?.id || tutor?.full_name || '')
+
+const resolveTutorAvatar = (rawUrl) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
+  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+}
+
+const hasTutorAvatar = (tutor) => {
+  const key = tutorAvatarKey(tutor)
+  const raw = tutor?.profile_picture_url || tutor?.profilePictureUrl || tutor?.profilePicture || ''
+  return !!resolveTutorAvatar(raw) && !tutorAvatarErrors.value[key]
+}
+
+const markTutorAvatarError = (tutor) => {
+  const key = tutorAvatarKey(tutor)
+  if (!key) return
+  tutorAvatarErrors.value = {
+    ...tutorAvatarErrors.value,
+    [key]: true
+  }
+}
 
 const popularSkills = ['Java', 'Python', 'Database', 'Web Dev', 'C++', 'Mobile Dev']
 
@@ -259,6 +303,7 @@ const loadTutors = async () => {
     isLoading.value = true
     const data = await api('/tutors')
     tutors.value = data.tutors || []
+    tutorAvatarErrors.value = {}
   } catch (error) {
     console.error('Failed to load tutors:', error)
   } finally {
@@ -302,6 +347,11 @@ onMounted(() => {
     viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
   }
   loadTutors()
+  window.addEventListener('studylink-profile-updated', loadTutors)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('studylink-profile-updated', loadTutors)
 })
 </script>
 
@@ -509,13 +559,29 @@ onMounted(() => {
   height: 60px;
   border-radius: 50%;
   overflow: hidden;
-  background: #f0f0f0;
+  background: #fff4f8;
+  border: 1px solid #f0c4d1;
 }
 
 .tutor-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.tutor-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c41e3a;
+}
+
+.tutor-avatar-fallback svg {
+  width: 30px;
+  height: 30px;
+  fill: currentColor;
 }
 
 .tutor-card-body {
@@ -623,6 +689,21 @@ onMounted(() => {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+}
+
+.profile-pic-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff4f8;
+  color: #c41e3a;
+  border: 1px solid #f0c4d1;
+}
+
+.profile-pic-fallback svg {
+  width: 42px;
+  height: 42px;
+  fill: currentColor;
 }
 
 .tutor-profile-info h2 {
@@ -763,4 +844,3 @@ onMounted(() => {
   }
 }
 </style>
-

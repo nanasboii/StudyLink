@@ -11,7 +11,18 @@
 
       <div v-if="profile.id" class="card public-profile-card">
         <div class="public-profile-top">
-          <img :src="profile.profilePictureUrl || '/default-avatar.svg'" alt="Profile picture" class="public-profile-pic" />
+          <img
+            v-if="normalizedProfilePictureUrl && !profileAvatarError"
+            :src="normalizedProfilePictureUrl"
+            alt="Profile picture"
+            class="public-profile-pic"
+            @error="profileAvatarError = true"
+          />
+          <div v-else class="public-profile-pic public-profile-pic-fallback" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+            </svg>
+          </div>
           <div>
             <h3>{{ profile.fullName }}</h3>
             <p class="public-profile-role">{{ roleLabel(profile.role) }}</p>
@@ -78,6 +89,14 @@ const router = useRouter()
 
 const profileData = ref({})
 const message = ref('')
+const profileAvatarError = ref(false)
+
+const normalizeProfilePictureUrl = (rawUrl) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
+  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+}
 
 const profile = computed(() => {
   const row = profileData.value || {}
@@ -86,7 +105,7 @@ const profile = computed(() => {
     id: row.id,
     fullName: String(row.fullName || 'Unknown User'),
     role: String(row.role || 'tutee'),
-    profilePictureUrl: row.profilePictureUrl || '',
+    profilePictureUrl: row.profilePictureUrl || row.profile_picture_url || row.profilePicture || row.profile_picture || '',
     targetSubjects: row.targetSubjects || '',
     major: row.major || '',
     yearOfStudy: row.yearOfStudy || '',
@@ -100,6 +119,8 @@ const profile = computed(() => {
   }
 })
 
+const normalizedProfilePictureUrl = computed(() => normalizeProfilePictureUrl(profile.value.profilePictureUrl))
+
 const roleLabel = (role) => {
   const value = String(role || 'tutee').toLowerCase()
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -107,6 +128,7 @@ const roleLabel = (role) => {
 
 const loadProfile = async () => {
   try {
+    profileAvatarError.value = false
     const resp = await api(`/users/${route.params.userId}/public`)
     profileData.value = resp.user || {}
   } catch (err) {
@@ -196,6 +218,21 @@ onMounted(() => {
   border: 1px solid #efc9d4;
   object-fit: cover;
   background: #fff6f8;
+}
+
+.public-profile-pic-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff4f8;
+  color: #c41e3a;
+  border: 1px solid #f0c4d1;
+}
+
+.public-profile-pic-fallback svg {
+  width: 52px;
+  height: 52px;
+  fill: currentColor;
 }
 
 .public-profile-top h3 {

@@ -21,16 +21,12 @@ const Redeem = () => import('../pages/Redeem.vue')
 const Messages = () => import('../pages/Messages.vue')
 const Profile = () => import('../pages/Profile.vue')
 const Settings = () => import('../pages/Settings.vue')
-const ForgotPassword = () => import('../pages/ForgotPassword.vue')
-const ResetPassword = () => import('../pages/ResetPassword.vue')
 const PublicProfile = () => import('../pages/PublicProfile.vue')
 const ResourceDetail = () => import('../pages/ResourceDetail.vue')
 
 const routes = [
   { path: '/login', component: Login, name: 'Login' },
   { path: '/register', component: Register, name: 'Register' },
-  { path: '/forgot-password', component: ForgotPassword, name: 'ForgotPassword' },
-  { path: '/reset-password', component: ResetPassword, name: 'ResetPassword' },
   { path: '/resources', component: Resources, name: 'Resources', meta: { requiresAuth: true } },
   { path: '/tutors', component: Tutors, name: 'Tutors', meta: { requiresAuth: true } },
   { path: '/review/:resourceId?', component: Review, name: 'Review', meta: { requiresAuth: true } },

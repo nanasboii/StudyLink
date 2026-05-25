@@ -16,7 +16,7 @@ const sessionToken = ref(getToken())
 const isAuthenticated = computed(() => !!sessionToken.value)
 const currentUser = computed(() => getUser())
 const currentPage = computed(() => router.currentRoute.value.name?.toLowerCase() || '')
-const noTopbarPages = ['login', 'register', 'forgotpassword', 'resetpassword']
+const noTopbarPages = ['login', 'register']
 const showStreakModalOnMount = ref(false)
 const topbarRef = ref(null)
 
@@ -37,7 +37,7 @@ onMounted(async () => {
   // If not authenticated, redirect to login
   if (
     !isAuthenticated.value &&
-    !['Login', 'Register', 'ForgotPassword', 'ResetPassword'].includes(router.currentRoute.value.name)
+    !['Login', 'Register'].includes(router.currentRoute.value.name)
   ) {
     router.push('/login')
     return

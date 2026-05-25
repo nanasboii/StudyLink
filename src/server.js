@@ -420,6 +420,7 @@ function sanitizeLeaderboardEntry(row) {
     id: row.id,
     fullName: row.full_name,
     role: row.role,
+    profilePictureUrl: row.profile_picture_url,
     totalPoints: Number(row.total_points || 0),
     isVerified: Boolean(row.is_verified),
     rating: Number(row.rating || 0),
@@ -741,8 +742,6 @@ async function initializeDatabase() {
         two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
         otp_code VARCHAR(10),
         otp_expires_at TIMESTAMP,
-        password_reset_token VARCHAR(128),
-        password_reset_expires_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -765,10 +764,10 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
 
       ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(128);
+        DROP COLUMN IF EXISTS password_reset_token;
 
       ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMP;
+        DROP COLUMN IF EXISTS password_reset_expires_at;
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
@@ -1496,84 +1495,6 @@ app.post('/auth/verify-otp', authRateLimiter, async (req, res) => {
   }
 });
 
-app.post('/auth/forgot-password', authRateLimiter, async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: 'email is required.' });
-
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-
-    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
-      email.toLowerCase()
-    ]);
-
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      // Do not reveal whether the email exists
-      return res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
-    }
-
-    const user = rows[0];
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    await client.query(
-      'UPDATE users SET password_reset_token = $1, password_reset_expires_at = $2 WHERE id = $3',
-      [token, expiresAt, user.id]
-    );
-
-    await client.query('COMMIT');
-
-    try {
-      const resetUrl = `${getFrontendOrigin(req)}/reset-password?token=${token}`;
-      console.log(`Sending password reset email to ${user.email} with url ${resetUrl}`);
-      const info = await transporter.sendMail({
-        from: getMailFrom('StudyLink'),
-        to: user.email,
-        subject: 'StudyLink Password Reset',
-        text: `Click the link to reset your password: ${resetUrl}`,
-        html: `<p>Click the link to reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`
-      });
-      console.log('✓ Password reset email sent. MessageId:', info.messageId);
-    } catch (err) {
-      console.error('✗ Error sending password reset email:', err.message);
-    }
-
-    return res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
-  } catch (error) {
-    if (client) {
-      try { await client.query('ROLLBACK'); } catch (e) {}
-    }
-    return res.status(500).json({ message: error.message });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post('/auth/reset-password', authRateLimiter, async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) return res.status(400).json({ message: 'token and newPassword are required.' });
-
-  try {
-    const { rows } = await pool.query('SELECT * FROM users WHERE password_reset_token = $1', [token]);
-    if (rows.length === 0) return res.status(400).json({ message: 'Invalid or expired reset token.' });
-
-    const user = rows[0];
-    if (!user.password_reset_expires_at || new Date() > new Date(user.password_reset_expires_at)) {
-      return res.status(400).json({ message: 'Invalid or expired reset token.' });
-    }
-
-    const nextHash = hashPassword(newPassword);
-    await pool.query('UPDATE users SET password_hash = $1, password_reset_token = NULL, password_reset_expires_at = NULL WHERE id = $2', [nextHash, user.id]);
-
-    return res.json({ message: 'Password updated successfully.' });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
 app.post('/auth/resend-otp', authRateLimiter, async (req, res) => {
   const { email } = req.body;
 
@@ -1840,6 +1761,8 @@ app.put('/me/profile', requireAuth, async (req, res) => {
       ? expertise.filter((item) => String(item).trim()).map((item) => String(item).trim())
       : null;
 
+  let updatedUser = null;
+
   try {
     const { rows } = await pool.query(
       `UPDATE users
@@ -1873,27 +1796,34 @@ app.put('/me/profile', requireAuth, async (req, res) => {
       ]
     );
 
+    updatedUser = rows[0];
+
     const previousProfilePictureUrl = req.auth.user.profile_picture_url;
-    const currentProfilePictureUrl = rows[0].profile_picture_url;
+    const currentProfilePictureUrl = updatedUser.profile_picture_url;
     if (
       previousProfilePictureUrl &&
       previousProfilePictureUrl !== currentProfilePictureUrl
     ) {
       await removeProfilePictureFile(previousProfilePictureUrl);
     }
-
-    await awardPoints(pool, req.auth.user.id, 5, 'Profile updated');
-
-    return res.json({
-      message: 'Profile updated.',
-      user: sanitizeUser(rows[0])
-    });
   } catch (error) {
     if (nextProfilePictureUrl) {
       await removeProfilePictureFile(nextProfilePictureUrl);
     }
     return res.status(500).json({ message: error.message });
   }
+
+  try {
+    await awardPoints(pool, req.auth.user.id, 5, 'Profile updated');
+  } catch (pointsError) {
+    // Profile update should remain successful even if points/notification side effects fail.
+    console.error('Profile update side effect failed:', pointsError.message);
+  }
+
+  return res.json({
+    message: 'Profile updated.',
+    user: sanitizeUser(updatedUser)
+  });
 });
 
 app.post(
@@ -1977,6 +1907,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
         `SELECT u.id,
                 u.full_name,
                 u.role,
+                u.profile_picture_url,
                 u.total_points,
                 u.is_verified,
                 COALESCE(u.rating, 0) AS rating,
@@ -2022,6 +1953,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
           `SELECT u.id,
                   u.full_name,
                   u.role,
+                  u.profile_picture_url,
                   u.total_points,
                   u.is_verified,
                   COALESCE(u.rating, 0) AS rating,

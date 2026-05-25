@@ -104,7 +104,6 @@
         </form>
 
         <div class="login-footer-links">
-          <router-link class="alt-link" to="/forgot-password">Forgot password?</router-link>
           <router-link class="alt-link" to="/register">No account? Register here!</router-link>
         </div>
         

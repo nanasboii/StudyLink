@@ -29,11 +29,16 @@
         >
           <div class="conv-avatar" :class="{ 'support-avatar': conv.is_support }">
             <img
-              v-if="conv.other_user?.profilePicture"
-              :src="conv.other_user.profilePicture"
+              v-if="hasConversationAvatar(conv)"
+              :src="normalizeAvatarUrl(conv.other_user?.profilePicture)"
               :alt="convDisplayName(conv)"
-              @error="e => e.target.style.display='none'"
+              @error="markConversationAvatarError(conv)"
             />
+            <div v-else-if="!conv.is_support" class="avatar-fallback-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+              </svg>
+            </div>
             <span v-else>{{ convInitials(conv) }}</span>
           </div>
           <div class="conv-info">
@@ -55,11 +60,16 @@
       <div class="chat-header">
         <div class="chat-header-avatar" :class="{ 'support-avatar': activeConv.is_support }">
           <img
-            v-if="activeConv.other_user?.profilePicture"
-            :src="activeConv.other_user.profilePicture"
+            v-if="hasConversationAvatar(activeConv)"
+            :src="normalizeAvatarUrl(activeConv.other_user?.profilePicture)"
             :alt="convDisplayName(activeConv)"
-            @error="e => e.target.style.display='none'"
+            @error="markConversationAvatarError(activeConv)"
           />
+          <div v-else-if="!activeConv.is_support" class="avatar-fallback-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
+            </svg>
+          </div>
           <span v-else>{{ convInitials(activeConv) }}</span>
         </div>
         <div class="chat-header-info">
@@ -170,10 +180,34 @@ const showNewChat = ref(false)
 const searchQuery = ref('')
 const searchResults = ref([])
 const searching = ref(false)
+const avatarLoadErrors = ref({})
 
 let pollTimer = null
 
 const isAdmin = currentUser?.role === 'admin'
+
+const conversationAvatarKey = (conv) => String(conv?.id || '')
+
+const normalizeAvatarUrl = (rawUrl) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return ''
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
+  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+}
+
+const hasConversationAvatar = (conv) => {
+  const key = conversationAvatarKey(conv)
+  return !!normalizeAvatarUrl(conv?.other_user?.profilePicture) && !avatarLoadErrors.value[key]
+}
+
+const markConversationAvatarError = (conv) => {
+  const key = conversationAvatarKey(conv)
+  if (!key) return
+  avatarLoadErrors.value = {
+    ...avatarLoadErrors.value,
+    [key]: true
+  }
+}
 
 const convDisplayName = (conv) => {
   if (conv.is_support && isAdmin) return conv.other_user?.fullName || 'Support Contact'
@@ -213,6 +247,7 @@ const loadConversations = async () => {
   try {
     const data = await api('/conversations')
     conversations.value = data.conversations || []
+    avatarLoadErrors.value = {}
   } finally {
     loadingConvs.value = false
   }
@@ -304,8 +339,22 @@ const startConversation = async (user) => {
   } catch {}
 }
 
-onMounted(loadConversations)
-onUnmounted(stopPolling)
+const handleProfileUpdated = async () => {
+  await loadConversations()
+  if (activeConvId.value) {
+    await loadMessages(activeConvId.value)
+  }
+}
+
+onMounted(() => {
+  loadConversations()
+  window.addEventListener('studylink-profile-updated', handleProfileUpdated)
+})
+
+onUnmounted(() => {
+  stopPolling()
+  window.removeEventListener('studylink-profile-updated', handleProfileUpdated)
+})
 
 watch(showNewChat, (val) => {
   if (!val) { searchQuery.value = ''; searchResults.value = [] }
@@ -407,6 +456,25 @@ watch(showNewChat, (val) => {
 
 .conv-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .support-avatar { background: linear-gradient(135deg, #2c7a5a, #1a5c42); }
+
+.avatar-fallback-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff4f8;
+  color: #c41e3a;
+  border: 1px solid #f0c4d1;
+  box-sizing: border-box;
+}
+
+.avatar-fallback-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
 
 .conv-info { flex: 1; min-width: 0; }
 
