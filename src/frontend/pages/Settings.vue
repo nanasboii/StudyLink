@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="view page active">
     <section class="card settings-header">
       <h2>Account Settings</h2>
@@ -213,7 +213,7 @@ onMounted(async () => {
 
 <style scoped>
 .settings-header {
-  background: linear-gradient(135deg, #214c8f 0%, #c41e3a 100%);
+  background: linear-gradient(135deg, #214c8f 0%, #b11f4b 100%);
   color: white;
   padding: 24px;
   border-radius: 8px;
@@ -281,7 +281,7 @@ onMounted(async () => {
 .settings-hint {
   margin: 0;
   font-size: 12px;
-  color: #666;
+  color: #6e6e73;
 }
 
 .settings-item-action {
@@ -306,14 +306,14 @@ onMounted(async () => {
 }
 
 .chip:hover {
-  border-color: #c41e3a;
-  color: #c41e3a;
+  border-color: #b11f4b;
+  color: #b11f4b;
 }
 
 .chip.active {
-  background: #c41e3a;
+  background: #b11f4b;
   color: white;
-  border-color: #c41e3a;
+  border-color: #b11f4b;
 }
 
 .chip.danger {
@@ -381,7 +381,7 @@ onMounted(async () => {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #999;
+  color: #6e6e73;
   padding: 0;
   width: 32px;
   height: 32px;
@@ -423,7 +423,7 @@ onMounted(async () => {
 
 .field input:focus {
   outline: none;
-  border-color: #c41e3a;
+  border-color: #b11f4b;
   box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.1);
 }
 
@@ -455,7 +455,7 @@ onMounted(async () => {
 }
 
 .primary {
-  background: #c41e3a;
+  background: #b11f4b;
   color: white;
 }
 
@@ -527,3 +527,4 @@ onMounted(async () => {
   }
 }
 </style>
+

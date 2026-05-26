@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg public-profile-page">
     <div class="view page active">
       <div class="public-profile-header">
@@ -203,7 +203,7 @@ onMounted(() => {
 
 .chip {
   border: 1px solid rgba(177, 31, 75, 0.18);
-  background: linear-gradient(180deg, #ffffff, #fff5f8);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
   color: #65172f;
   border-radius: 999px;
   padding: 10px 16px;
@@ -361,7 +361,7 @@ onMounted(() => {
 
 .public-profile-bio p {
   margin: 0;
-  color: #3f2f38;
+  color: #1d1d1f;
   line-height: 1.55;
 }
 
@@ -400,3 +400,4 @@ onMounted(() => {
   }
 }
 </style>
+

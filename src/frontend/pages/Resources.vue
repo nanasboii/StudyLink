@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg">
     <section class="phone-shell">
       <div class="view page active">
@@ -59,20 +59,43 @@
             <div class="filter-header">
               <h4>Star Rating</h4>
               <button type="button" class="expand-btn" @click="expandedSections.rating = !expandedSections.rating">
-                {{ expandedSections.rating ? '−' : '+' }}
+                {{ expandedSections.rating ? '-' : '+' }}
               </button>
             </div>
             <div v-if="expandedSections.rating" class="filter-content">
               <div class="rating-slider-wrap">
-                <input 
-                  v-model.number="filterMinRating" 
-                  type="range" 
-                  min="0" 
-                  max="5" 
-                  step="0.5" 
-                  class="rating-slider"
-                />
-                <div class="rating-value">{{ filterMinRating.toFixed(1) }} ⭐ and above</div>
+                <div
+                  class="dual-rating-slider"
+                  :style="ratingTrackStyle"
+                  aria-label="Star rating range"
+                >
+                  <div class="dual-rating-slider__track"></div>
+                  <div class="dual-rating-slider__range"></div>
+                  <input
+                    :value="filterMinRating"
+                    type="range"
+                    min="0"
+                    max="5"
+                    step="1"
+                    class="rating-slider rating-slider--min"
+                    aria-label="Minimum star rating"
+                    @input="setMinRating($event.target.value)"
+                  />
+                  <input
+                    :value="filterMaxRating"
+                    type="range"
+                    min="0"
+                    max="5"
+                    step="1"
+                    class="rating-slider rating-slider--max"
+                    aria-label="Maximum star rating"
+                    @input="setMaxRating($event.target.value)"
+                  />
+                </div>
+                <div class="rating-markers" aria-hidden="true">
+                  <span v-for="star in ratingSteps" :key="star">{{ star }} star</span>
+                </div>
+                <div class="rating-value">{{ ratingRangeLabel }}</div>
               </div>
             </div>
           </div>
@@ -82,50 +105,87 @@
             <div class="filter-header">
               <h4>Resource Type</h4>
               <button type="button" class="expand-btn" @click="expandedSections.type = !expandedSections.type">
-                {{ expandedSections.type ? '−' : '+' }}
+                {{ expandedSections.type ? '-' : '+' }}
               </button>
             </div>
             <div v-if="expandedSections.type" class="filter-content">
-              <label v-for="rt in resourceTypes.filter(r => r.value)" :key="rt.value" class="filter-checkbox">
+              <label v-for="rt in resourceTypeOptions" :key="rt.value" class="filter-checkbox">
                 <input 
                   type="checkbox" 
-                  :checked="selectedType === rt.value"
-                  @change="selectedType = selectedType === rt.value ? '' : rt.value"
+                  :checked="selectedTypes.includes(rt.value)"
+                  @change="toggleResourceType(rt.value)"
                 />
                 <span>{{ rt.label }}</span>
               </label>
             </div>
           </div>
 
-          <!-- Price/Points Range -->
+          <!-- Course Code -->
           <div class="filter-section">
             <div class="filter-header">
-              <h4>Price Range</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.price = !expandedSections.price">
-                {{ expandedSections.price ? '−' : '+' }}
+              <h4>Course Code</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.course = !expandedSections.course">
+                {{ expandedSections.course ? '-' : '+' }}
               </button>
             </div>
-            <div v-if="expandedSections.price" class="filter-content">
-              <div class="price-inputs">
-                <input v-model="filterMinPrice" type="number" placeholder="MIN" class="price-input" />
-                <span class="price-divider">−</span>
-                <input v-model="filterMaxPrice" type="number" placeholder="MAX" class="price-input" />
+            <div v-if="expandedSections.course" class="filter-content">
+              <select v-model="selectedCourseCode" class="filter-select">
+                <option value="">All courses</option>
+                <option v-for="course in courseOptions" :key="course" :value="course">{{ course }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Access Type -->
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Access Type</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.access = !expandedSections.access">
+                {{ expandedSections.access ? '-' : '+' }}
+              </button>
+            </div>
+            <div v-if="expandedSections.access" class="filter-content">
+              <div class="filter-pill-row">
+                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'all' }" @click="selectedAccessType = 'all'">All</button>
+                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'file' }" @click="selectedAccessType = 'file'">Uploaded Files</button>
+                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'link' }" @click="selectedAccessType = 'link'">External Links</button>
               </div>
             </div>
           </div>
 
+          <!-- Sort -->
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Sort By</h4>
+              <button type="button" class="expand-btn" @click="expandedSections.sort = !expandedSections.sort">
+                {{ expandedSections.sort ? '-' : '+' }}
+              </button>
+            </div>
+            <div v-if="expandedSections.sort" class="filter-content">
+              <select v-model="selectedSort" class="filter-select">
+                <option value="newest">Newest uploads</option>
+                <option value="highest-rated">Highest rated</option>
+                <option value="course-asc">Course code A-Z</option>
+                <option value="title-asc">Title A-Z</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Apply Button -->
-          <button class="filter-apply-btn" @click="applyFilters">APPLY</button>
+          <div class="filter-action-row">
+            <button class="filter-reset-btn" type="button" @click="resetFilters">Reset</button>
+            <button class="filter-apply-btn" type="button" @click="applyFilters">Apply</button>
+          </div>
         </div>
 
         <!-- Resource Type Chips (Quick Filter) -->
         <div class="chip-row" id="typeChips">
           <button 
-            v-for="resourceType in resourceTypes" 
+            v-for="resourceType in quickFilterTypes" 
             :key="resourceType.value"
             class="chip"
-            :class="{ 'chip-active': selectedType === resourceType.value }"
-            @click="selectedType = selectedType === resourceType.value ? '' : resourceType.value"
+            :class="{ 'chip-active': isQuickFilterActive(resourceType.value) }"
+            @click="toggleQuickFilter(resourceType.value)"
           >
             {{ resourceType.label }}
           </button>
@@ -137,21 +197,28 @@
             <h3>Suggested for You</h3>
             <span class="meta">Scroll through resources people are using right now.</span>
           </div>
-          <div class="suggested-carousel">
+          <div
+            ref="suggestedCarouselRef"
+            class="suggested-carousel"
+            @mouseenter="stopSuggestedCarousel"
+            @mouseleave="startSuggestedCarousel"
+          >
             <button 
               v-for="resource in suggestedResources" 
               :key="resource.id"
               class="suggested-card"
               @click="openResource(resource)"
             >
-              <div class="suggested-media">
-                <span aria-hidden="true">📚</span>
+              <div class="suggested-media" :class="resourceCoverClass(resource)">
+                <span class="suggested-media__badge">{{ resourceCoverBadge(resource) }}</span>
+                <span class="suggested-media__title" aria-hidden="true">{{ resourceCoverMonogram(resource) }}</span>
+                <span class="suggested-media__meta">{{ resource.course_code || 'General' }}</span>
               </div>
               <div class="suggested-body">
-                <div class="suggested-type">{{ resource.resource_type }}</div>
+                <div class="suggested-type">{{ formatResourceTypeLabel(resource.resource_type) }}</div>
                 <strong>{{ resource.title }}</strong>
-                <div class="meta">{{ resource.course_code }} · {{ resource.contributor_name }}</div>
-                <div class="meta rating-line">⭐ {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
+                <div class="meta">{{ resource.course_code }} - {{ resource.contributor_name }}</div>
+                <div class="meta rating-line">Rating {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
               </div>
             </button>
           </div>
@@ -176,16 +243,17 @@
               class="resource-card"
               @click="openResource(resource)"
             >
-              <div class="resource-cover">
-                <div class="resource-cover-icon">📄</div>
+              <div class="resource-cover" :class="resourceCoverClass(resource)">
+                <div class="resource-cover-icon">{{ resourceCoverMonogram(resource) }}</div>
                 <div class="resource-cover-meta">
-                  <div class="resource-cover-tag">{{ resource.resource_type }}</div>
+                  <div class="resource-cover-tag">{{ resourceCoverBadge(resource) }}</div>
+                  <div class="resource-cover-course">{{ resource.course_code || 'General' }}</div>
                 </div>
               </div>
               <div class="resource-card-body">
                 <strong>{{ resource.course_code }} - {{ resource.title }}</strong>
                 <div class="meta">By {{ resource.contributor_name }}</div>
-                <div class="meta">⭐ {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
+                <div class="meta">Rating {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
               </div>
             </button>
           </div>
@@ -201,7 +269,7 @@
         <!-- Upload Modal -->
         <div v-if="showUploadModal" class="modal-backdrop" @click="showUploadModal = false">
           <div class="modal-content" @click.stop>
-            <button class="modal-close" @click="showUploadModal = false">×</button>
+            <button class="modal-close" @click="showUploadModal = false">x</button>
             <h3>Upload Resource</h3>
             <form @submit.prevent="handleUpload" class="stack">
               <label>
@@ -248,7 +316,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getToken, getUser } from '@/api.js'
 
@@ -258,7 +326,10 @@ const currentUser = getUser()
 const resources = ref([])
 const isLoading = ref(true)
 const searchQuery = ref('')
-const selectedType = ref('')
+const selectedTypes = ref([])
+const selectedCourseCode = ref('')
+const selectedAccessType = ref('all')
+const selectedSort = ref('newest')
 const showUploadModal = ref(false)
 const showFilters = ref(false)
 const visibleCount = ref(12)
@@ -267,14 +338,18 @@ const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadMessageType = ref('')
 const selectedUploadFile = ref(null)
+const suggestedCarouselRef = ref(null)
+let suggestedCarouselTimer = null
 const expandedSections = ref({
   rating: true,
   type: true,
-  price: false
+  course: false,
+  access: true,
+  sort: false
 })
 const filterMinRating = ref(0)
-const filterMinPrice = ref('')
-const filterMaxPrice = ref('')
+const filterMaxRating = ref(5)
+const ratingSteps = [1, 2, 3, 4, 5]
 
 const uploadForm = ref({
   title: '',
@@ -284,11 +359,88 @@ const uploadForm = ref({
   resourceLink: ''
 })
 
-const resourceTypes = [
-  { value: '', label: 'Popular' },
-  { value: 'past-year', label: 'Past Year Papers' },
-  { value: 'lecture-note', label: 'Lecture Notes' }
-]
+const normalizeResourceType = (value) => String(value || '').trim().toLowerCase()
+
+const formatResourceTypeLabel = (value) => {
+  const normalized = normalizeResourceType(value)
+  if (!normalized) return 'Other Resources'
+
+  const aliases = {
+    'past-year': 'Past Year Papers',
+    'past paper': 'Past Year Papers',
+    'past-paper': 'Past Year Papers',
+    exam: 'Past Year Papers',
+    'exam paper': 'Past Year Papers',
+    'lecture-note': 'Lecture Notes',
+    'lecture note': 'Lecture Notes',
+    'lecture notes': 'Lecture Notes',
+    notes: 'Lecture Notes',
+    slides: 'Slides',
+    slide: 'Slides',
+    assignment: 'Assignments',
+    pdf: 'PDFs',
+    link: 'External Links'
+  }
+
+  return aliases[normalized] || normalized.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+const resourceCoverBadge = (resource) => {
+  const normalized = normalizeResourceType(resource?.resource_type)
+  if (['past-year', 'past paper', 'past-paper', 'exam', 'exam paper'].includes(normalized)) return 'Past Year'
+  if (['lecture-note', 'lecture note', 'lecture notes', 'notes'].includes(normalized)) return 'Notes'
+  if (['slide', 'slides'].includes(normalized)) return 'Slides'
+  if (normalized === 'assignment') return 'Task'
+  if (normalized === 'pdf') return 'PDF'
+  if (normalized === 'link') return 'Link'
+  return 'Resource'
+}
+
+const resourceCoverMonogram = (resource) => {
+  const courseCode = String(resource?.course_code || '').trim()
+  if (courseCode) return courseCode.toUpperCase()
+
+  const title = String(resource?.title || '').trim()
+  if (title) return title.slice(0, 12)
+
+  return formatResourceTypeLabel(resource?.resource_type || 'Resource')
+}
+
+const resourceCoverClass = (resource) => {
+  const normalized = normalizeResourceType(resource?.resource_type)
+  if (['past-year', 'past paper', 'past-paper', 'exam', 'exam paper'].includes(normalized)) return 'cover-past-year'
+  if (['lecture-note', 'lecture note', 'lecture notes', 'notes'].includes(normalized)) return 'cover-notes'
+  if (['slide', 'slides'].includes(normalized)) return 'cover-slides'
+  if (normalized === 'assignment') return 'cover-assignment'
+  if (normalized === 'pdf') return 'cover-pdf'
+  if (normalized === 'link') return 'cover-link'
+  return 'cover-generic'
+}
+
+const resourceTypeOptions = computed(() => {
+  const seen = new Set()
+
+  return resources.value.reduce((options, resource) => {
+    const value = normalizeResourceType(resource.resource_type)
+    if (!value || seen.has(value)) return options
+    seen.add(value)
+    options.push({ value, label: formatResourceTypeLabel(value) })
+    return options
+  }, []).sort((left, right) => left.label.localeCompare(right.label))
+})
+
+const quickFilterTypes = computed(() => [
+  { value: '', label: 'All Resources' },
+  ...resourceTypeOptions.value.slice(0, 6)
+])
+
+const courseOptions = computed(() => {
+  return [...new Set(
+    resources.value
+      .map((resource) => String(resource.course_code || '').trim())
+      .filter(Boolean)
+  )].sort((left, right) => left.localeCompare(right))
+})
 
 const firstName = computed(() => {
   if (!currentUser) return 'there'
@@ -300,26 +452,52 @@ const suggestedResources = computed(() => resources.value.slice(0, 5))
 const totalResources = computed(() => resources.value.length)
 const topPickCount = computed(() => resources.value.filter(r => r.avg_rating >= 4).length)
 const latestCount = computed(() => resources.value.slice(0, 5).length)
+const ratingRangeLabel = computed(() => {
+  if (filterMinRating.value === 0 && filterMaxRating.value === 5) {
+    return 'Any rating from unrated to 5 stars'
+  }
+
+  if (filterMinRating.value === filterMaxRating.value) {
+    return `${filterMinRating.value || 0} star${filterMinRating.value === 1 ? '' : 's'} only`
+  }
+
+  return `${filterMinRating.value || 0} to ${filterMaxRating.value} stars`
+})
+
+const ratingTrackStyle = computed(() => {
+  const minPercent = (filterMinRating.value / 5) * 100
+  const maxPercent = (filterMaxRating.value / 5) * 100
+
+  return {
+    '--range-start': `${minPercent}%`,
+    '--range-end': `${maxPercent}%`
+  }
+})
 
 const filteredResources = computed(() => {
   let filtered = [...resources.value]
 
-  if (selectedType.value) {
-    filtered = filtered.filter(r => r.resource_type === selectedType.value)
+  if (selectedTypes.value.length) {
+    filtered = filtered.filter((resource) => selectedTypes.value.includes(normalizeResourceType(resource.resource_type)))
   }
 
-  if (filterMinRating.value > 0) {
-    filtered = filtered.filter(r => Number(r.avg_rating || 0) >= filterMinRating.value)
+  if (!(filterMinRating.value === 0 && filterMaxRating.value === 5)) {
+    filtered = filtered.filter((resource) => {
+      const rating = Number(resource.avg_rating || 0)
+      return rating >= filterMinRating.value && rating <= filterMaxRating.value
+    })
   }
 
-  if (filterMinPrice.value) {
-    const minPrice = Number(filterMinPrice.value)
-    filtered = filtered.filter(r => Number(r.total_points || 0) >= minPrice)
+  if (selectedCourseCode.value) {
+    filtered = filtered.filter((resource) => String(resource.course_code || '').trim() === selectedCourseCode.value)
   }
 
-  if (filterMaxPrice.value) {
-    const maxPrice = Number(filterMaxPrice.value)
-    filtered = filtered.filter(r => Number(r.total_points || 0) <= maxPrice)
+  if (selectedAccessType.value !== 'all') {
+    filtered = filtered.filter((resource) => {
+      const fileUrl = String(resource.file_url || '').trim()
+      const isExternalLink = /^https?:\/\//i.test(fileUrl)
+      return selectedAccessType.value === 'link' ? isExternalLink : Boolean(fileUrl) && !isExternalLink
+    })
   }
 
   if (searchQuery.value) {
@@ -328,8 +506,19 @@ const filteredResources = computed(() => {
       (r.title?.toLowerCase().includes(q) ||
        r.course_code?.toLowerCase().includes(q) ||
        r.contributor_name?.toLowerCase().includes(q) ||
-       r.resource_type?.toLowerCase().includes(q))
+       r.resource_type?.toLowerCase().includes(q) ||
+       r.course_name?.toLowerCase().includes(q))
     )
+  }
+
+  if (selectedSort.value === 'highest-rated') {
+    filtered.sort((left, right) => Number(right.avg_rating || 0) - Number(left.avg_rating || 0))
+  } else if (selectedSort.value === 'course-asc') {
+    filtered.sort((left, right) => String(left.course_code || '').localeCompare(String(right.course_code || '')))
+  } else if (selectedSort.value === 'title-asc') {
+    filtered.sort((left, right) => String(left.title || '').localeCompare(String(right.title || '')))
+  } else {
+    filtered.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
   }
 
   return filtered
@@ -354,6 +543,8 @@ const loadResources = async () => {
     isLoading.value = true
     const data = await api('/resources')
     resources.value = data.resources || []
+    await nextTick()
+    startSuggestedCarousel()
   } catch (error) {
     console.error('Failed to load resources:', error)
   } finally {
@@ -365,9 +556,55 @@ const onUploadFileChange = (event) => {
   selectedUploadFile.value = event?.target?.files?.[0] || null
 }
 
+const setMinRating = (value) => {
+  const next = Math.min(Number(value), filterMaxRating.value)
+  filterMinRating.value = Number.isNaN(next) ? 0 : next
+}
+
+const setMaxRating = (value) => {
+  const next = Math.max(Number(value), filterMinRating.value)
+  filterMaxRating.value = Number.isNaN(next) ? 5 : next
+}
+
+const toggleResourceType = (value) => {
+  const normalized = normalizeResourceType(value)
+  if (!normalized) return
+
+  if (selectedTypes.value.includes(normalized)) {
+    selectedTypes.value = selectedTypes.value.filter((item) => item !== normalized)
+    return
+  }
+
+  selectedTypes.value = [...selectedTypes.value, normalized]
+}
+
+const isQuickFilterActive = (value) => {
+  if (!value) return selectedTypes.value.length === 0
+  return selectedTypes.value.includes(value)
+}
+
+const toggleQuickFilter = (value) => {
+  if (!value) {
+    selectedTypes.value = []
+    return
+  }
+
+  toggleResourceType(value)
+}
+
 const applyFilters = () => {
   visibleCount.value = pageSize
   showFilters.value = false
+}
+
+const resetFilters = () => {
+  selectedTypes.value = []
+  selectedCourseCode.value = ''
+  selectedAccessType.value = 'all'
+  selectedSort.value = 'newest'
+  filterMinRating.value = 0
+  filterMaxRating.value = 5
+  visibleCount.value = pageSize
 }
 
 const handleUpload = async () => {
@@ -431,7 +668,47 @@ const handleUpload = async () => {
 }
 
 const openResource = (resource) => {
-  router.push(`/resources/${resource.id}`)
+  router.push({ path: `/resources/${resource.id}`, query: { from: 'resources' } })
+}
+
+const stopSuggestedCarousel = () => {
+  if (suggestedCarouselTimer) {
+    window.clearInterval(suggestedCarouselTimer)
+    suggestedCarouselTimer = null
+  }
+}
+
+const advanceSuggestedCarousel = () => {
+  const carousel = suggestedCarouselRef.value
+  if (!carousel) return
+
+  const firstCard = carousel.querySelector('.suggested-card')
+  if (!firstCard) return
+
+  const cardWidth = firstCard.getBoundingClientRect().width
+  const gap = 12
+  const step = cardWidth + gap
+  const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth
+
+  if (maxScrollLeft <= 0) return
+
+  const nextLeft = carousel.scrollLeft + step
+  carousel.scrollTo({
+    left: nextLeft >= maxScrollLeft - 4 ? 0 : nextLeft,
+    behavior: 'smooth'
+  })
+}
+
+const startSuggestedCarousel = () => {
+  stopSuggestedCarousel()
+
+  if (window.innerWidth <= 640) return
+  if (!suggestedResources.value.length || suggestedResources.value.length < 2) return
+
+  const carousel = suggestedCarouselRef.value
+  if (!carousel || carousel.scrollWidth <= carousel.clientWidth) return
+
+  suggestedCarouselTimer = window.setInterval(advanceSuggestedCarousel, 2800)
 }
 
 onMounted(() => {
@@ -442,6 +719,10 @@ onMounted(() => {
   }
   loadResources()
 })
+
+onBeforeUnmount(() => {
+  stopSuggestedCarousel()
+})
 </script>
 
 <style scoped>
@@ -449,7 +730,7 @@ onMounted(() => {
   min-height: 100vh;
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #fff5f8 60%, #ffe7ee);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
 }
 
 .phone-shell {
@@ -479,7 +760,7 @@ onMounted(() => {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #c41e3a;
+  color: #b11f4b;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -488,13 +769,13 @@ onMounted(() => {
   margin: 0 0 12px;
   font-size: 24px;
   font-weight: 700;
-  color: #3f2f38;
+  color: #1d1d1f;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
 }
 
 .resources-hero__text {
   margin: 0;
-  color: #666;
+  color: #6e6e73;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -516,7 +797,7 @@ onMounted(() => {
 .hero-stat__label {
   display: block;
   font-size: 11px;
-  color: #c41e3a;
+  color: #b11f4b;
   margin-bottom: 4px;
   font-weight: 700;
   text-transform: uppercase;
@@ -526,7 +807,7 @@ onMounted(() => {
 .hero-stat strong {
   display: block;
   font-size: 20px;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .search-row {
@@ -569,12 +850,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
+  color: #6e6e73;
   transition: color 150ms ease;
 }
 
 .icon-chip:hover {
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .icon-chip svg {
@@ -604,7 +885,7 @@ onMounted(() => {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .filter-section:last-child {
@@ -626,6 +907,14 @@ onMounted(() => {
 }
 
 .suggested-section {
+  max-width: 1040px;
+  margin: 0 auto 32px;
+}
+
+.suggested-section .search-row.compact {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
   margin-bottom: 32px;
 }
 
@@ -637,25 +926,34 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .meta {
   margin: 0;
   font-size: 12px;
-  color: #999;
+  color: #6e6e73;
 }
 
 .suggested-carousel {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding: 4px 6px 12px;
+  justify-content: center;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 24px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.suggested-carousel::-webkit-scrollbar {
+  display: none;
 }
 
 .suggested-card {
   flex-shrink: 0;
-  width: 180px;
+  width: min(220px, 78vw);
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 12px;
@@ -666,35 +964,60 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  scroll-snap-align: center;
 }
 
 .suggested-card:hover {
-  border-color: #c41e3a;
+  border-color: #b11f4b;
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
   transform: translateY(-2px);
 }
 
 .suggested-media {
-  height: 60px;
-  background: rgba(255, 183, 197, 0.1);
-  border-radius: 8px;
+  height: 84px;
+  border-radius: 14px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  color: #1d1d1f;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.suggested-media__badge,
+.resource-cover-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(177, 31, 75, 0.9);
+}
+
+.suggested-media__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.suggested-media__meta,
+.resource-cover-course {
+  font-size: 0.75rem;
+  color: rgba(29, 29, 31, 0.72);
 }
 
 .suggested-body strong {
   display: block;
   font-size: 13px;
-  color: #3f2f38;
+  color: #1d1d1f;
   margin-bottom: 4px;
   line-height: 1.4;
 }
 
 .suggested-type {
   font-size: 11px;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -721,23 +1044,64 @@ onMounted(() => {
 }
 
 .resource-card:hover {
-  border-color: #c41e3a;
+  border-color: #b11f4b;
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
   transform: translateY(-2px);
 }
 
 .resource-cover {
-  height: 100px;
-  background: rgba(255, 183, 197, 0.1);
+  height: 120px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px;
   position: relative;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .resource-cover-icon {
-  font-size: 36px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  color: #1d1d1f;
+}
+
+.resource-cover-meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.cover-past-year {
+  background: linear-gradient(135deg, rgba(255, 231, 235, 0.95), rgba(255, 204, 214, 0.9));
+}
+
+.cover-notes {
+  background: linear-gradient(135deg, rgba(255, 245, 228, 0.96), rgba(255, 226, 184, 0.9));
+}
+
+.cover-slides {
+  background: linear-gradient(135deg, rgba(236, 248, 255, 0.96), rgba(190, 226, 255, 0.92));
+}
+
+.cover-assignment {
+  background: linear-gradient(135deg, rgba(246, 237, 255, 0.96), rgba(220, 201, 255, 0.92));
+}
+
+.cover-pdf {
+  background: linear-gradient(135deg, rgba(255, 239, 241, 0.96), rgba(255, 210, 217, 0.92));
+}
+
+.cover-link {
+  background: linear-gradient(135deg, rgba(236, 255, 247, 0.96), rgba(191, 241, 220, 0.92));
+}
+
+.cover-generic {
+  background: linear-gradient(135deg, rgba(243, 243, 246, 0.96), rgba(225, 226, 232, 0.92));
 }
 
 .resource-card-body {
@@ -747,7 +1111,7 @@ onMounted(() => {
 .resource-card-body strong {
   display: block;
   font-size: 13px;
-  color: #3f2f38;
+  color: #1d1d1f;
   margin-bottom: 6px;
   line-height: 1.4;
 }
@@ -756,7 +1120,7 @@ onMounted(() => {
 .empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: #999;
+  color: #6e6e73;
   grid-column: 1 / -1;
 }
 
@@ -790,14 +1154,14 @@ onMounted(() => {
   border: none;
   font-size: 28px;
   cursor: pointer;
-  color: #999;
+  color: #6e6e73;
 }
 
 .modal-content h3 {
   margin: 0 0 20px;
   font-size: 18px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .stack {
@@ -813,7 +1177,7 @@ label {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 input,
@@ -931,7 +1295,7 @@ button.primary:disabled {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
   flex: 1;
 }
 
@@ -939,7 +1303,7 @@ button.primary:disabled {
   background: none;
   border: none;
   font-size: 16px;
-  color: #999;
+  color: #6e6e73;
   cursor: pointer;
   padding: 0;
   width: 24px;
@@ -951,7 +1315,7 @@ button.primary:disabled {
 }
 
 .expand-btn:hover {
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .filter-content {
@@ -978,20 +1342,20 @@ button.primary:disabled {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #666;
+  color: #6e6e73;
   user-select: none;
   transition: color 150ms ease;
 }
 
 .filter-checkbox:hover {
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .filter-checkbox input[type="checkbox"] {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #c41e3a;
+  accent-color: #b11f4b;
   border: 2px solid #d1dadf;
   border-radius: 4px;
 }
@@ -1002,91 +1366,195 @@ button.primary:disabled {
   gap: 10px;
 }
 
+.dual-rating-slider {
+  position: relative;
+  height: 28px;
+  --slider-track-height: 8px;
+  --slider-thumb-width: 14px;
+  --slider-thumb-height: 18px;
+  --range-start: 0%;
+  --range-end: 100%;
+}
+
+.dual-rating-slider__track,
+.dual-rating-slider__range {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: var(--slider-track-height);
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.dual-rating-slider__track {
+  background: #ececec;
+}
+
+.dual-rating-slider__range {
+  left: var(--range-start);
+  right: calc(100% - var(--range-end));
+  background: #b11f4b;
+}
+
 .rating-slider {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(to right, #ffb7c5, #ff8fa3);
+  height: 100%;
+  border-radius: 0;
+  background: transparent;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
   cursor: pointer;
+  margin: 0;
+  padding: 0;
+  border: none;
+  pointer-events: none;
+}
+
+.rating-slider:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.rating-slider--min,
+.rating-slider--max {
+  z-index: 2;
+}
+
+.rating-slider--min {
+  z-index: 3;
+}
+
+.rating-slider::-webkit-slider-runnable-track {
+  height: var(--slider-track-height);
+  background: transparent;
+  border: none;
 }
 
 .rating-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #c41e3a;
+  width: var(--slider-thumb-width);
+  height: var(--slider-thumb-height);
+  margin-top: calc((var(--slider-track-height) - var(--slider-thumb-height)) / 2);
+  border-radius: 4px;
+  background: #b11f4b;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
-  transition: all 150ms ease;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  pointer-events: auto;
 }
 
 .rating-slider::-webkit-slider-thumb:hover {
-  width: 22px;
-  height: 22px;
+  transform: scale(1.08);
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
 }
 
+.rating-slider::-moz-range-track,
+.rating-slider::-moz-range-progress {
+  height: var(--slider-track-height);
+  background: transparent;
+  border: none;
+}
+
 .rating-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #c41e3a;
+  width: var(--slider-thumb-width);
+  height: var(--slider-thumb-height);
+  border-radius: 4px;
+  background: #b11f4b;
   cursor: pointer;
   border: none;
   box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
-  transition: all 150ms ease;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  pointer-events: auto;
+}
+.rating-slider::-moz-range-progress {
+  height: var(--slider-track-height);
+  background: transparent;
+  border: none;
 }
 
 .rating-slider::-moz-range-thumb:hover {
-  width: 22px;
-  height: 22px;
+  transform: scale(1.08);
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
 }
 
 .rating-value {
   font-size: 12px;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 600;
   text-align: center;
 }
 
-.price-inputs {
+.rating-markers {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  font-size: 11px;
+  color: #6e6e73;
 }
 
-.price-input {
-  flex: 1;
+.filter-select {
+  width: 100%;
   border: 2px solid #d1dadf;
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;
-  text-align: center;
+  background: #fff;
 }
 
-.price-input::placeholder {
-  color: #ccc;
-}
-
-.price-input:focus {
+.filter-select:focus {
   border-color: #ffb7c5;
   box-shadow: 0 0 0 3px rgba(255, 183, 197, 0.28);
 }
 
-.price-divider {
-  color: #999;
+.filter-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-pill {
+  border: 1px solid #d9d9dd;
+  border-radius: 999px;
+  background: #fff;
+  color: #6e6e73;
   font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.filter-pill.active {
+  border-color: #b11f4b;
+  background: rgba(177, 31, 75, 0.08);
+  color: #b11f4b;
+}
+
+.filter-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.filter-reset-btn {
+  border: 1px solid #d9d9dd;
+  background: #fff;
+  color: #6e6e73;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .filter-apply-btn {
-  width: 100%;
-  background: linear-gradient(135deg, #c41e3a 0%, #e63a52 100%);
+  background: linear-gradient(135deg, #b11f4b 0%, #e63a52 100%);
   color: white;
   border: none;
   padding: 12px 16px;
@@ -1110,6 +1578,20 @@ button.primary:disabled {
 }
 
 @media (max-width: 640px) {
+  .suggested-section {
+    margin-bottom: 28px;
+  }
+
+  .suggested-section .search-row.compact {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .suggested-carousel {
+    justify-content: flex-start;
+    padding-inline: 0;
+  }
+
   .resources-list {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1118,5 +1600,76 @@ button.primary:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Final polish overrides for cleaner Apple-like visual language */
+.resources-hero__text,
+.meta,
+.loading,
+.empty-state {
+  color: #6e6e73;
+}
+
+.hero-stat {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 18px;
+}
+
+.resource-search-shell,
+.suggested-card,
+.resource-card,
+.filter-panel,
+.modal-content {
+  border-color: #e0e0e0;
+  box-shadow: none;
+}
+
+.suggested-card:hover,
+.resource-card:hover,
+.filter-apply-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.suggested-media,
+.resource-cover {
+  background: #f5f5f7;
+}
+
+.resource-cover-icon {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6e6e73;
+}
+
+.filter-panel {
+  backdrop-filter: none;
+}
+
+.rating-slider::-webkit-slider-thumb,
+.rating-slider::-moz-range-thumb {
+  background: #b11f4b;
+  box-shadow: none;
+}
+
+.filter-apply-btn {
+  border-radius: 9999px;
+  text-transform: none;
+  letter-spacing: normal;
+  background: #b11f4b;
+}
+
+.filter-reset-btn:hover,
+.filter-pill:hover {
+  border-color: #b11f4b;
+  color: #b11f4b;
+}
+
+.modal-backdrop,
+.filter-backdrop {
+  background: rgba(0, 0, 0, 0.44);
+}
 </style>
+
 

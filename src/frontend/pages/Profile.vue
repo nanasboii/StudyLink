@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="view page active">
     <section class="card profile-hero">
       <div class="profile-hero-top">
@@ -485,7 +485,7 @@ onMounted(() => {
 }
 
 .chip-soft:hover {
-  background: #fff4f8;
+  background: #f5f5f7;
 }
 
 .chip-soft-danger {
@@ -585,3 +585,4 @@ textarea:focus {
   }
 }
 </style>
+

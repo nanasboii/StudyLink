@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg">
     <section class="phone-shell">
       <div class="view page active admin-review-verification-page">
@@ -42,7 +42,7 @@
         <div class="list">
           <div v-if="isLoading" class="empty-state">Loading verification requests...</div>
           <div v-else-if="filteredApplications.length === 0" class="empty-state">
-            {{ activeStatusFilter === 'all' ? 'No verification requests yet.' : 'No ' + activeStatusFilter.toLowerCase() + ' requests found.' }}
+            {{ activeStatusFilter === 'all' ? 'No verification requests yet.' : 'No ' + activeStatusFilterLabel.toLowerCase() + ' requests found.' }}
           </div>
 
           <article
@@ -57,11 +57,11 @@
           >
             <div class="verification-head">
               <div>
-                <p class="verification-kicker">{{ app.status }}</p>
+                <p class="verification-kicker">{{ formatStatusLabel(app.status) }}</p>
                 <strong>{{ app.userName }}</strong>
-                <p class="meta">{{ app.courseCode || 'Unspecified subject' }} • {{ app.createdAt }}</p>
+                <p class="meta">{{ app.courseCode || 'Unspecified subject' }} - {{ app.createdAt }}</p>
               </div>
-              <span class="status-badge" :class="app.status.toLowerCase()">{{ app.status }}</span>
+              <span class="status-badge" :class="app.status.toLowerCase()">{{ formatStatusLabel(app.status) }}</span>
             </div>
 
             <p class="verification-note">Click to review proof and admin notes.</p>
@@ -84,7 +84,7 @@
 
             <div class="detail-status-row">
               <span class="status-badge" :class="selectedApplication.status.toLowerCase()">
-                {{ selectedApplication.status }}
+                {{ formatStatusLabel(selectedApplication.status) }}
               </span>
               <span class="detail-date">Submitted {{ selectedApplication.createdAt }}</span>
             </div>
@@ -175,21 +175,43 @@ const applications = ref([])
 const selectedApplication = ref(null)
 const isLoading = ref(true)
 const message = ref('')
+const searchQuery = ref('')
 const reviewNote = ref('')
 const actionState = ref('')
 const activeStatusFilter = ref('all')
-const canReview = computed(() => selectedApplication.value?.status === 'PENDING')
+const canReview = computed(() => String(selectedApplication.value?.status || '').toUpperCase() === 'PENDING')
+const formatStatusLabel = (status) => {
+  const normalized = String(status || 'PENDING').toUpperCase()
+  if (normalized === 'REUPLOAD_REQUESTED') return 'Request Reupload'
+  if (normalized === 'PENDING') return 'Pending'
+  if (normalized === 'APPROVED') return 'Approved'
+  if (normalized === 'REJECTED') return 'Rejected'
+  return normalized
+}
+
 const statusFilters = [
   { value: 'all', label: 'All' },
   { value: 'PENDING', label: 'Pending' },
+  { value: 'REUPLOAD_REQUESTED', label: 'Request Reupload' },
   { value: 'APPROVED', label: 'Approved' },
   { value: 'REJECTED', label: 'Rejected' }
 ]
 
+const activeStatusFilterLabel = computed(() => {
+  const selected = statusFilters.find((option) => option.value === activeStatusFilter.value)
+  return selected?.label || activeStatusFilter.value
+})
+
 const filterCounts = computed(() => {
-  const counts = { all: applications.value.length, PENDING: 0, APPROVED: 0, REJECTED: 0 }
+  const counts = {
+    all: applications.value.length,
+    PENDING: 0,
+    REUPLOAD_REQUESTED: 0,
+    APPROVED: 0,
+    REJECTED: 0
+  }
   applications.value.forEach((application) => {
-    const key = application.status || 'PENDING'
+    const key = String(application.status || 'PENDING').toUpperCase()
     if (counts[key] !== undefined) {
       counts[key] += 1
     }
@@ -200,7 +222,8 @@ const filterCounts = computed(() => {
 const filteredApplications = computed(() => {
   const search = searchQuery.value.toLowerCase().trim()
   return applications.value.filter((application) => {
-    const statusMatches = activeStatusFilter.value === 'all' || application.status === activeStatusFilter.value
+    const status = String(application.status || 'PENDING').toUpperCase()
+    const statusMatches = activeStatusFilter.value === 'all' || status === activeStatusFilter.value
     if (!statusMatches) return false
     if (!search) return true
     return [application.userName, application.courseCode, application.reviewNotes, application.status]
@@ -216,7 +239,13 @@ const loadApplications = async () => {
 
   try {
     const resp = await api('/admin/tutor-verifications')
-    applications.value = (resp.verifications || resp.applications || []).map(normalizeAdminVerification)
+    applications.value = (resp.verifications || resp.applications || []).map((item) => {
+      const normalized = normalizeAdminVerification(item)
+      return {
+        ...normalized,
+        status: String(normalized.status || 'PENDING').toUpperCase()
+      }
+    })
   } catch (err) {
     message.value = `Error: ${err.message}`
   } finally {
@@ -306,7 +335,7 @@ onMounted(() => {
   background: #fff;
   padding: 12px 16px;
   font: inherit;
-  color: #3f2f38;
+  color: #1d1d1f;
   outline: none;
   box-shadow: 0 10px 24px rgba(104, 37, 58, 0.06);
 }
@@ -325,12 +354,44 @@ onMounted(() => {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #8a5a6a;
+  color: var(--ink-kicker);
 }
 
 .page-subtext {
   margin: 6px 0 0;
-  color: #735a66;
+  color: var(--ink-soft);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.filter-chip.active .filter-count {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .verification-item {
@@ -350,12 +411,12 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-weight: 700;
-  color: #8a5a6a;
+  color: var(--ink-kicker);
 }
 
 .verification-note {
   margin: 0;
-  color: #5f5160;
+  color: var(--ink-soft);
   line-height: 1.5;
 }
 
@@ -366,29 +427,34 @@ onMounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   border: 1px solid rgba(177, 31, 75, 0.14);
-  background: linear-gradient(180deg, #fff, #fff5f8);
+  background: linear-gradient(180deg, #fff, #f5f5f7);
   color: #65172f;
 }
 
 .status-badge.pending {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+}
+
+.status-badge.reupload_requested {
+  background: rgba(177, 31, 75, 0.14);
+  color: var(--primary);
 }
 
 .status-badge.approved {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-bg);
+  color: var(--success-ink);
 }
 
 .status-badge.rejected {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 
 .detail-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(22, 16, 20, 0.45);
+  background: var(--overlay-dark);
   backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
@@ -400,7 +466,7 @@ onMounted(() => {
   width: min(640px, 100%);
   border-radius: 24px;
   border: 1px solid rgba(177, 31, 75, 0.14);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 246, 249, 0.96));
+  background: var(--surface-tint);
   box-shadow: 0 24px 48px rgba(74, 20, 41, 0.22);
   padding: 22px;
 }
@@ -419,11 +485,11 @@ onMounted(() => {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #8a5a6a;
+  color: var(--ink-kicker);
 }
 
 .detail-date {
-  color: #735a66;
+  color: var(--ink-soft);
   font-size: 0.9rem;
 }
 
@@ -439,7 +505,7 @@ onMounted(() => {
 }
 
 .close-btn:hover {
-  background: #fff5f8;
+  background: #f5f5f7;
 }
 
 @media (max-width: 640px) {
@@ -474,12 +540,12 @@ onMounted(() => {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #8a5a6a;
+  color: var(--ink-kicker);
 }
 
 .detail-value {
   margin: 0;
-  color: #3f2f38;
+  color: #1d1d1f;
   line-height: 1.55;
 }
 
@@ -501,7 +567,7 @@ onMounted(() => {
   border: 1px solid rgba(177, 31, 75, 0.16);
   background: #fff;
   padding: 12px 14px;
-  color: #3f2f38;
+  color: #1d1d1f;
   font: inherit;
   outline: none;
 }
@@ -556,6 +622,7 @@ onMounted(() => {
 }
 
 </style>
+
 
 
 

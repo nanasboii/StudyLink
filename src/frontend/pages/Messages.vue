@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="view page active messages-page">
     <!-- Sidebar -->
     <aside class="conversations-sidebar">
@@ -6,10 +6,10 @@
         <h2>Messages</h2>
         <div class="sidebar-actions">
           <button class="action-btn support-btn" @click="openSupport" title="Contact Support">
-            🎧 Support
+            Support
           </button>
           <button class="action-btn new-btn" @click="showNewChat = true" title="New Message">
-            ✏️
+            New
           </button>
         </div>
       </div>
@@ -92,7 +92,7 @@
           </div>
         </div>
         <div v-if="messages.length === 0" class="no-messages">
-          <p>Say hello! 👋</p>
+          <p>Say hello!</p>
         </div>
       </div>
 
@@ -100,13 +100,13 @@
         <input
           v-model="newMessage"
           class="message-input"
-          placeholder="Type a message…"
+          placeholder="Type a message..."
           maxlength="2000"
           autocomplete="off"
           :disabled="sending"
         />
         <button type="submit" class="send-btn" :disabled="!newMessage.trim() || sending">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          <span class="send-icon" aria-hidden="true">&#10148;</span>
         </button>
       </form>
     </section>
@@ -114,7 +114,7 @@
     <!-- Empty state when no conv selected -->
     <section class="chat-empty" v-else>
       <div class="chat-empty-inner">
-        <div class="empty-icon">💬</div>
+        <div class="empty-icon">Chat</div>
         <h3>Your Messages</h3>
         <p>Select a conversation on the left, or start a new one.</p>
         <div class="empty-btns">
@@ -134,7 +134,7 @@
           <input
             v-model="searchQuery"
             class="search-input"
-            placeholder="Search by name…"
+            placeholder="Search by name..."
             @input="onSearch"
             autocomplete="off"
           />
@@ -214,7 +214,7 @@ const convInitials = (conv) => {
     const name = conv.other_user?.fullName || '?'
     return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
   }
-  if (conv.is_support) return '🎧'
+  if (conv.is_support) return 'SP'
   const name = conv.other_user?.fullName || '?'
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -366,7 +366,7 @@ watch(showNewChat, (val) => {
   overflow: hidden;
 }
 
-/* ── Sidebar ── */
+/* Sidebar */
 .conversations-sidebar {
   width: 320px;
   flex-shrink: 0;
@@ -458,9 +458,9 @@ watch(showNewChat, (val) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff4f8;
-  color: #c41e3a;
-  border: 1px solid #f0c4d1;
+  background: #f5f5f7;
+  color: #b11f4b;
+  border: 1px solid #e0e0e0;
   box-sizing: border-box;
 }
 
@@ -529,7 +529,7 @@ watch(showNewChat, (val) => {
 
 .empty-hint { font-size: 0.78rem; margin-top: 6px; }
 
-/* ── Chat panel ── */
+/* Chat panel */
 .chat-panel {
   flex: 1;
   display: flex;
@@ -677,9 +677,15 @@ watch(showNewChat, (val) => {
 
 .send-btn:hover:not(:disabled) { background: #6e1534; }
 .send-btn:disabled { background: #d4a0b0; cursor: not-allowed; }
-.send-btn svg { width: 18px; height: 18px; }
+.send-icon {
+  color: #d4d4d4;
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 700;
+  transform: translateX(1px);
+}
 
-/* ── Empty state ── */
+/* Empty state */
 .chat-empty {
   flex: 1;
   display: flex;
@@ -742,7 +748,7 @@ watch(showNewChat, (val) => {
 
 .btn-support:hover { background: #edf7f2; }
 
-/* ── New chat modal ── */
+/* New chat modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -883,3 +889,4 @@ watch(showNewChat, (val) => {
   }
 }
 </style>
+

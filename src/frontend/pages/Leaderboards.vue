@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg leaderboard-page">
     <section class="phone-shell">
       <div class="view page active">
@@ -25,7 +25,7 @@
           </button>
         </div>
 
-        <p class="leaderboard-summary">{{ leaderboardRankingLabel }} • {{ filteredLeaderboard.length }} ranked users • Updated {{ updateTime }}</p>
+        <p class="leaderboard-summary">{{ leaderboardRankingLabel }} - {{ filteredLeaderboard.length }} ranked users - Updated {{ updateTime }}</p>
 
         <div class="leaderboard-list">
           <div v-for="(entry, index) in filteredLeaderboard" :key="entry.id" class="leaderboard-card">
@@ -192,7 +192,7 @@ onUnmounted(() => {
   min-height: 100vh;
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #fff5f8 60%, #ffe7ee);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
 }
 
 .phone-shell {
@@ -227,7 +227,7 @@ onUnmounted(() => {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 700;
 }
 
@@ -242,7 +242,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .chip {
@@ -259,7 +259,7 @@ onUnmounted(() => {
 .tab-btn {
   border: 1px solid #e0e0e0;
   background: white;
-  color: #666;
+  color: #6e6e73;
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
@@ -269,20 +269,20 @@ onUnmounted(() => {
 }
 
 .tab-btn:hover {
-  border-color: #c41e3a;
-  color: #c41e3a;
+  border-color: #b11f4b;
+  color: #b11f4b;
 }
 
 .tab-btn.is-active {
   background: #f5c1d1;
-  color: #c41e3a;
-  border-color: #c41e3a;
+  color: #b11f4b;
+  border-color: #b11f4b;
 }
 
 .leaderboard-summary {
   margin: 0 0 20px 0;
   font-size: 13px;
-  color: #999;
+  color: #6e6e73;
 }
 
 .leaderboard-list {
@@ -293,7 +293,7 @@ onUnmounted(() => {
 
 .leaderboard-card {
   background: white;
-  border: 1px solid #f0c4d1;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
   display: flex;
   gap: 16px;
@@ -349,9 +349,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff4f8;
-  color: #c41e3a;
-  border: 1px solid #f0c4d1;
+  background: #f5f5f7;
+  color: #b11f4b;
+  border: 1px solid #e0e0e0;
 }
 
 .profile-pic-fallback svg {
@@ -372,7 +372,7 @@ onUnmounted(() => {
 }
 
 .profile-name strong {
-  color: #3f2f38;
+  color: #1d1d1f;
   font-size: 14px;
 }
 
@@ -386,18 +386,18 @@ onUnmounted(() => {
 }
 
 .role-badge.role-tutor {
-  background: #fff3cd;
-  color: #997404;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
 }
 
 .role-badge.role-tutee {
-  background: #e7f3ff;
-  color: #0c5aa0;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .role-badge.role-admin {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 
 .stats-group {
@@ -415,20 +415,20 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 11px;
-  color: #999;
+  color: #6e6e73;
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .stat-item strong {
   font-size: 16px;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .view-profile-btn {
   border: 1px solid #e0e0e0;
   background: white;
-  color: #666;
+  color: #6e6e73;
   border-radius: 6px;
   padding: 8px 16px;
   font-size: 13px;
@@ -439,9 +439,9 @@ onUnmounted(() => {
 }
 
 .view-profile-btn:hover {
-  border-color: #c41e3a;
-  color: #c41e3a;
-  background: #fff5f8;
+  border-color: #b11f4b;
+  color: #b11f4b;
+  background: #f5f5f7;
 }
 
 @media (max-width: 768px) {
@@ -464,3 +464,4 @@ onUnmounted(() => {
   }
 }
 </style>
+

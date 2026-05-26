@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '@/api.js'
 
-// Pages - Lazy loaded
 const Login = () => import('../pages/Login.vue')
 const Register = () => import('../pages/Register.vue')
 const Resources = () => import('../pages/Resources.vue')
@@ -11,7 +10,6 @@ const Leaderboards = () => import('../pages/Leaderboards.vue')
 const Session = () => import('../pages/Session.vue')
 const Verification = () => import('../pages/Verification.vue')
 const AdminReviewVerification = () => import('../pages/AdminReviewVerification.vue')
-const AdminReviews = () => import('../pages/AdminReviews.vue')
 const AdminResources = () => import('../pages/AdminResources.vue')
 const AdminAnalytics = () => import('../pages/AdminAnalytics.vue')
 const AdminActivity = () => import('../pages/AdminActivity.vue')
@@ -25,6 +23,7 @@ const Profile = () => import('../pages/Profile.vue')
 const Settings = () => import('../pages/Settings.vue')
 const PublicProfile = () => import('../pages/PublicProfile.vue')
 const ResourceDetail = () => import('../pages/ResourceDetail.vue')
+const MyResources = () => import('../pages/MyResources.vue')
 
 const routes = [
   { path: '/login', component: Login, name: 'Login' },
@@ -35,7 +34,7 @@ const routes = [
   { path: '/leaderboards', component: Leaderboards, name: 'Leaderboards', meta: { requiresAuth: true } },
   { path: '/session/:sessionId?', component: Session, name: 'Session', meta: { requiresAuth: true } },
   { path: '/verification', component: Verification, name: 'Verification', meta: { requiresAuth: true, requiresTutor: true } },
-  { path: '/admin/reviews', component: AdminReviews, name: 'AdminReviews', meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/reviews', redirect: '/admin/resources' },
   { path: '/admin/review-verifications', component: AdminReviewVerification, name: 'AdminReviewVerification', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/verifications', redirect: '/admin/review-verifications' },
   { path: '/admin/resources', component: AdminResources, name: 'AdminResources', meta: { requiresAuth: true, requiresAdmin: true } },
@@ -51,7 +50,17 @@ const routes = [
   { path: '/settings', component: Settings, name: 'Settings', meta: { requiresAuth: true } },
   { path: '/users/:userId', component: PublicProfile, name: 'PublicProfile', meta: { requiresAuth: true } },
   { path: '/resources/:resourceId', component: ResourceDetail, name: 'ResourceDetail', meta: { requiresAuth: true } },
-  { path: '/', redirect: '/resources' }
+  { path: '/my-resources', component: MyResources, name: 'MyResources', meta: { requiresAuth: true } },
+  {
+    path: '/',
+    redirect: () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('studylinkUser'))
+        if (user?.role === 'admin') return '/admin/analytics'
+      } catch {}
+      return '/resources'
+    }
+  }
 ]
 
 const router = createRouter({
@@ -79,7 +88,7 @@ router.beforeEach((to, from, next) => {
       next('/resources')
       return
     }
-    if (to.meta.requiresTutor && (!user || user.role !== 'tutor')) {
+    if (to.meta.requiresTutor && (!user || !['tutor', 'admin'].includes(user.role))) {
       next('/resources')
       return
     }

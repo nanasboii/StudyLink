@@ -64,11 +64,11 @@ onMounted(() => {
   margin-right: 0.5rem;
 }
 .error-status.status-500 {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 .error-status.status-404 {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
 }
 </style>

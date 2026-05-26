@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <header class="topbar">
     <div class="topbar-left">
       <router-link to="/resources" class="brand-link">StudyLink{{ brandRoleLabel }}</router-link>
@@ -18,14 +18,14 @@
     <div class="topbar-actions">
       <button class="icon-btn streak-btn" @click="showStreakModal" title="Login streak">
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="17" rx="3" fill="#c41e3a"/>
+          <rect x="3" y="4" width="18" height="17" rx="3" fill="#b11f4b"/>
           <rect x="3" y="8" width="18" height="3" fill="#ffb7c5"/>
           <rect x="7" y="2" width="2" height="4" rx="1" fill="#8d1630"/>
           <rect x="15" y="2" width="2" height="4" rx="1" fill="#8d1630"/>
-          <rect x="6" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
-          <rect x="10.9" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
-          <rect x="15.8" y="13" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
-          <rect x="6" y="16.6" width="2.2" height="2.2" rx="0.5" fill="#fff4f8"/>
+          <rect x="6" y="13" width="2.2" height="2.2" rx="0.5" fill="#f5f5f7"/>
+          <rect x="10.9" y="13" width="2.2" height="2.2" rx="0.5" fill="#f5f5f7"/>
+          <rect x="15.8" y="13" width="2.2" height="2.2" rx="0.5" fill="#f5f5f7"/>
+          <rect x="6" y="16.6" width="2.2" height="2.2" rx="0.5" fill="#f5f5f7"/>
           <rect x="10.9" y="16.6" width="7.1" height="2.2" rx="1" fill="#ffdce6"/>
         </svg>
         <span class="streak-btn-badge" v-if="streakCount">{{ streakCount }}</span>
@@ -34,11 +34,17 @@
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <span class="notify-badge" v-if="unreadCount" :class="{ unread: unreadCount > 0 }">{{ unreadCount }}</span>
       </button>
-      <button class="icon-btn" @click="navigateToMessages" title="Messages">
+      <button class="icon-btn message-btn" @click="navigateToMessages" title="Messages">
         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       </button>
-      <button class="icon-btn" @click="showUserMenu" title="User menu">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+      <button class="icon-btn profile-btn" @click="showUserMenu" title="User menu">
+        <img
+          v-if="topbarProfilePicture"
+          class="topbar-profile-image"
+          :src="topbarProfilePicture"
+          :alt="currentUser?.fullName || 'Profile'"
+        />
+        <svg v-else viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
       </button>
     </div>
   </header>
@@ -101,35 +107,44 @@
       </div>
       <div class="user-menu-divider"></div>
       <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
-        👤 Profile
+        Profile
       </router-link>
       <router-link to="/settings" class="menu-item" @click="isUserMenuOpen = false">
-        ⚙️ Settings
+        Settings
       </router-link>
-      <router-link v-if="currentUser?.role === 'admin'" to="/admin/reviews" class="menu-item" @click="isUserMenuOpen = false">
-        📝 Review Moderation
-      </router-link>
-      <router-link v-else to="/review" class="menu-item" @click="isUserMenuOpen = false">
-        📝 Reviews
-      </router-link>
-      <router-link v-if="currentUser?.role === 'admin'" to="/admin/review-verifications" class="menu-item" @click="isUserMenuOpen = false">
-        ✓ Verification Review
-      </router-link>
-      <router-link v-if="currentUser?.role === 'admin'" to="/admin/reward-rules" class="menu-item" @click="isUserMenuOpen = false">
-        🎛 Reward Rules
+      <router-link to="/review" class="menu-item" @click="isUserMenuOpen = false">
+        Reviews
       </router-link>
       <router-link to="/achievements" class="menu-item" @click="isUserMenuOpen = false">
-        🏆 Achievements
+        Achievements
       </router-link>
       <router-link to="/redeem" class="menu-item" @click="isUserMenuOpen = false">
-        🎁 Redeem Points
+        Redeem Points
       </router-link>
-      <router-link v-if="currentUser?.role === 'tutor'" to="/verification" class="menu-item" @click="isUserMenuOpen = false">
-        ✓ Verification
+      <router-link v-if="currentUser?.role === 'tutor' || currentUser?.role === 'admin'" to="/verification" class="menu-item" @click="isUserMenuOpen = false">
+        Verification
       </router-link>
+      <template v-if="isAdmin">
+        <div class="user-menu-divider"></div>
+        <router-link to="/resources" class="menu-item" @click="isUserMenuOpen = false">
+          Resources
+        </router-link>
+        <router-link to="/my-resources" class="menu-item" @click="isUserMenuOpen = false">
+          My Uploads
+        </router-link>
+        <router-link to="/tutors" class="menu-item" @click="isUserMenuOpen = false">
+          Tutors
+        </router-link>
+        <router-link to="/leaderboards" class="menu-item" @click="isUserMenuOpen = false">
+          Leaderboard
+        </router-link>
+        <router-link to="/session" class="menu-item" @click="isUserMenuOpen = false">
+          Sessions
+        </router-link>
+      </template>
       <div class="user-menu-divider"></div>
       <button @click="logout" class="menu-item logout-item">
-        🚪 Logout
+        Logout
       </button>
     </div>
   </div>
@@ -139,6 +154,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser, clearSession } from '@/api.js'
+import { normalizeAssetUrl } from '@/utils/records.js'
 
 export default {
   name: 'Topbar',
@@ -146,12 +162,16 @@ export default {
     const router = useRouter()
     const currentUserState = ref(getUser())
     const currentUser = computed(() => currentUserState.value)
-    const homeRoute = '/resources'
+    const isAdmin = computed(() => currentUser.value?.role === 'admin')
+    const homeRoute = computed(() => {
+      return currentUser.value?.role === 'admin' ? '/admin/analytics' : '/resources'
+    })
     const streakCount = ref(0)
     const unreadCount = ref(0)
     const notificationPollTimer = ref(null)
     const isStreakModalOpen = ref(false)
     const isUserMenuOpen = ref(false)
+    const quickNavHistory = ref({})
     const lastCheckInDate = ref('Today')
     const loginHistory = ref([])
     const currentDate = ref(new Date())
@@ -201,6 +221,13 @@ export default {
         .replace(/\b\w/g, (char) => char.toUpperCase())
     })
 
+    const topbarProfilePicture = computed(() => {
+      const user = currentUser.value || {}
+      return normalizeAssetUrl(
+        user.profilePicture || user.profilePictureUrl || user.profile_picture_url || user.profile_picture || ''
+      )
+    })
+
     const brandRoleLabel = computed(() => {
       return displayRole.value ? ` (${displayRole.value})` : ''
     })
@@ -211,6 +238,7 @@ export default {
       const role = currentUser.value.role || 'tutee'
       const baseItems = [
         { key: 'resources', label: 'Resources', path: '/resources' },
+        { key: 'my-resources', label: 'My Uploads', path: '/my-resources' },
         { key: 'tutors', label: 'Tutors', path: '/tutors' },
         { key: 'leaderboards', label: 'Leaderboard', path: '/leaderboards' },
         { key: 'session', label: 'Sessions', path: '/session' }
@@ -218,8 +246,10 @@ export default {
       
       if (role === 'admin') {
         return [
-          { key: 'resources', label: 'Resources', path: '/resources' },
-          { key: 'leaderboards', label: 'Leaderboard', path: '/leaderboards' }
+          { key: 'analytics', label: 'Analytics', path: '/admin/analytics' },
+          { key: 'resource-management', label: 'Resource Management', path: '/admin/resources' },
+          { key: 'verifications', label: 'Verification Review', path: '/admin/review-verifications' },
+          { key: 'reward-rules', label: 'Reward Rules', path: '/admin/reward-rules' },
         ]
       }
       
@@ -284,9 +314,27 @@ export default {
     }
 
     const toggleRoute = async (targetPath) => {
-      if (router.currentRoute.value.path === targetPath) {
-        await goHome()
+      const currentPath = router.currentRoute.value.path
+      const currentFullPath = router.currentRoute.value.fullPath
+
+      if (currentPath === targetPath) {
+        const previousPath = quickNavHistory.value[targetPath]
+        if (previousPath && previousPath !== currentFullPath) {
+          await router.push(previousPath)
+        } else {
+          await goHome()
+        }
+
+        quickNavHistory.value = {
+          ...quickNavHistory.value,
+          [targetPath]: null
+        }
         return
+      }
+
+      quickNavHistory.value = {
+        ...quickNavHistory.value,
+        [targetPath]: currentFullPath
       }
 
       await router.push(targetPath)
@@ -433,6 +481,7 @@ export default {
       calendarDays,
       currentMonth,
       brandRoleLabel,
+      topbarProfilePicture,
       navItems,
       navigateToNotifications,
       navigateToMessages,
@@ -451,78 +500,83 @@ export default {
 .topbar {
   grid-row: 1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(120px, auto) 1fr auto;
   align-items: center;
-  gap: 20px;
-  padding: 12px 24px;
-  border-bottom: 1px solid #ffd4e0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 252, 0.96));
-  backdrop-filter: blur(10px);
-  box-shadow: 0 1px 4px rgba(9, 27, 44, 0.06);
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid #e0e0e0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: saturate(180%) blur(20px);
   position: relative;
   z-index: 30;
-  overflow: visible;
 }
 
 .topbar-left {
   justify-self: start;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .brand-link {
-  font-size: 16px;
-  font-weight: 700;
-  color: #3f2f38;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
   text-decoration: none;
-  font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
-  letter-spacing: 0.5px;
+  letter-spacing: -0.01em;
 }
 
 .brand-link:hover {
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .topbar-center {
-  justify-self: center;
-  flex: 1;
+  justify-self: stretch;
   display: flex;
   justify-content: center;
 }
 
 .main-nav {
   display: flex;
-  gap: 32px;
+  gap: 22px;
   align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.main-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-link {
-  color: #666;
+  color: #6e6e73;
   text-decoration: none;
-  font-size: 13px;
-  font-weight: 500;
-  transition: color 150ms ease;
+  font-size: 12px;
+  font-weight: 400;
+  transition: color 120ms ease;
   position: relative;
+  letter-spacing: -0.01em;
 }
 
 .nav-link:hover {
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .nav-link.router-link-active {
-  color: #c41e3a;
-  font-weight: 600;
+  color: #1d1d1f;
+  font-weight: 500;
 }
 
 .nav-link.router-link-active::after {
   content: '';
   position: absolute;
-  bottom: -8px;
+  bottom: -10px;
   left: 0;
   right: 0;
-  height: 2px;
-  background: #c41e3a;
+  height: 1px;
+  background: #b11f4b;
   border-radius: 1px;
 }
 
@@ -530,48 +584,100 @@ export default {
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .icon-btn {
-  border: 1px solid #f0c4d1;
-  border-radius: 10px;
-  background: white;
-  font-size: 13px;
-  padding: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 9999px;
+  background: #f5f5f7;
+  font-size: 12px;
+  padding: 0;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  color: #6e6e73;
+}
+
+.icon-btn:hover svg {
+  color: #b11f4b;
 }
 
 .icon-btn:hover {
-  background: #fff4f8;
-  border-color: #ffb7c5;
+  border-color: #c7c7cc;
+  background: #ffffff;
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
 }
 
 .streak-btn,
 .notify-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 9999px;
   position: relative;
 }
 
 .streak-btn svg,
 .notify-btn svg {
-  width: 20px;
-  height: 20px;
-  color: #666;
+  width: 18px;
+  height: 18px;
+  color: #6e6e73;
+}
+
+.topbar-profile-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-btn {
+  border: 0;
+  background: transparent;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.profile-btn:hover {
+  background: transparent;
+  border-color: transparent;
+  transform: scale(1.03);
+}
+
+.profile-btn .topbar-profile-image {
+  border: 1px solid #e0e0e0;
+}
+
+.profile-btn svg {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #f5f5f7;
+  color: #6e6e73;
+  border: 1px solid #e0e0e0;
+  padding: 6px;
 }
 
 .streak-btn:hover svg,
 .notify-btn:hover svg {
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .streak-btn-badge,
@@ -583,7 +689,7 @@ export default {
   height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #c41e3a;
+  background: #b11f4b;
   color: #fff;
   border: 2px solid #fff;
   font-size: 9px;
@@ -595,7 +701,7 @@ export default {
 }
 
 .notify-badge.unread {
-  background: #c41e3a;
+  background: #b11f4b;
   animation: pulse 2s infinite;
 }
 
@@ -608,22 +714,23 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.44);
   display: grid;
   place-items: center;
   padding: 20px;
   z-index: 1000;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(6px);
 }
 
 .modal-content {
   background: white;
-  border-radius: 12px;
+  border-radius: 18px;
+  border: 1px solid #e0e0e0;
   padding: 24px;
   max-width: 500px;
   width: min(500px, calc(100vw - 40px));
   margin: 0 auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .modal-content.streak-modal {
@@ -640,24 +747,25 @@ export default {
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
-  color: #3f2f38;
-  font-weight: 700;
+  font-size: 32px;
+  color: #1d1d1f;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .modal-kicker {
   margin: 0 0 4px 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
-  color: #999;
+  letter-spacing: 0.12em;
+  color: #6e6e73;
   text-transform: uppercase;
 }
 
 .modal-subtext {
   margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #666;
+  font-size: 17px;
+  color: #6e6e73;
 }
 
 .close-btn {
@@ -665,14 +773,14 @@ export default {
   border: none;
   font-size: 28px;
   cursor: pointer;
-  color: #999;
+  color: #6e6e73;
   padding: 0;
   line-height: 1;
   margin-top: -4px;
 }
 
 .close-btn:hover {
-  color: #333;
+  color: #1d1d1f;
 }
 
 /* Stats Grid */
@@ -684,9 +792,9 @@ export default {
 }
 
 .stat-box {
-  background: #f9f9f9;
-  border: 1px solid #eee;
-  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 11px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -694,17 +802,17 @@ export default {
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  color: #999;
+  color: #6e6e73;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #3f2f38;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
 }
 
 /* Calendar Header */
@@ -718,23 +826,23 @@ export default {
 
 .calendar-header h3 {
   margin: 0;
-  font-size: 16px;
-  color: #3f2f38;
+  font-size: 17px;
+  color: #1d1d1f;
   font-weight: 600;
 }
 
 .calendar-nav {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 18px;
   cursor: pointer;
-  color: #999;
+  color: #6e6e73;
   padding: 4px 8px;
   transition: color 150ms ease;
 }
 
 .calendar-nav:hover {
-  color: #333;
+  color: #1d1d1f;
 }
 
 /* Calendar Weekdays */
@@ -749,7 +857,7 @@ export default {
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: #999;
+  color: #6e6e73;
   padding: 8px 0;
   text-transform: uppercase;
 }
@@ -767,11 +875,11 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #e0e0e0;
   background: white;
-  font-size: 13px;
-  color: #666;
+  font-size: 14px;
+  color: #6e6e73;
   font-weight: 500;
   cursor: default;
 }
@@ -783,31 +891,31 @@ export default {
 }
 
 .calendar-day.checked-in {
-  background: #d91c3a;
+  background: #b11f4b;
   color: white;
-  border-color: #d91c3a;
+  border-color: #b11f4b;
   font-weight: 600;
 }
 
 .calendar-footer {
   text-align: center;
   font-size: 12px;
-  color: #999;
+  color: #6e6e73;
   margin: 0;
 }
 
 /* User Menu Styles */
 .user-menu {
   background: white;
-  border-radius: 8px;
+  border-radius: 11px;
   padding: 12px 0;
   min-width: 200px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
   position: fixed;
   top: 56px;
   right: 16px;
   z-index: 1000;
-  border: 1px solid #f0c4d1;
+  border: 1px solid #e0e0e0;
 }
 
 .user-menu-header {
@@ -817,30 +925,30 @@ export default {
 
 .user-menu-header h3 {
   margin: 0;
-  font-size: 14px;
-  color: #3f2f38;
+  font-size: 17px;
+  color: #1d1d1f;
   font-weight: 600;
 }
 
 .user-role {
   margin: 4px 0 0 0;
   font-size: 12px;
-  color: #999;
+  color: #6e6e73;
   text-transform: capitalize;
 }
 
 .user-menu-divider {
   height: 1px;
-  background: #f0c4d1;
+  background: #e0e0e0;
   margin: 8px 0;
 }
 
 .menu-item {
   display: block;
   padding: 10px 16px;
-  color: #3f2f38;
+  color: #1d1d1f;
   text-decoration: none;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   border: none;
   background: none;
@@ -851,16 +959,73 @@ export default {
 }
 
 .menu-item:hover {
-  background: #fff4f8;
-  color: #c41e3a;
+  background: #f5f5f7;
+  color: #b11f4b;
 }
 
 .logout-item {
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 600;
 }
 
 .logout-item:hover {
-  background: #ffebee;
+  background: #fff1f4;
+}
+
+@media (max-width: 1068px) {
+  .topbar {
+    padding: 10px 16px;
+  }
+
+  .main-nav {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 833px) {
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .brand-link {
+    font-size: 14px;
+  }
+
+  .topbar-center {
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+
+  .main-nav {
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .main-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link {
+    font-size: 11px;
+  }
+
+  .icon-btn,
+  .streak-btn,
+  .notify-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .streak-btn svg,
+  .notify-btn svg {
+    width: 16px;
+    height: 16px;
+  }
 }
 </style>
+

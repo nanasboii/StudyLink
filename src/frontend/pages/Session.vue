@@ -3,10 +3,10 @@
     <section class="phone-shell">
       <div class="view page active">
         <section class="card session-form-card">
-          <h2>{{ userRole === 'tutor' ? 'Manage Session' : 'Book a Session' }}</h2>
+          <h2>{{ isAdmin ? 'Manage and Book Sessions' : (userRole === 'tutor' ? 'Manage Session' : 'Book a Session') }}</h2>
           
           <!-- Tutor Form: Update Availability -->
-          <form v-if="userRole === 'tutor'" @submit.prevent="submitAvailability" class="session-form">
+          <form v-if="canManageAvailability" @submit.prevent="submitAvailability" class="session-form">
             <div class="form-group">
               <label for="courseCode">Course Code</label>
               <input 
@@ -51,7 +51,7 @@
           </form>
 
           <!-- Tutee Form: Book Session -->
-          <form v-if="userRole === 'tutee'" @submit.prevent="submitBooking" class="session-form">
+          <form v-if="canBookSession" @submit.prevent="submitBooking" class="session-form">
             <p class="form-tip">Tip: Use the tutor's matric number from the Tutor page.</p>
 
             <div class="form-group">
@@ -140,17 +140,48 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { api, getUser } from '@/api.js'
 import { formatDateTimeValue } from '@/utils/records.js'
 
 const user = getUser()
+const route = useRoute()
 const userRole = ref(user?.role || 'tutee')
+const isAdmin = String(user?.role || '').toLowerCase().trim() === 'admin'
+const canManageAvailability = userRole.value === 'tutor' || isAdmin
+const canBookSession = userRole.value === 'tutee' || isAdmin
 const availability = ref({ courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' })
 const booking = ref({ tutorId: '', courseCode: '', sessionTime: '' })
 const sessionList = ref([])
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const message = ref('')
+
+const applyBookingPrefill = () => {
+  if (!canBookSession) return
+
+  const localTutorId = localStorage.getItem('prefillTutorId')
+  const tutorIdFromQuery = typeof route.query.tutorId === 'string' ? route.query.tutorId : ''
+  const courseFromQuery = typeof route.query.courseCode === 'string' ? route.query.courseCode : ''
+  const timeFromQuery = typeof route.query.sessionTime === 'string' ? route.query.sessionTime : ''
+
+  const tutorPrefill = String(tutorIdFromQuery || localTutorId || '').trim()
+  if (tutorPrefill) {
+    booking.value.tutorId = tutorPrefill
+  }
+
+  if (courseFromQuery) {
+    booking.value.courseCode = String(courseFromQuery).toUpperCase()
+  }
+
+  if (timeFromQuery) {
+    booking.value.sessionTime = timeFromQuery
+  }
+
+  if (localTutorId) {
+    localStorage.removeItem('prefillTutorId')
+  }
+}
 
 const submitAvailability = async () => {
   try {
@@ -202,8 +233,16 @@ const loadSessions = async () => {
 }
 
 onMounted(() => {
+  applyBookingPrefill()
   loadSessions()
 })
+
+watch(
+  () => route.query,
+  () => {
+    applyBookingPrefill()
+  }
+)
 </script>
 
 <style scoped>

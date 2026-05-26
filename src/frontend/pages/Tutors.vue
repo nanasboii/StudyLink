@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg">
     <section class="phone-shell">
       <div class="view page active">
@@ -94,10 +94,10 @@
               <div class="tutor-card-body">
                 <div class="tutor-card-header">
                   <strong>{{ tutor.full_name }}</strong>
-                  <span v-if="tutor.is_verified" class="badge">✓ Verified</span>
+                  <span v-if="tutor.is_verified" class="badge">Verified</span>
                 </div>
                 <div class="meta tutor-meta">{{ tutor.major || 'General' }}</div>
-                <div class="meta">⭐ {{ Number(tutor.rating || 0).toFixed(1) }} • {{ tutor.total_points || 0 }} pts</div>
+                <div class="meta">Rating {{ Number(tutor.rating || 0).toFixed(1) }} - {{ tutor.total_points || 0 }} pts</div>
                 <div v-if="tutor.expertise && tutor.expertise.length" class="expertise-tags">
                   <span v-for="skill in tutor.expertise.slice(0, 3)" :key="skill" class="tag">
                     {{ skill }}
@@ -118,7 +118,7 @@
         <!-- Tutor Profile Modal -->
         <div v-if="selectedTutorData" class="modal-backdrop" @click="selectedTutorData = null">
           <div class="modal-content" @click.stop>
-            <button class="modal-close" @click="selectedTutorData = null">×</button>
+            <button class="modal-close" @click="selectedTutorData = null">x</button>
             
             <div class="tutor-profile-header">
               <img
@@ -137,7 +137,7 @@
                 <h2>{{ selectedTutorData.full_name }}</h2>
                 <p class="role-badge">
                   Tutor
-                  <span v-if="selectedTutorData.is_verified" class="badge">✓ Verified</span>
+                  <span v-if="selectedTutorData.is_verified" class="badge">Verified</span>
                 </p>
               </div>
             </div>
@@ -167,9 +167,19 @@
               <h4>Availability</h4>
               <div v-if="selectedTutorData.availability && selectedTutorData.availability.length" class="availability-list">
                 <div v-for="slot in selectedTutorData.availability" :key="`${slot.dayOfWeek}-${slot.startTime}`" class="availability-slot">
-                  <strong>{{ slot.dayOfWeek }}</strong>
-                  <span>{{ slot.startTime }} - {{ slot.endTime }}</span>
-                  <span v-if="slot.courseCode" class="course-code">{{ slot.courseCode }}</span>
+                  <div class="slot-main">
+                    <strong>{{ slot.dayOfWeek }}</strong>
+                    <span>{{ slot.startTime }} - {{ slot.endTime }}</span>
+                    <span v-if="slot.courseCode" class="course-code">{{ slot.courseCode }}</span>
+                  </div>
+                  <button
+                    v-if="canBookTutorSessions"
+                    type="button"
+                    class="slot-book-btn"
+                    @click="bookSlot(slot)"
+                  >
+                    Book this session
+                  </button>
                 </div>
               </div>
               <p v-else class="meta">No availability set yet</p>
@@ -185,9 +195,9 @@
                 <div v-for="review in tutorReviews" :key="review.id" class="review-card">
                   <div class="review-header">
                     <strong>{{ review.reviewer_name || 'Anonymous' }}</strong>
-                    <span class="stars">{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span>
+                    <span class="stars">{{ '*'.repeat(review.rating) }}{{ '-'.repeat(5 - review.rating) }}</span>
                   </div>
-                  <p class="review-meta">{{ review.reviewer_role || 'Tutee' }} • {{ formatDateValue(review.created_at, '', undefined, { month: 'short', day: 'numeric' }) }}</p>
+                  <p class="review-meta">{{ review.reviewer_role || 'Tutee' }} - {{ formatDateValue(review.created_at, '', undefined, { month: 'short', day: 'numeric' }) }}</p>
                   <p class="review-comment">{{ review.comment || 'No comment' }}</p>
                 </div>
               </div>
@@ -197,7 +207,7 @@
               <button class="chip" @click="viewPublicProfile">
                 View Profile
               </button>
-              <button v-if="currentUserRole === 'tutee'" class="chip-strong" @click="bookTutor">
+              <button v-if="canBookTutorSessions" class="chip-strong" @click="bookTutor">
                 Book This Tutor
               </button>
             </div>
@@ -217,7 +227,8 @@ import { normalizeTutor } from '@/utils/records.js'
 
 const router = useRouter()
 const currentUser = getUser()
-const currentUserRole = currentUser?.role || 'tutee'
+const currentUserRole = String(currentUser?.role || 'tutee').toLowerCase().trim()
+const canBookTutorSessions = currentUserRole === 'tutee' || currentUserRole === 'admin'
 
 const tutors = ref([])
 const isLoading = ref(true)
@@ -331,6 +342,69 @@ const bookTutor = () => {
   }
 }
 
+const dayNameToIndex = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6
+}
+
+const toDateTimeLocalValue = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hour}:${minute}`
+}
+
+const getNextSlotDateTime = (dayOfWeek, startTime) => {
+  const dayIndex = dayNameToIndex[String(dayOfWeek || '').toLowerCase()]
+  if (dayIndex === undefined || !String(startTime || '').includes(':')) return ''
+
+  const [hours, minutes] = String(startTime)
+    .split(':')
+    .map((value) => Number(value))
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return ''
+
+  const now = new Date()
+  const candidate = new Date(now)
+  const dayDelta = (dayIndex - candidate.getDay() + 7) % 7
+
+  candidate.setDate(candidate.getDate() + dayDelta)
+  candidate.setHours(hours, minutes, 0, 0)
+
+  if (candidate <= now) {
+    candidate.setDate(candidate.getDate() + 7)
+  }
+
+  return toDateTimeLocalValue(candidate)
+}
+
+const bookSlot = (slot) => {
+  if (!selectedTutorData.value) return
+
+  const query = {
+    tutorId: String(selectedTutorData.value.id)
+  }
+
+  if (slot?.courseCode) {
+    query.courseCode = String(slot.courseCode).toUpperCase()
+  }
+
+  const nextSlot = getNextSlotDateTime(slot?.dayOfWeek, slot?.startTime)
+  if (nextSlot) {
+    query.sessionTime = nextSlot
+  }
+
+  selectedTutorData.value = null
+  router.push({ path: '/session', query })
+}
+
 const viewPublicProfile = () => {
   if (!selectedTutorData.value) {
     return
@@ -365,7 +439,7 @@ onUnmounted(() => {
   min-height: 100vh;
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #fff5f8 60%, #ffe7ee);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
 }
 
 .phone-shell {
@@ -395,7 +469,7 @@ onUnmounted(() => {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #c41e3a;
+  color: #b11f4b;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -404,13 +478,13 @@ onUnmounted(() => {
   margin: 0 0 12px;
   font-size: 24px;
   font-weight: 700;
-  color: #3f2f38;
+  color: #1d1d1f;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
 }
 
 .tutors-hero__text {
   margin: 0;
-  color: #666;
+  color: #6e6e73;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -432,7 +506,7 @@ onUnmounted(() => {
 .hero-stat__label {
   display: block;
   font-size: 11px;
-  color: #999;
+  color: #6e6e73;
   margin-bottom: 4px;
   font-weight: 500;
 }
@@ -440,7 +514,7 @@ onUnmounted(() => {
 .hero-stat strong {
   display: block;
   font-size: 20px;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .search-row {
@@ -484,12 +558,12 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
+  color: #6e6e73;
   transition: color 150ms ease;
 }
 
 .icon-chip:hover {
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .icon-chip svg {
@@ -520,13 +594,13 @@ onUnmounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .meta {
   margin: 0;
   font-size: 12px;
-  color: #999;
+  color: #6e6e73;
 }
 
 .tutors-section {
@@ -553,7 +627,7 @@ onUnmounted(() => {
 }
 
 .tutor-card:hover {
-  border-color: #c41e3a;
+  border-color: #b11f4b;
   box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
   transform: translateY(-2px);
 }
@@ -564,8 +638,8 @@ onUnmounted(() => {
   height: 60px;
   border-radius: 50%;
   overflow: hidden;
-  background: #fff4f8;
-  border: 1px solid #f0c4d1;
+  background: #f5f5f7;
+  border: 1px solid #e0e0e0;
 }
 
 .tutor-avatar img {
@@ -580,7 +654,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .tutor-avatar-fallback svg {
@@ -604,12 +678,12 @@ onUnmounted(() => {
 
 .tutor-card-header strong {
   font-size: 13px;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .tutor-meta {
   font-size: 12px;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 600;
 }
 
@@ -623,7 +697,7 @@ onUnmounted(() => {
 .tag {
   display: inline-block;
   background: rgba(196, 30, 58, 0.1);
-  color: #c41e3a;
+  color: #b11f4b;
   border-radius: 12px;
   padding: 2px 8px;
   font-size: 11px;
@@ -644,7 +718,7 @@ onUnmounted(() => {
 .empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: #999;
+  color: #6e6e73;
   grid-column: 1 / -1;
 }
 
@@ -678,7 +752,7 @@ onUnmounted(() => {
   border: none;
   font-size: 28px;
   cursor: pointer;
-  color: #999;
+  color: #6e6e73;
 }
 
 .tutor-profile-header {
@@ -700,9 +774,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff4f8;
-  color: #c41e3a;
-  border: 1px solid #f0c4d1;
+  background: #f5f5f7;
+  color: #b11f4b;
+  border: 1px solid #e0e0e0;
 }
 
 .profile-pic-fallback svg {
@@ -715,13 +789,13 @@ onUnmounted(() => {
   margin: 0 0 4px;
   font-size: 18px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .role-badge {
   margin: 0;
   font-size: 12px;
-  color: #666;
+  color: #6e6e73;
 }
 
 .profile-section {
@@ -738,7 +812,7 @@ onUnmounted(() => {
   margin: 0 0 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
   text-transform: uppercase;
 }
 
@@ -758,17 +832,26 @@ onUnmounted(() => {
 
 .availability-slot {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   padding: 8px;
   background: #f5f5f5;
   border-radius: 8px;
   font-size: 12px;
 }
 
+.slot-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .availability-slot strong {
   min-width: 60px;
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .course-code {
@@ -778,6 +861,22 @@ onUnmounted(() => {
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
+}
+
+.slot-book-btn {
+  border: none;
+  border-radius: 999px;
+  background: #b11f4b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.slot-book-btn:hover {
+  background: #9d1c43;
 }
 
 .reviews-list {
@@ -790,7 +889,7 @@ onUnmounted(() => {
   padding: 12px;
   background: #f9f9f9;
   border-radius: 8px;
-  border-left: 3px solid #c41e3a;
+  border-left: 3px solid #b11f4b;
 }
 
 .review-header {
@@ -802,7 +901,7 @@ onUnmounted(() => {
 
 .review-header strong {
   font-size: 12px;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .stars {
@@ -813,7 +912,7 @@ onUnmounted(() => {
 .review-meta {
   margin: 0 0 6px;
   font-size: 11px;
-  color: #999;
+  color: #6e6e73;
 }
 
 .review-comment {
@@ -849,3 +948,4 @@ onUnmounted(() => {
   }
 }
 </style>
+

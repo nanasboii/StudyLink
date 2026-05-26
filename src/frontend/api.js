@@ -118,14 +118,27 @@ export async function api(path, method = 'GET', body) {
 
     for (let index = 0; index < requestUrls.length; index += 1) {
       const response = await fetch(requestUrls[index], options)
+      const isFirstRequest = index === 0
+      const canRetryWithoutApiPrefix = requestUrls.length > 1 && isFirstRequest
 
       if (response.ok) {
-        return await response.json()
+        const payloadText = await response.text()
+        if (!payloadText) {
+          return {}
+        }
+
+        try {
+          return JSON.parse(payloadText)
+        } catch {
+          if (canRetryWithoutApiPrefix) {
+            continue
+          }
+
+          throw new Error('Unexpected server response. Please make sure the API server is running.')
+        }
       }
 
-      const isFirstRequest = index === 0
-      const canRetryWithoutApiPrefix = requestUrls.length > 1 && isFirstRequest && response.status === 404
-      if (canRetryWithoutApiPrefix) {
+      if (canRetryWithoutApiPrefix && response.status === 404) {
         continue
       }
 
@@ -133,8 +146,21 @@ export async function api(path, method = 'GET', body) {
         clearSession() // Auto logout if token expires
       }
 
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.message || `HTTP ${response.status}`)
+      const errorText = await response.text()
+      let errorMessage = `HTTP ${response.status}`
+      if (errorText) {
+        try {
+          const parsedError = JSON.parse(errorText)
+          errorMessage = parsedError.message || errorMessage
+        } catch {
+          // Keep a short HTML/error snippet out of user-facing messages.
+          errorMessage = errorText.startsWith('<')
+            ? 'Unexpected server response. Please make sure the API server is running.'
+            : errorText.slice(0, 160)
+        }
+      }
+
+      throw new Error(errorMessage)
     }
 
     throw new Error('Request failed')

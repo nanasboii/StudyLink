@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="view page active achievements-page">
     <section class="card achievements-hero">
       <div class="hero-title-wrap">
@@ -88,7 +88,7 @@
           </div>
 
           <div class="modal-status-pill" :class="selectedBadge.isUnlocked ? 'pill-unlocked' : 'pill-locked'">
-            {{ selectedBadge.isUnlocked ? '✓ Unlocked' : '🔒 Locked' }}
+            {{ selectedBadge.isUnlocked ? 'Unlocked' : 'Locked' }}
           </div>
 
           <h3 class="modal-title">{{ selectedBadge.name }}</h3>
@@ -121,8 +121,8 @@
           </div>
 
           <p class="modal-tip">
-            <template v-if="selectedBadge.isUnlocked">🎉 You've earned this badge — great work!</template>
-            <template v-else>💡 Keep tutoring, uploading resources, and leaving reviews to earn more points.</template>
+            <template v-if="selectedBadge.isUnlocked">You've earned this badge - great work!</template>
+            <template v-else>Keep tutoring, uploading resources, and leaving reviews to earn more points.</template>
           </p>
         </div>
       </div>
@@ -386,7 +386,7 @@ onMounted(() => {
 
 .badge-item.unlocked {
   border-color: #e88eb1;
-  background: linear-gradient(180deg, #fff, #fff4f8);
+  background: linear-gradient(180deg, #fff, #f5f5f7);
   box-shadow: 0 10px 22px rgba(162, 35, 86, 0.12);
   opacity: 1;
 }
@@ -526,7 +526,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff4f8;
+  background: #f5f5f7;
   border: 2px solid #f2c4d4;
   padding: 10px;
 }
@@ -551,13 +551,13 @@ onMounted(() => {
 }
 
 .pill-unlocked {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-bg);
+  color: var(--success-ink);
 }
 
 .pill-locked {
-  background: #f3e8f5;
-  color: #6a1b9a;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .modal-title {
@@ -646,7 +646,7 @@ onMounted(() => {
   margin: 0;
   font-size: 0.85rem;
   color: #7a5060;
-  background: #fff4f8;
+  background: #f5f5f7;
   border: 1px solid #f2d4e0;
   border-radius: 10px;
   padding: 10px 14px;
@@ -685,3 +685,4 @@ onMounted(() => {
   }
 }
 </style>
+

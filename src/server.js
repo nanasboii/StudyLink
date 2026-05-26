@@ -1117,12 +1117,19 @@ async function initializeDatabase() {
         course_code VARCHAR(30),
         proof_url TEXT NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending', 'approved', 'rejected')),
+          CHECK (status IN ('pending', 'approved', 'rejected', 'reupload_requested')),
         reviewed_by INTEGER REFERENCES users(id),
         review_notes TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         reviewed_at TIMESTAMP
       );
+
+      ALTER TABLE tutor_verifications
+        DROP CONSTRAINT IF EXISTS tutor_verifications_status_check;
+
+      ALTER TABLE tutor_verifications
+        ADD CONSTRAINT tutor_verifications_status_check
+        CHECK (status IN ('pending', 'approved', 'rejected', 'reupload_requested'));
 
       CREATE TABLE IF NOT EXISTS point_rewards (
         id SERIAL PRIMARY KEY,
@@ -2121,6 +2128,16 @@ app.get('/tutors', requireAuth, async (req, res) => {
                 ) AS availability
          FROM tutor_availability ta
          WHERE ($1::text IS NULL OR ta.course_code = $1)
+           AND NOT EXISTS (
+             SELECT 1
+             FROM bookings b
+             WHERE b.tutor_id = ta.tutor_id
+               AND b.status = 'accepted'
+               AND b.session_time >= NOW()
+               AND LOWER(TRIM(TO_CHAR(b.session_time, 'Day'))) = LOWER(ta.day_of_week)
+               AND b.session_time::time >= ta.start_time
+               AND b.session_time::time < ta.end_time
+           )
          GROUP BY ta.tutor_id
        )
        SELECT u.id,
@@ -2611,6 +2628,32 @@ app.post(
     }
   }
 );
+
+app.get('/resources/mine', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT r.*,
+              c.name AS course_name,
+              COALESCE(rr.review_count, 0)::int AS review_count,
+              COALESCE(rr.avg_rating, 0)::numeric(3,2) AS avg_rating
+       FROM resources r
+       LEFT JOIN courses c ON c.code = r.course_code
+       LEFT JOIN (
+         SELECT resource_id,
+                COUNT(*)::int AS review_count,
+                AVG(rating)   AS avg_rating
+         FROM resource_reviews
+         GROUP BY resource_id
+       ) rr ON rr.resource_id = r.id
+       WHERE r.contributor_id = $1
+       ORDER BY r.created_at DESC`,
+      [req.auth.user.id]
+    );
+    return res.json({ resources: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
 
 app.get('/resources', requireAuth, async (req, res) => {
   const courseCode = req.query.courseCode || null;
@@ -3158,7 +3201,8 @@ app.post(
 
       await client.query(
         `UPDATE tutor_verifications
-         SET review_notes = COALESCE(NULLIF($1, ''), review_notes),
+         SET status = 'reupload_requested',
+             review_notes = COALESCE(NULLIF($1, ''), review_notes),
              reviewed_by = $2,
              reviewed_at = NOW()
          WHERE id = $3`,
@@ -3283,56 +3327,6 @@ app.get('/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
        FROM users
        ORDER BY created_at DESC`
     );
-
-
-  app.get('/admin/reviews', requireAuth, requireRole('admin'), async (req, res) => {
-    try {
-      const { rows } = await pool.query(
-        `WITH combined_reviews AS (
-           SELECT
-             'session'::text AS review_type,
-             br.id,
-             br.rating,
-             br.comment,
-             br.created_at,
-             reviewer.full_name AS reviewer_name,
-             reviewer.role AS reviewer_role,
-             b.id AS subject_id,
-             COALESCE(b.course_code, 'General') AS subject_title,
-             CONCAT('Tutor: ', tutor.full_name, ' | Tutee: ', tutee.full_name) AS subject_meta,
-             'Tutoring Session'::text AS source_label
-           FROM booking_reviews br
-           JOIN bookings b ON b.id = br.booking_id
-           JOIN users reviewer ON reviewer.id = br.reviewer_id
-           JOIN users tutor ON tutor.id = b.tutor_id
-           JOIN users tutee ON tutee.id = b.tutee_id
-           UNION ALL
-           SELECT
-             'resource'::text AS review_type,
-             rr.id,
-             rr.rating,
-             rr.comment,
-             rr.created_at,
-             reviewer.full_name AS reviewer_name,
-             reviewer.role AS reviewer_role,
-             r.id AS subject_id,
-             r.title AS subject_title,
-             COALESCE(r.course_code, 'General') AS subject_meta,
-             'Learning Resource'::text AS source_label
-           FROM resource_reviews rr
-           JOIN resources r ON r.id = rr.resource_id
-           JOIN users reviewer ON reviewer.id = rr.reviewer_id
-         )
-         SELECT *
-         FROM combined_reviews
-         ORDER BY created_at DESC, id DESC` 
-      )
-
-      return res.json({ reviews: rows })
-    } catch (error) {
-      return res.status(500).json({ message: error.message })
-    }
-  })
     return res.json({ users: rows.map((row) => sanitizeUser(row)) });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -3531,39 +3525,50 @@ app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) 
       leaderboard_rank: pointsData[0]?.leaderboard_rank || 0
     };
 
-    const { rows: trendRows } = await pool.query(
-      `SELECT
-         SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS bookings_last_7,
-         SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS bookings_prev_7
-       FROM bookings`
-    );
+    const [trendRows, resourceTrendRows, userTrendRows, reviewTrendRows] = await Promise.all([
+      pool.query(
+        `SELECT
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS last_7,
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS prev_7
+         FROM bookings`
+      ),
+      pool.query(
+        `SELECT
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS last_7,
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS prev_7
+         FROM resources`
+      ),
+      pool.query(
+        `SELECT
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS last_7,
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS prev_7
+         FROM users`
+      ),
+      pool.query(
+        `SELECT
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS last_7,
+           SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS prev_7
+         FROM resource_reviews`
+      ),
+    ]);
 
-    const { rows: resourceTrendRows } = await pool.query(
-      `SELECT
-         SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS resources_last_7,
-         SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 day' AND created_at < NOW() - INTERVAL '7 day' THEN 1 ELSE 0 END) AS resources_prev_7
-       FROM resources`
-    );
-
-    const trends = {
-      bookingsLast7Days: Number(trendRows[0]?.bookings_last_7 || 0),
-      bookingsPrev7Days: Number(trendRows[0]?.bookings_prev_7 || 0),
-      resourcesLast7Days: Number(resourceTrendRows[0]?.resources_last_7 || 0),
-      resourcesPrev7Days: Number(resourceTrendRows[0]?.resources_prev_7 || 0)
-    };
+    const trends = [
+      { id: 'bookings',  label: 'New Bookings',        current: Number(trendRows.rows[0]?.last_7 || 0),        previous: Number(trendRows.rows[0]?.prev_7 || 0) },
+      { id: 'resources', label: 'Resources Uploaded',   current: Number(resourceTrendRows.rows[0]?.last_7 || 0), previous: Number(resourceTrendRows.rows[0]?.prev_7 || 0) },
+      { id: 'signups',   label: 'New User Sign-ups',    current: Number(userTrendRows.rows[0]?.last_7 || 0),     previous: Number(userTrendRows.rows[0]?.prev_7 || 0) },
+      { id: 'reviews',   label: 'Resource Reviews',     current: Number(reviewTrendRows.rows[0]?.last_7 || 0),   previous: Number(reviewTrendRows.rows[0]?.prev_7 || 0) },
+    ];
 
     return res.json({
-      analytics: {
-        totalUsers,
-        verifiedTutors,
-        activeBookings,
-        totalResources,
-        totalPoints,
-        totalBadges,
-        topContributors,
-        pointsDistribution,
-        trends
-      }
+      stats: {
+        totalUsers: Number(totalUsers),
+        verifiedTutors: Number(verifiedTutors),
+        activeBookings: Number(activeBookings),
+        totalResources: Number(totalResources),
+        totalPoints: Number(totalPoints),
+        totalBadges: Number(totalBadges),
+      },
+      trends,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

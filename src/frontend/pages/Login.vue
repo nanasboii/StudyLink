@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="login-page-wrapper">
     
     <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width:0; height:0;" aria-hidden="true" focusable="false">
@@ -142,7 +142,8 @@ onMounted(() => {
   loadLoginStreak();
   
   if (getToken() && getUser()) {
-    router.push(PAGES.resources); // Use Vue Router instead of window.location
+    const user = getUser()
+    router.push(user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources);
   }
 
   const rememberedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
@@ -243,7 +244,7 @@ const handleLogin = async () => {
     sessionStorage.setItem('studylinkShowStreakAfterLogin', '1');
 
     // Redirect on success
-    router.push(PAGES.resources);
+    router.push(result.user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources);
   } catch (error) {
     authMessage.value = error.message || 'An error occurred during login.';
   }
@@ -653,32 +654,38 @@ const handleLogin = async () => {
 }
 
 .password-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 46px;
-  align-items: stretch;
+  position: relative;
+  display: block;
 }
 
 .password-row input {
-  border-right: none;
+  padding-right: 42px;
 }
 
 .password-toggle {
+  position: absolute;
+  top: calc(50% + 1px);
+  right: 4px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(145, 167, 180, 0.34);
-  border-left: 1px solid rgba(255, 255, 255, 0.34);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(227, 238, 242, 0.34) 100%);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  line-height: 1;
+  background: transparent;
   color: #274055;
   cursor: pointer;
   transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 .password-toggle:hover {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(227, 238, 242, 0.45) 100%);
+  transform: translateY(-50%);
+  background: rgba(177, 31, 75, 0.08);
 }
 
 .password-toggle:focus-visible {
@@ -688,8 +695,8 @@ const handleLogin = async () => {
 }
 
 .password-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
 }
 
@@ -829,7 +836,7 @@ const handleLogin = async () => {
   }
 
   .password-row {
-    grid-template-columns: minmax(0, 1fr) 44px;
+    display: block;
   }
 }
 
@@ -856,13 +863,13 @@ const handleLogin = async () => {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .streak-count {
   margin: 8px 0 0;
   font-size: 28px;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 700;
 }
 
@@ -886,7 +893,7 @@ const handleLogin = async () => {
   cursor: pointer;
   font-size: 16px;
   font-weight: 700;
-  color: #c41e3a;
+  color: #b11f4b;
   transition: all 150ms ease;
 }
 
@@ -898,7 +905,7 @@ const handleLogin = async () => {
 .calendar-month {
   font-size: 14px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .calendar-weekdays {
@@ -912,7 +919,7 @@ const handleLogin = async () => {
   text-align: center;
   font-size: 11px;
   font-weight: 700;
-  color: #999;
+  color: #6e6e73;
   padding: 6px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -932,7 +939,7 @@ const handleLogin = async () => {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
-  color: #999;
+  color: #6e6e73;
   background: #f5f5f5;
   cursor: default;
 }
@@ -944,9 +951,9 @@ const handleLogin = async () => {
 
 .calendar-day.today {
   background: #fff0f3;
-  color: #c41e3a;
+  color: #b11f4b;
   font-weight: 700;
-  border: 2px solid #c41e3a;
+  border: 2px solid #b11f4b;
 }
 
 .calendar-day.logged-in {
@@ -959,6 +966,79 @@ const handleLogin = async () => {
 .calendar-day.logged-in.today {
   background: linear-gradient(135deg, #ff8fa3 0%, #ff6b8a 100%);
   border: 2px solid white;
+}
+
+.studylink-brand {
+  color: #1d1d1f;
+  letter-spacing: 0.08em;
+}
+
+.login-card {
+  border-radius: 18px;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.login-card h2 {
+  color: #1d1d1f;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.field {
+  color: #1d1d1f;
+}
+
+.field input {
+  border: 1px solid #e0e0e0;
+  border-radius: 9999px;
+  box-shadow: none;
+  background: #ffffff;
+}
+
+.field input:focus-visible {
+  border-color: #b11f4b;
+  box-shadow: 0 0 0 2px rgba(177, 31, 75, 0.2);
+}
+
+.password-toggle {
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  color: #6e6e73;
+}
+
+.password-toggle:hover {
+  background: rgba(177, 31, 75, 0.08);
+}
+
+.login-submit {
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background: #b11f4b;
+  color: #ffffff;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.login-submit:hover {
+  background: #9d1c43;
+  transform: none;
+  box-shadow: none;
+}
+
+.login-submit:focus-visible {
+  box-shadow: 0 0 0 2px rgba(177, 31, 75, 0.24);
+}
+
+.alt-link {
+  color: #b11f4b;
+}
+
+.message {
+  color: #bf2f45;
 }
 
 </style>

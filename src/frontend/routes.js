@@ -9,7 +9,6 @@
   verification: '/verification',
   
   // Admin Routes
-  adminReviews: '/admin/reviews',
   adminReviewVerifications: '/admin/review-verifications',
   adminVerifications: '/admin/verifications',
   adminResources: '/admin/resources',

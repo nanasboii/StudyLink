@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg">
     <section class="phone-shell">
       <header class="topbar">
@@ -216,7 +216,7 @@ const handleRegister = async () => {
   min-height: 100vh;
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #fff5f8 60%, #ffe7ee);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
 }
 
 .phone-shell {
@@ -251,7 +251,7 @@ const handleRegister = async () => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
   text-align: center;
 }
 
@@ -276,7 +276,7 @@ const handleRegister = async () => {
   margin: 0 0 20px;
   font-size: 20px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
 }
 
@@ -299,7 +299,7 @@ label {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 input,
@@ -349,7 +349,7 @@ button.primary:disabled {
   display: inline-block;
   border: 0;
   background: transparent;
-  color: #c41e3a;
+  color: #b11f4b;
   text-decoration: underline;
   cursor: pointer;
   transition: color 200ms ease;
@@ -399,4 +399,5 @@ button.primary:disabled {
   }
 }
 </style>
+
 

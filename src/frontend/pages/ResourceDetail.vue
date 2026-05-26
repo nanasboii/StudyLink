@@ -8,7 +8,7 @@
             <p class="resource-detail-kicker">Learning Resource</p>
             <h2>{{ resource?.title || 'Resource Detail' }}</h2>
           </div>
-          <button @click="goBack" class="chip" type="button">Back to Resources</button>
+          <button @click="goBack" class="chip" type="button">{{ backButtonLabel }}</button>
         </div>
 
         <section v-if="resource" class="card resource-detail-card">
@@ -41,7 +41,7 @@
 
             <div class="resource-action-row">
               <button @click="openResource" class="chip chip-strong" type="button">Open Resource</button>
-              <button @click="openDownload" class="chip" type="button">Download</button>
+              <button v-if="canDownloadResource" @click="openDownload" class="chip" type="button">Download</button>
             </div>
           </div>
         </section>
@@ -169,6 +169,32 @@ const sourceLabel = computed(() => {
   return String(resource.value.file_url || '').startsWith('http')
     ? `External link: ${resource.value.file_url}`
     : `File: ${resource.value.metadata?.originalName || resource.value.file_url || '-'}`;
+});
+
+const canDownloadResource = computed(() => {
+  if (!resource.value) return false;
+  return !String(resource.value.file_url || '').startsWith('http');
+});
+
+const backPath = computed(() => {
+  const from = String(route.query.from || '').trim().toLowerCase();
+  if (from === 'admin-resources') return '/admin/resources';
+  if (from === 'my-resources') return '/my-resources';
+  if (from === 'resources') return '/resources';
+
+  try {
+    const rawUser = localStorage.getItem('studylinkUser');
+    const user = rawUser ? JSON.parse(rawUser) : null;
+    if (user?.role === 'admin') return '/admin/resources';
+  } catch {}
+
+  return '/resources';
+});
+
+const backButtonLabel = computed(() => {
+  if (backPath.value === '/admin/resources') return 'Back to Review Resources';
+  if (backPath.value === '/my-resources') return 'Back to My Uploads';
+  return 'Back to Resources';
 });
 
 // Helper Functions
@@ -335,6 +361,7 @@ const openResource = async () => {
 
 const openDownload = async () => {
   if (!resource.value) return;
+  if (!canDownloadResource.value) return;
   try {
     triggerBrowserDownload(`/api/resources/${resource.value.id}/file?download=1`);
   } catch (error) {
@@ -343,7 +370,7 @@ const openDownload = async () => {
 };
 
 const goBack = () => {
-  router.push('/resources'); // Assuming /resources is your resources list route
+  router.replace(backPath.value);
 };
 
 // Lifecycle
@@ -372,7 +399,7 @@ onMounted(() => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #5b7487;
+  color: var(--ink-kicker);
 }
 
 .resource-detail-card,
@@ -386,7 +413,7 @@ onMounted(() => {
   padding: 14px;
   background:
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.25), transparent 38%),
-    linear-gradient(135deg, #273b4c, #5f788d 58%, #7d93a6);
+    linear-gradient(135deg, #7f1d43, #b11f4b 58%, #d35a82);
   color: #fff;
   display: grid;
   gap: 8px;
@@ -424,15 +451,15 @@ onMounted(() => {
 }
 
 .resource-meta-box {
-  border: 1px solid #d8e6ef;
+  border: 1px solid var(--hairline);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   padding: 8px 10px;
 }
 
 .resource-meta-box span {
   display: block;
-  color: #5f7586;
+  color: var(--ink-kicker);
   font-size: 0.74rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -442,13 +469,13 @@ onMounted(() => {
 .resource-meta-box strong {
   display: block;
   margin-top: 3px;
-  color: #1f3a50;
+  color: var(--ink);
   font-size: 1rem;
 }
 
 .resource-source-line {
   margin: 0;
-  color: #4e6779;
+  color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
 
@@ -465,7 +492,7 @@ onMounted(() => {
 
 .detail-rating-label {
   margin: 0;
-  color: #1f3a50;
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -479,9 +506,9 @@ onMounted(() => {
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  border: 2px solid #213645;
-  background: #fff;
-  color: #bac4cc;
+  border: 2px solid var(--primary-soft-strong);
+  background: var(--surface);
+  color: #d3a8b6;
   font-size: 18px;
   line-height: 1;
   padding: 0;
@@ -524,9 +551,9 @@ onMounted(() => {
 }
 
 .resource-comment {
-  border: 1px solid #dbe7f0;
+  border: 1px solid var(--hairline);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   padding: 9px 10px;
 }
 
@@ -539,28 +566,28 @@ onMounted(() => {
 
 .resource-comment-user {
   margin: 0;
-  color: #1f3a50;
+  color: var(--ink);
   font-weight: 700;
 }
 
 .resource-comment-date,
 .resource-comment-rating {
   margin: 0;
-  color: #607789;
+  color: var(--ink-soft);
   font-size: 0.86rem;
 }
 
 .resource-comment-body {
   margin: 6px 0 0;
-  color: #294055;
+  color: var(--ink);
   font-size: 0.92rem;
 }
 
 .resource-empty {
-  border: 1px dashed #cddae5;
+  border: 1px dashed var(--hairline);
   border-radius: 10px;
-  background: #f8fbfe;
-  color: #607789;
+  background: var(--surface-soft-alt);
+  color: var(--ink-soft);
   padding: 10px;
 }
 

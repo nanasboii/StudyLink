@@ -76,15 +76,15 @@ onMounted(() => {
   text-transform: uppercase;
 }
 .status-badge.pending {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
 }
 .status-badge.approved {
-  background: #d4edda;
-  color: #155724;
+  background: var(--success-bg);
+  color: var(--success-ink);
 }
 .status-badge.rejected {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 </style>

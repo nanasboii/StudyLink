@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <main class="page-bg notifications-page">
     <section class="phone-shell">
       <div class="view page active">
@@ -26,7 +26,7 @@
         </p>
 
         <div v-if="filteredNotifications.length === 0" class="empty-state">
-          <p>No notifications yet. You're all caught up! 🎉</p>
+          <p>No notifications yet. You're all caught up!</p>
         </div>
 
         <div v-else class="notifications-grid">
@@ -141,7 +141,7 @@ onMounted(() => {
   min-height: 100vh;
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #fff5f8 60%, #ffe7ee);
+  background: linear-gradient(180deg, #ffffff, #f5f5f7);
 }
 
 .phone-shell {
@@ -174,7 +174,7 @@ onMounted(() => {
   margin: 0;
   font-size: 24px;
   font-weight: 700;
-  color: #3f2f38;
+  color: #1d1d1f;
 }
 
 .notifications-filters {
@@ -186,7 +186,7 @@ onMounted(() => {
 .filter-btn {
   border: 1px solid #e0e0e0;
   background: white;
-  color: #666;
+  color: #6e6e73;
   border-radius: 6px;
   padding: 8px 12px;
   font-size: 13px;
@@ -196,26 +196,26 @@ onMounted(() => {
 }
 
 .filter-btn:hover {
-  border-color: #c41e3a;
-  color: #c41e3a;
+  border-color: #b11f4b;
+  color: #b11f4b;
 }
 
 .filter-btn.active {
-  background: #c41e3a;
+  background: #b11f4b;
   color: white;
-  border-color: #c41e3a;
+  border-color: #b11f4b;
 }
 
 .notifications-meta {
   font-size: 13px;
-  color: #999;
+  color: #6e6e73;
   margin-bottom: 16px;
 }
 
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #999;
+  color: #6e6e73;
   font-size: 14px;
 }
 
@@ -228,7 +228,7 @@ onMounted(() => {
 
 .notification-card {
   background: white;
-  border: 1px solid #f0c4d1;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 16px;
   transition: all 150ms ease;
@@ -241,8 +241,8 @@ onMounted(() => {
 }
 
 .notification-card.unread {
-  background: #fff4f8;
-  border-color: #c41e3a;
+  background: #f5f5f7;
+  border-color: #b11f4b;
 }
 
 .notification-badge {
@@ -254,12 +254,12 @@ onMounted(() => {
   padding: 4px 8px;
   border-radius: 4px;
   margin-bottom: 8px;
-  background: #f0c4d1;
-  color: #c41e3a;
+  background: #e0e0e0;
+  color: #b11f4b;
 }
 
 .notification-card.unread .notification-badge {
-  background: #c41e3a;
+  background: #b11f4b;
   color: white;
 }
 
@@ -272,9 +272,9 @@ onMounted(() => {
 .card-action {
   margin-top: 12px;
   align-self: flex-start;
-  border: 1px solid #c41e3a;
+  border: 1px solid #b11f4b;
   background: white;
-  color: #c41e3a;
+  color: #b11f4b;
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 12px;
@@ -284,7 +284,7 @@ onMounted(() => {
 }
 
 .card-action:hover {
-  background: #c41e3a;
+  background: #b11f4b;
   color: white;
 }
 
@@ -292,18 +292,18 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-  color: #3f2f38;
+  color: #1d1d1f;
   line-height: 1.5;
 }
 
 .notification-time {
   margin: 0;
   font-size: 12px;
-  color: #999;
+  color: #6e6e73;
 }
 
 .chip {
-  border: 1px solid #c41e3a;
+  border: 1px solid #b11f4b;
   background: #000;
   color: #fff;
   border-radius: 999px;
@@ -316,8 +316,8 @@ onMounted(() => {
 }
 
 .chip:hover {
-  background: #c41e3a;
-  border-color: #c41e3a;
+  background: #b11f4b;
+  border-color: #b11f4b;
 }
 
 .message {
@@ -329,7 +329,7 @@ onMounted(() => {
 
 .message.error {
   background: #ffebee;
-  color: #c41e3a;
+  color: #b11f4b;
 }
 
 .message.success {
@@ -337,3 +337,4 @@ onMounted(() => {
   color: #2e7d32;
 }
 </style>
+

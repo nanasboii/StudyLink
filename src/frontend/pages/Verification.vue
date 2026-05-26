@@ -135,7 +135,8 @@ import { normalizeTutorVerification } from '@/utils/records.js'
 
 const router = useRouter()
 const currentUser = getUser()
-if (!currentUser || currentUser.role !== 'tutor') {
+const currentUserRole = String(currentUser?.role || '').toLowerCase().trim()
+if (!currentUser || (currentUserRole !== 'tutor' && currentUserRole !== 'admin')) {
   router.replace('/resources')
 }
 
