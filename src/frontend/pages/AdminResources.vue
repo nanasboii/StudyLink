@@ -28,7 +28,7 @@
             <div class="meta">Uploader: {{ resource.uploader_name ? `${resource.uploader_name} (${resource.uploader_email || 'Unknown'})` : 'Unknown' }}</div>
             <div class="meta">Course: {{ resource.course_code || 'N/A' }}</div>
             <div class="meta">Type: {{ resource.resource_type || 'miscellaneous' }}</div>
-            <div class="meta">Uploaded: {{ formatDate(resource.created_at) }}</div>
+            <div class="meta">Uploaded: {{ formatDateValue(resource.created_at, resource.created_at) }}</div>
             
             <div v-if="resource.file_url" class="meta">
               <a :href="resource.file_url" target="_blank" rel="noopener noreferrer">📎 Download</a>
@@ -57,6 +57,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { api, requireRoleSession } from '@/api.js'; // Adjust the import path if needed
+import { formatDateValue } from '@/utils/records.js'
 
 // State Variables
 const allResources = ref([]);
@@ -81,15 +82,6 @@ const filteredResources = computed(() => {
     return title.includes(query) || uploader.includes(query) || email.includes(query);
   });
 });
-
-// Formatting Date
-const formatDate = (dateString) => {
-  try {
-    return new Date(dateString).toLocaleDateString();
-  } catch (e) {
-    return dateString;
-  }
-};
 
 // Fetch resources from the API
 const loadResources = async () => {

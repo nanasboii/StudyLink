@@ -2,7 +2,7 @@
   <div class="view page active">
     <section class="card profile-hero">
       <div class="profile-hero-top">
-        <div class="profile-pic-container" @mouseenter="isAvatarHovered = true" @mouseleave="isAvatarHovered = false">
+        <div class="profile-pic-container">
           <img
             v-if="avatarSrc"
             :src="avatarSrc"
@@ -11,14 +11,6 @@
             @error="handleAvatarRenderError"
           />
           <div v-else class="profile-avatar-fallback" aria-label="Profile initials">{{ profileInitials }}</div>
-          <div class="profile-pic-overlay" :class="{ visible: isAvatarHovered }">
-            <button class="overlay-action" type="button" @click="triggerProfilePictureUpload" :disabled="uploadingProfilePicture">
-              Edit Profile Picture
-            </button>
-            <button class="overlay-action secondary" type="button" @click="removeProfilePicture" :disabled="uploadingProfilePicture || !avatarSrc">
-              Remove Profile Picture
-            </button>
-          </div>
           <input
             ref="profilePictureInput"
             type="file"
@@ -54,7 +46,27 @@
     <section class="card profile-panel">
       <div class="profile-header">
         <h3>Profile Information</h3>
-        <button @click="toggleEdit" class="chip" type="button">{{ isEditing ? 'Cancel' : 'Edit Profile' }}</button>
+        <div class="profile-header-actions">
+          <button @click="toggleEdit" class="chip" type="button">{{ isEditing ? 'Cancel' : 'Edit Profile' }}</button>
+          <button
+            v-if="isEditing"
+            @click="triggerProfilePictureUpload"
+            class="chip chip-soft"
+            type="button"
+            :disabled="uploadingProfilePicture"
+          >
+            Change Picture
+          </button>
+          <button
+            v-if="isEditing"
+            @click="removeProfilePicture"
+            class="chip chip-soft chip-soft-danger"
+            type="button"
+            :disabled="uploadingProfilePicture || !avatarSrc"
+          >
+            Remove Picture
+          </button>
+        </div>
       </div>
       <form @submit.prevent="saveProfile" class="profile-form">
         <div class="profile-field">
@@ -90,40 +102,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api, getToken, getUser, setSession } from '@/api.js'
-
-const normalizeProfilePictureUrl = (rawUrl) => {
-  const value = String(rawUrl || '').trim()
-  if (!value) return ''
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
-  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
-}
-
-const normalizeUser = (user) => ({
-  fullName:
-    user.fullName ||
-    [user.firstName, user.lastName].filter(Boolean).join(' ') ||
-    '',
-  email: user.email || '',
-  phoneNumber: user.phoneNumber || '',
-  major: user.major || '',
-  bio: user.bio || '',
-  studentId: user.studentId || '',
-  role: user.role || '',
-  points: Number(user.totalPoints ?? user.points ?? 0),
-  rating: Number(user.rating || 0),
-  isVerified: Boolean(user.isVerified),
-  profilePicture: normalizeProfilePictureUrl(
-    user.profilePictureUrl || user.profile_picture_url || user.profilePicture || user.profile_picture || ''
-  ),
-})
+import { normalizeAssetUrl, normalizeUserProfile } from '@/utils/records.js'
 
 const initialUser = getUser() || {}
-const profileData = ref(normalizeUser(initialUser))
+const profileData = ref(normalizeUserProfile(initialUser))
 const originalProfileData = ref({ ...profileData.value })
 const isEditing = ref(false)
 const message = ref('')
 const avatarLoadFailed = ref(false)
-const isAvatarHovered = ref(false)
 const uploadingProfilePicture = ref(false)
 const profilePictureInput = ref(null)
 const avatarVersion = ref(Date.now())
@@ -131,7 +117,7 @@ const pendingAvatarPreview = ref('')
 const pendingAvatarServerUrl = ref('')
 
 const buildVersionedUrl = (rawUrl, version = Date.now()) => {
-  const src = normalizeProfilePictureUrl(rawUrl)
+  const src = normalizeAssetUrl(rawUrl)
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
   const separator = src.includes('?') ? '&' : '?'
   return `${src}${separator}v=${version}`
@@ -146,7 +132,7 @@ const clearPendingAvatarPreview = () => {
 }
 
 const waitForImageAvailability = async (rawUrl, attempts = 12, delayMs = 250) => {
-  const src = normalizeProfilePictureUrl(rawUrl)
+  const src = normalizeAssetUrl(rawUrl)
   if (!src) return false
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -192,7 +178,7 @@ const roleLabel = computed(() => {
 const loadProfile = async () => {
   try {
     const resp = await api('/me')
-    const normalized = normalizeUser(resp.user || {})
+    const normalized = normalizeUserProfile(resp.user || {})
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
     avatarVersion.value = Date.now()
@@ -218,7 +204,7 @@ const saveProfile = async () => {
       bio: profileData.value.bio,
     }
     const resp = await api('/me/profile', 'PUT', payload)
-    const normalized = normalizeUser(resp.user || profileData.value)
+    const normalized = normalizeUserProfile(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
     avatarVersion.value = Date.now()
@@ -282,16 +268,16 @@ const handleProfilePictureSelected = async (event) => {
   uploadingProfilePicture.value = true
   try {
     const uploadResult = await uploadProfilePicture(file)
-    const uploadedUrl = normalizeProfilePictureUrl(uploadResult.fileUrl || uploadResult.file_url || '')
+    const uploadedUrl = normalizeAssetUrl(uploadResult.fileUrl || uploadResult.file_url || '')
     const resp = await api('/me/profile', 'PUT', { profilePictureUrl: uploadedUrl })
-    const normalized = normalizeUser(resp.user || profileData.value)
+    const normalized = normalizeUserProfile(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
     const token = getToken()
     if (token && resp.user) setSession(token, resp.user)
 
     // Keep local preview until the new server image is actually reachable.
-    pendingAvatarServerUrl.value = normalizeProfilePictureUrl(normalized.profilePicture || uploadedUrl)
+    pendingAvatarServerUrl.value = normalizeAssetUrl(normalized.profilePicture || uploadedUrl)
     const avatarReady = await waitForImageAvailability(pendingAvatarServerUrl.value)
     if (avatarReady) {
       clearPendingAvatarPreview()
@@ -313,7 +299,7 @@ const removeProfilePicture = async () => {
   try {
     clearPendingAvatarPreview()
     const resp = await api('/me/profile', 'PUT', { removeProfilePicture: true })
-    const normalized = normalizeUser(resp.user || profileData.value)
+    const normalized = normalizeUserProfile(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
     avatarVersion.value = Date.now()
@@ -367,7 +353,7 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   border-radius: 50%;
-  cursor: pointer;
+  cursor: default;
 }
 
 .profile-pic,
@@ -389,49 +375,6 @@ onMounted(() => {
   inset: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-.profile-pic-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 50%;
-  background: rgba(55, 16, 34, 0.58);
-  opacity: 0;
-  transition: opacity 160ms ease;
-  pointer-events: none;
-}
-
-.profile-pic-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.overlay-action {
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.96);
-  color: #6e1638;
-  border-radius: 999px;
-  padding: 7px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  width: 100%;
-  transition: transform 150ms ease, background 150ms ease;
-}
-
-.overlay-action:hover {
-  transform: translateY(-1px);
-  background: #fff;
-}
-
-.overlay-action.secondary {
-  background: rgba(255, 243, 247, 0.98);
 }
 
 .profile-avatar-fallback {
@@ -523,6 +466,31 @@ onMounted(() => {
 .profile-header h3 {
   margin: 0;
   color: #4a2735;
+}
+
+.profile-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chip-soft {
+  padding: 7px 12px;
+  font-size: 12px;
+  background: #fff;
+  color: #7f2346;
+  border: 1px solid #efbfd0;
+}
+
+.chip-soft:hover {
+  background: #fff4f8;
+}
+
+.chip-soft-danger {
+  color: #9f1f40;
+  border-color: #f1b4c8;
 }
 
 .profile-form {

@@ -91,11 +91,16 @@ export function requireRoleSession(...roles) {
 
 // --- API FETCH FUNCTION ---
 export async function api(path, method = 'GET', body) {
-  const headers = { 'Content-Type': 'application/json' }
+  const headers = {}
   const token = getToken()
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
   if (token) {
     headers.Authorization = `Bearer ${token}`
+  }
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json'
   }
 
   const options = {
@@ -104,7 +109,7 @@ export async function api(path, method = 'GET', body) {
   }
 
   if (body) {
-    options.body = JSON.stringify(body)
+    options.body = isFormData ? body : JSON.stringify(body)
   }
 
   try {

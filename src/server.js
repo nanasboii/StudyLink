@@ -35,6 +35,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+const hasSmtpCredentials = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
 function getMailFrom(displayName = 'StudyLink') {
   const smtpFrom = String(process.env.SMTP_FROM || '').trim();
   const smtpUser = String(process.env.SMTP_USER || '').trim();
@@ -79,14 +81,18 @@ function getFrontendOrigin(req) {
   return normalizedOrigin;
 }
 
-// Test SMTP connection on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('SMTP connection error:', error);
-  } else {
-    console.log('✓ SMTP connection verified and ready for message delivery');
-  }
-});
+// Test SMTP connection only when credentials are configured.
+if (hasSmtpCredentials) {
+  transporter.verify((error) => {
+    if (error) {
+      console.error('SMTP connection error:', error);
+    } else {
+      console.log('✓ SMTP connection verified and ready for message delivery');
+    }
+  });
+} else {
+  console.log('SMTP credentials not configured; email sending is disabled in this environment.');
+}
 
 const app = express();
 // Use the configured PORT (defaults to 3000 in .env) so the frontend proxy can stay in sync.
@@ -97,11 +103,26 @@ const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'tru
 const clientBuildDir = path.join(__dirname, '..', 'dist');
 const clientBuildIndex = path.join(clientBuildDir, 'index.html');
 const legacyPublicDir = path.join(__dirname, 'public');
+const legacyClientIndex = path.join(__dirname, '..', 'index.html');
 const uploadBaseDir = path.join(__dirname, 'uploads');
 const legacyUploadBaseDir = path.join(__dirname, '..', 'uploads');
 const verificationUploadDir = path.join(uploadBaseDir, 'verifications');
 const resourceUploadDir = path.join(uploadBaseDir, 'resources');
 const profilePictureUploadDir = path.join(uploadBaseDir, 'profile-pictures');
+
+const REWARD_RULES_DEFAULT = {
+  cooldownDays: 2,
+  maxPer30Days: 3,
+  maxPerDay: 3
+};
+
+const REWARD_RULES_BY_CODE = {
+  FREE_SESSION: { cooldownDays: 7, maxPer30Days: 2, maxPerDay: 1 },
+  RESOURCE_PACK: { cooldownDays: 3, maxPer30Days: 3, maxPerDay: 1 },
+  PRIORITY_BOOKING: { cooldownDays: 14, maxPer30Days: 1, maxPerDay: 1 },
+  CAMPUS_VOUCHER: { cooldownDays: 30, maxPer30Days: 1, maxPerDay: 1 },
+  PROFILE_SPOTLIGHT: { cooldownDays: 7, maxPer30Days: 2, maxPerDay: 1 }
+};
 
 function findUploadedFilePath(folderName, filename) {
   const safeName = path.basename(filename || '');
@@ -244,7 +265,7 @@ function sendClientApp(res) {
     return res.sendFile(clientBuildIndex);
   }
 
-  return res.sendFile(path.join(legacyPublicDir, 'index.html'));
+  return res.sendFile(legacyClientIndex);
 }
 
 app.get('/ui/*', (req, res) => {
@@ -385,7 +406,6 @@ function sanitizeUser(row) {
     expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
     profilePictureUrl: row.profile_picture_url,
-    twoFactorEnabled: row.two_factor_enabled,
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
     totalPoints: Number(row.total_points || 0),
@@ -524,18 +544,188 @@ async function recalculateResourceRating(client, resourceId) {
   );
 }
 
+async function getRewardRuleMap(client) {
+  let rows = [];
+  try {
+    const result = await client.query(
+      `SELECT reward_code, cooldown_days, max_per_30_days, max_per_day
+       FROM point_reward_rules`
+    );
+    rows = result.rows;
+  } catch (error) {
+    if (error?.code !== '42P01') {
+      throw error;
+    }
+  }
+
+  const ruleMap = {};
+  for (const row of rows) {
+    const key = String(row.reward_code || '').toUpperCase();
+    if (!key) continue;
+    ruleMap[key] = {
+      cooldownDays: Number(row.cooldown_days || 0),
+      maxPer30Days: Number(row.max_per_30_days || 0),
+      maxPerDay: Number(row.max_per_day || 0)
+    };
+  }
+
+  return ruleMap;
+}
+
+function getRewardRule(code, ruleMap = null) {
+  const normalizedCode = String(code || '').toUpperCase();
+  const fromDb = ruleMap && ruleMap[normalizedCode] ? ruleMap[normalizedCode] : null;
+  const fromCodeDefaults = REWARD_RULES_BY_CODE[normalizedCode] || null;
+
+  return {
+    ...REWARD_RULES_DEFAULT,
+    ...(fromCodeDefaults || {}),
+    ...(fromDb || {})
+  };
+}
+
+function addDays(baseDate, days) {
+  const next = new Date(baseDate);
+  next.setDate(next.getDate() + Number(days || 0));
+  return next;
+}
+
+function formatCooldownText(lastRedeemedAt, cooldownDays) {
+  if (!lastRedeemedAt || !cooldownDays) {
+    return null;
+  }
+
+  const cooldownEndsAt = addDays(lastRedeemedAt, cooldownDays);
+  const now = new Date();
+  if (cooldownEndsAt <= now) {
+    return null;
+  }
+
+  const msRemaining = cooldownEndsAt.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+  return {
+    cooldownEndsAt,
+    text: daysRemaining > 1 ? `Available again in ${daysRemaining} days.` : 'Available again tomorrow.'
+  };
+}
+
+async function getUserPointStats(client, userId) {
+  const { rows } = await client.query(
+    `SELECT u.total_points,
+            COALESCE(SUM(CASE WHEN upl.points > 0 THEN upl.points ELSE 0 END), 0) AS earned_points,
+            COALESCE(SUM(CASE WHEN upl.points < 0 THEN ABS(upl.points) ELSE 0 END), 0) AS spent_points
+     FROM users u
+     LEFT JOIN user_points_log upl ON upl.user_id = u.id
+     WHERE u.id = $1
+     GROUP BY u.id, u.total_points`,
+    [userId]
+  );
+
+  const row = rows[0] || {};
+  const availablePoints = Number(row.total_points || 0);
+  const earnedPointsFromLog = Number(row.earned_points || 0);
+  const spentPoints = Number(row.spent_points || 0);
+  const lifetimePoints = Math.max(earnedPointsFromLog, availablePoints + spentPoints, availablePoints);
+
+  return {
+    availablePoints,
+    earnedPointsFromLog,
+    lifetimePoints,
+    spentPoints
+  };
+}
+
+async function getUserRedemptionSnapshot(client, userId, rewardId) {
+  const [rewardStatsResult, todayResult] = await Promise.all([
+    client.query(
+      `SELECT MAX(redeemed_at) AS last_redeemed_at,
+              COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '30 days')::int AS redeemed_last_30_days
+       FROM redemptions
+       WHERE user_id = $1
+         AND reward_id = $2`,
+      [userId, rewardId]
+    ),
+    client.query(
+      `SELECT COUNT(*)::int AS redeemed_today
+       FROM redemptions
+       WHERE user_id = $1
+         AND redeemed_at >= date_trunc('day', NOW())`,
+      [userId]
+    )
+  ]);
+
+  const rewardStats = rewardStatsResult.rows[0] || {};
+  return {
+    lastRedeemedAt: rewardStats.last_redeemed_at ? new Date(rewardStats.last_redeemed_at) : null,
+    redeemedLast30Days: Number(rewardStats.redeemed_last_30_days || 0),
+    redeemedToday: Number(todayResult.rows[0]?.redeemed_today || 0)
+  };
+}
+
+function evaluateRewardEligibility({ reward, availablePoints, snapshot, ruleMap = null }) {
+  const rule = getRewardRule(reward.code, ruleMap);
+  const base = {
+    rule,
+    isEligible: true,
+    ineligibilityReason: null,
+    cooldownEndsAt: null,
+    redeemedLast30Days: snapshot.redeemedLast30Days,
+    redeemedToday: snapshot.redeemedToday,
+    maxPer30Days: rule.maxPer30Days,
+    maxPerDay: rule.maxPerDay,
+    cooldownDays: rule.cooldownDays
+  };
+
+  if (availablePoints < Number(reward.points_cost || 0)) {
+    return {
+      ...base,
+      isEligible: false,
+      ineligibilityReason: `Need ${reward.points_cost - availablePoints} more points.`
+    };
+  }
+
+  if (rule.maxPerDay && snapshot.redeemedToday >= rule.maxPerDay) {
+    return {
+      ...base,
+      isEligible: false,
+      ineligibilityReason: `Daily redemption limit reached (${rule.maxPerDay}/day).`
+    };
+  }
+
+  if (rule.maxPer30Days && snapshot.redeemedLast30Days >= rule.maxPer30Days) {
+    return {
+      ...base,
+      isEligible: false,
+      ineligibilityReason: `Redeem limit reached (${rule.maxPer30Days} in 30 days).`
+    };
+  }
+
+  const cooldown = formatCooldownText(snapshot.lastRedeemedAt, rule.cooldownDays);
+  if (cooldown) {
+    return {
+      ...base,
+      isEligible: false,
+      ineligibilityReason: cooldown.text,
+      cooldownEndsAt: cooldown.cooldownEndsAt
+    };
+  }
+
+  return base;
+}
+
 async function grantBadges(client, userId) {
+  const pointStats = await getUserPointStats(client, userId);
   await client.query(
     `INSERT INTO user_achievements (user_id, achievement_id)
      SELECT u.id, a.id
      FROM users u
-     JOIN achievements a ON u.total_points >= a.points_required
+     JOIN achievements a ON $2 >= a.points_required
      LEFT JOIN user_achievements ua
        ON ua.user_id = u.id
       AND ua.achievement_id = a.id
      WHERE u.id = $1
        AND ua.user_id IS NULL`,
-    [userId]
+    [userId, pointStats.lifetimePoints]
   );
 }
 
@@ -739,9 +929,6 @@ async function initializeDatabase() {
         total_points INTEGER NOT NULL DEFAULT 0,
         login_streak INTEGER NOT NULL DEFAULT 0,
         last_login_at TIMESTAMP,
-        two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        otp_code VARCHAR(10),
-        otp_expires_at TIMESTAMP,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
@@ -755,16 +942,16 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS expertise TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
 
       ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
-
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS otp_code VARCHAR(10);
-
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP;
-
-      ALTER TABLE users
         DROP COLUMN IF EXISTS password_reset_token;
+
+      ALTER TABLE users
+        DROP COLUMN IF EXISTS two_factor_enabled;
+
+      ALTER TABLE users
+        DROP COLUMN IF EXISTS otp_code;
+
+      ALTER TABLE users
+        DROP COLUMN IF EXISTS otp_expires_at;
 
       ALTER TABLE users
         DROP COLUMN IF EXISTS password_reset_expires_at;
@@ -947,6 +1134,14 @@ async function initializeDatabase() {
         is_active BOOLEAN NOT NULL DEFAULT TRUE
       );
 
+      CREATE TABLE IF NOT EXISTS point_reward_rules (
+        reward_code VARCHAR(50) PRIMARY KEY REFERENCES point_rewards(code) ON DELETE CASCADE,
+        cooldown_days INTEGER NOT NULL CHECK (cooldown_days >= 0),
+        max_per_30_days INTEGER NOT NULL CHECK (max_per_30_days > 0),
+        max_per_day INTEGER NOT NULL CHECK (max_per_day > 0),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS redemptions (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1017,6 +1212,27 @@ async function initializeDatabase() {
     );
 
     await client.query(
+      `WITH seed(reward_code, cooldown_days, max_per_30_days, max_per_day) AS (
+         VALUES
+           ('FREE_SESSION', 7, 2, 1),
+           ('RESOURCE_PACK', 3, 3, 1),
+           ('PRIORITY_BOOKING', 14, 1, 1),
+           ('CAMPUS_VOUCHER', 30, 1, 1),
+           ('PROFILE_SPOTLIGHT', 7, 2, 1)
+       ),
+       missing AS (
+         SELECT s.*
+         FROM seed s
+         JOIN point_rewards pr ON pr.code = s.reward_code
+         LEFT JOIN point_reward_rules rr ON rr.reward_code = s.reward_code
+         WHERE rr.reward_code IS NULL
+       )
+       INSERT INTO point_reward_rules (reward_code, cooldown_days, max_per_30_days, max_per_day)
+       SELECT reward_code, cooldown_days, max_per_30_days, max_per_day
+       FROM missing`
+    );
+
+    await client.query(
       `WITH seed(code, name, description, points_required, icon_url) AS (
          VALUES
            ('POINTS_15', 'First Steps', 'Reached 15 points by getting active on StudyLink.', 15, '/ui/assets/badges/first-steps.svg'),
@@ -1063,11 +1279,22 @@ async function initializeDatabase() {
 
     await client.query(
       `INSERT INTO user_achievements (user_id, achievement_id)
-       SELECT u.id, a.id
-       FROM users u
-       JOIN achievements a ON u.total_points >= a.points_required
+       WITH point_totals AS (
+         SELECT u.id AS user_id,
+                GREATEST(
+                  u.total_points + COALESCE(SUM(CASE WHEN upl.points < 0 THEN ABS(upl.points) ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN upl.points > 0 THEN upl.points ELSE 0 END), 0),
+                  u.total_points
+                )::int AS lifetime_points
+         FROM users u
+         LEFT JOIN user_points_log upl ON upl.user_id = u.id
+         GROUP BY u.id, u.total_points
+       )
+       SELECT pt.user_id, a.id
+       FROM point_totals pt
+       JOIN achievements a ON pt.lifetime_points >= a.points_required
        LEFT JOIN user_achievements ua
-         ON ua.user_id = u.id
+         ON ua.user_id = pt.user_id
         AND ua.achievement_id = a.id
        WHERE ua.user_id IS NULL`
     );
@@ -1106,7 +1333,7 @@ app.get('/', (req, res) => {
   return sendClientApp(res);
 });
 
-app.get('/health', async (req, res) => {
+async function handleHealth(req, res) {
   try {
     const result = await pool.query('SELECT NOW() AS server_time');
     res.json({
@@ -1121,7 +1348,10 @@ app.get('/health', async (req, res) => {
       message: error.message
     });
   }
-});
+}
+
+app.get('/health', handleHealth);
+app.get('/api/health', handleHealth);
 
   app.post('/test-email', async (req, res) => {
     const { email } = req.body;
@@ -1247,33 +1477,6 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-    if (user.two_factor_enabled) {
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      await client.query(
-        `UPDATE users SET otp_code = $1, otp_expires_at = $2 WHERE id = $3`,
-        [otpCode, expiresAt, user.id]
-      );
-      await client.query('COMMIT');
-
-      try {
-        console.log(`Sending OTP email to ${user.email}...`);
-        const info = await transporter.sendMail({
-          from: getMailFrom('StudyLink Security'),
-          to: user.email,
-          subject: 'Your StudyLink Login OTP',
-          text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
-        });
-        console.log(`✓ OTP email sent successfully to ${user.email}. Message ID: ${info.messageId}`);
-      } catch (err) {
-        console.error(`✗ Error sending OTP email to ${user.email}:`, err.message);
-        console.error('Full error:', err);
-      }
-
-      return res.json({ requires2FA: true, message: 'OTP sent to email.' });
-    }
-
     const now = new Date();
     const previousLoginAt = user.last_login_at ? new Date(user.last_login_at) : null;
     const previousLoginDate = previousLoginAt ? dateKeyInTimeZone(previousLoginAt) : '';
@@ -1370,222 +1573,10 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
   }
 });
 
-app.post('/auth/verify-otp', authRateLimiter, async (req, res) => {
-  const { email, otp } = req.body;
-  let client;
-
-  if (!email || !otp) {
-    return res.status(400).json({ message: 'email and otp are required.' });
-  }
-
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-
-    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
-      email.toLowerCase()
-    ]);
-
-    if (rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(401).json({ message: 'Invalid or expired OTP.' });
-    }
-
-    const user = rows[0];
-
-    if (!user.otp_code || user.otp_code !== otp || new Date() > new Date(user.otp_expires_at)) {
-      await client.query('ROLLBACK');
-      return res.status(401).json({ message: 'Invalid or expired OTP.' });
-    }
-
-    // Clear OTP
-    await client.query('UPDATE users SET otp_code = NULL, otp_expires_at = NULL WHERE id = $1', [user.id]);
-
-    const now = new Date();
-    const previousLoginAt = user.last_login_at ? new Date(user.last_login_at) : null;
-    const previousLoginDate = previousLoginAt ? dateKeyInTimeZone(previousLoginAt) : '';
-    const today = dateKeyInTimeZone(now);
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayDate = dateKeyInTimeZone(yesterday);
-    const previousStreak = Number(user.login_streak || 0);
-
-    let nextStreak = 1;
-    if (previousLoginDate === today) {
-      nextStreak = previousStreak || 1;
-    } else if (previousLoginDate === yesterdayDate) {
-      nextStreak = previousStreak + 1;
-    }
-
-    const shouldShowStreak = previousLoginDate !== today;
-
-    if (previousLoginDate) {
-      await client.query(
-        `INSERT INTO user_login_history (user_id, login_date, login_at)
-         VALUES ($1, $2::date, $3)
-         ON CONFLICT (user_id, login_date)
-         DO UPDATE SET login_at = EXCLUDED.login_at`,
-        [user.id, previousLoginDate, previousLoginAt || now]
-      );
-    }
-
-    await client.query(
-      `INSERT INTO user_login_history (user_id, login_date, login_at)
-       VALUES ($1, $2::date, $3)
-       ON CONFLICT (user_id, login_date)
-       DO UPDATE SET login_at = EXCLUDED.login_at`,
-      [user.id, today, now]
-    );
-
-    const { rows: updatedRows } = await client.query(
-      `UPDATE users
-       SET login_streak = $1,
-           last_login_at = $2
-       WHERE id = $3
-       RETURNING *`,
-      [nextStreak, now, user.id]
-    );
-
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
-
-    await client.query(
-      `INSERT INTO sessions (token, user_id, expires_at)
-       VALUES ($1, $2, $3)`,
-      [token, user.id, expiresAt]
-    );
-
-    const { rows: historyRows } = await client.query(
-      `SELECT login_date::text AS login_date
-       FROM user_login_history
-       WHERE user_id = $1
-       ORDER BY login_date DESC
-       LIMIT 120`,
-      [user.id]
-    );
-
-    await client.query('COMMIT');
-
-    const updatedUser = updatedRows[0] || { ...user, login_streak: nextStreak, last_login_at: now };
-
-    return res.json({
-      message: 'Login successful.',
-      token,
-      expiresAt,
-      loginStreak: {
-        count: nextStreak,
-        shouldShow: shouldShowStreak,
-        message: formatLoginStreakMessage(nextStreak),
-        lastLoginAt: now,
-        historyDates: historyRows.map((row) => row.login_date)
-      },
-      user: sanitizeUser(updatedUser)
-    });
-  } catch (error) {
-    if (client) {
-      try {
-        await client.query('ROLLBACK');
-      } catch (rollbackError) {}
-    }
-    return res.status(500).json({ message: error.message });
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
-});
-
-app.post('/auth/resend-otp', authRateLimiter, async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: 'email is required.' });
-  }
-
-  let client;
-
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-
-    const { rows } = await client.query('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
-      email.toLowerCase()
-    ]);
-
-    if (rows.length === 0 || !rows[0].two_factor_enabled) {
-      await client.query('ROLLBACK');
-      return res.status(401).json({ message: 'Invalid request.' });
-    }
-
-    const user = rows[0];
-
-    // Generate new OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await client.query(
-      `UPDATE users SET otp_code = $1, otp_expires_at = $2 WHERE id = $3`,
-      [otpCode, expiresAt, user.id]
-    );
-
-    await client.query('COMMIT');
-
-    try {
-      console.log(`Resending OTP email to ${user.email}...`);
-      const info = await transporter.sendMail({
-        from: getMailFrom('StudyLink Security'),
-        to: user.email,
-        subject: 'Your StudyLink Login OTP (Resent)',
-        text: `Your One-Time Password is: ${otpCode}. It will expire in 10 minutes.`
-      });
-      console.log(`✓ OTP email resent successfully to ${user.email}. Message ID: ${info.messageId}`);
-    } catch (err) {
-      console.error(`✗ Error resending OTP email to ${user.email}:`, err.message);
-      console.error('Full error:', err);
-    }
-
-    return res.json({ message: 'OTP resent to email.' });
-  } catch (error) {
-    if (client) {
-      try {
-        await client.query('ROLLBACK');
-      } catch (rollbackError) {}
-    }
-    return res.status(500).json({ message: error.message });
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
-});
-
 app.post('/auth/logout', requireAuth, async (req, res) => {
   try {
     await pool.query('DELETE FROM sessions WHERE token = $1', [req.auth.token]);
     return res.json({ message: 'Logged out successfully.' });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-app.post('/auth/2fa/toggle', requireAuth, authRateLimiter, async (req, res) => {
-  const { enable } = req.body;
-  const userId = req.auth.user.id;
-
-  if (typeof enable !== 'boolean') {
-    return res.status(400).json({ message: 'enable must be a boolean.' });
-  }
-
-  try {
-    await pool.query(
-      'UPDATE users SET two_factor_enabled = $1 WHERE id = $2',
-      [enable, userId]
-    );
-
-    return res.json({ 
-      message: `Two-factor authentication ${enable ? 'enabled' : 'disabled'}.`,
-      twoFactorEnabled: enable 
-    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -1739,8 +1730,7 @@ app.put('/me/profile', requireAuth, async (req, res) => {
     expertise,
     bio,
     profilePictureUrl,
-    removeProfilePicture,
-    twoFactorEnabled
+    removeProfilePicture
   } = req.body;
 
   const nextProfilePictureUrl =
@@ -1777,8 +1767,7 @@ app.put('/me/profile', requireAuth, async (req, res) => {
              WHEN $10 THEN NULL
              WHEN $9::text IS NOT NULL THEN $9::text
              ELSE profile_picture_url
-           END,
-           two_factor_enabled = COALESCE($11, two_factor_enabled)
+           END
        WHERE id = $1
        RETURNING *`,
       [
@@ -1791,8 +1780,7 @@ app.put('/me/profile', requireAuth, async (req, res) => {
         normalizedExpertise,
         bio,
         nextProfilePictureUrl,
-        wantsProfilePictureRemoval,
-        twoFactorEnabled
+        wantsProfilePictureRemoval
       ]
     );
 
@@ -2051,6 +2039,12 @@ app.post('/availability', requireAuth, requireRole('tutor'), async (req, res) =>
     });
   }
 
+  if (startTime >= endTime) {
+    return res.status(400).json({
+      message: 'startTime must be earlier than endTime.'
+    });
+  }
+
   try {
     const { rows } = await pool.query(
       `INSERT INTO tutor_availability
@@ -2062,7 +2056,22 @@ app.post('/availability', requireAuth, requireRole('tutor'), async (req, res) =>
 
     return res.status(201).json({ availability: rows[0] });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Availability insert failed:', {
+      userId: req.auth?.user?.id,
+      payload: { courseCode: normalizedCourseCode, dayOfWeek, startTime, endTime },
+      code: error.code,
+      message: error.message
+    });
+
+    if (error.code === '22P02') {
+      return res.status(400).json({ message: 'Invalid time value supplied.' });
+    }
+
+    if (error.code === '28P01' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ message: 'Database connection issue. Please try again.' });
+    }
+
+    return res.status(500).json({ message: 'Failed to update session availability.' });
   }
 });
 
@@ -2078,7 +2087,17 @@ app.get('/availability/me', requireAuth, requireRole('tutor'), async (req, res) 
 
     return res.json({ availability: rows });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error('Availability fetch failed:', {
+      userId: req.auth?.user?.id,
+      code: error.code,
+      message: error.message
+    });
+
+    if (error.code === '28P01' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ message: 'Database connection issue. Please try again.' });
+    }
+
+    return res.status(500).json({ message: 'Failed to load tutor availability.' });
   }
 });
 
@@ -2089,16 +2108,8 @@ app.get('/tutors', requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-            `SELECT u.id,
-              u.full_name,
-              u.major,
-              u.year_of_study,
-              u.expertise,
-              u.bio,
-              u.rating,
-              u.total_points,
-              u.is_verified,
-              COALESCE(
+      `WITH availability_agg AS (
+         SELECT ta.tutor_id,
                 json_agg(
                   json_build_object(
                     'courseCode', ta.course_code,
@@ -2107,16 +2118,28 @@ app.get('/tutors', requireAuth, async (req, res) => {
                     'endTime', to_char(ta.end_time, 'HH24:MI')
                   )
                   ORDER BY ta.day_of_week, ta.start_time
-                ) FILTER (WHERE ta.id IS NOT NULL),
-                '[]'::json
-              ) AS availability
+                ) AS availability
+         FROM tutor_availability ta
+         WHERE ($1::text IS NULL OR ta.course_code = $1)
+         GROUP BY ta.tutor_id
+       )
+       SELECT u.id,
+              u.full_name,
+              u.role,
+              u.major,
+              u.year_of_study,
+              u.target_subjects,
+              u.expertise,
+              u.bio,
+              u.profile_picture_url,
+              u.rating,
+              u.total_points,
+              u.is_verified,
+              COALESCE(a.availability, '[]'::json) AS availability
        FROM users u
-       LEFT JOIN tutor_availability ta
-              ON ta.tutor_id = u.id
-             AND ($1::text IS NULL OR ta.course_code = $1)
+       LEFT JOIN availability_agg a ON a.tutor_id = u.id
        WHERE u.role = 'tutor'
-         AND ($1::text IS NULL OR ta.id IS NOT NULL)
-       GROUP BY u.id, u.full_name, u.major, u.year_of_study, u.bio, u.rating, u.total_points, u.is_verified
+         AND ($1::text IS NULL OR a.tutor_id IS NOT NULL)
        ORDER BY u.is_verified DESC, u.rating DESC, u.total_points DESC, u.full_name ASC`,
       [courseCode]
     );
@@ -3133,6 +3156,14 @@ app.post(
         'Your tutor verification proof is unavailable or unclear. Please re-upload your verification document.';
       const message = requestNote ? `${messageBase} Note: ${requestNote}` : messageBase;
 
+      await client.query(
+        `UPDATE tutor_verifications
+         SET review_notes = COALESCE(NULLIF($1, ''), review_notes),
+             reviewed_by = $2,
+             reviewed_at = NOW()
+         WHERE id = $3`,
+        [requestNote || null, req.auth.user.id, application.id]
+      );
       await createNotification(client, application.tutor_id, message);
 
       await logAdminAction(
@@ -3253,6 +3284,55 @@ app.get('/admin/users', requireAuth, requireRole('admin'), async (req, res) => {
        ORDER BY created_at DESC`
     );
 
+
+  app.get('/admin/reviews', requireAuth, requireRole('admin'), async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `WITH combined_reviews AS (
+           SELECT
+             'session'::text AS review_type,
+             br.id,
+             br.rating,
+             br.comment,
+             br.created_at,
+             reviewer.full_name AS reviewer_name,
+             reviewer.role AS reviewer_role,
+             b.id AS subject_id,
+             COALESCE(b.course_code, 'General') AS subject_title,
+             CONCAT('Tutor: ', tutor.full_name, ' | Tutee: ', tutee.full_name) AS subject_meta,
+             'Tutoring Session'::text AS source_label
+           FROM booking_reviews br
+           JOIN bookings b ON b.id = br.booking_id
+           JOIN users reviewer ON reviewer.id = br.reviewer_id
+           JOIN users tutor ON tutor.id = b.tutor_id
+           JOIN users tutee ON tutee.id = b.tutee_id
+           UNION ALL
+           SELECT
+             'resource'::text AS review_type,
+             rr.id,
+             rr.rating,
+             rr.comment,
+             rr.created_at,
+             reviewer.full_name AS reviewer_name,
+             reviewer.role AS reviewer_role,
+             r.id AS subject_id,
+             r.title AS subject_title,
+             COALESCE(r.course_code, 'General') AS subject_meta,
+             'Learning Resource'::text AS source_label
+           FROM resource_reviews rr
+           JOIN resources r ON r.id = rr.resource_id
+           JOIN users reviewer ON reviewer.id = rr.reviewer_id
+         )
+         SELECT *
+         FROM combined_reviews
+         ORDER BY created_at DESC, id DESC` 
+      )
+
+      return res.json({ reviews: rows })
+    } catch (error) {
+      return res.status(500).json({ message: error.message })
+    }
+  })
     return res.json({ users: rows.map((row) => sanitizeUser(row)) });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -3490,14 +3570,170 @@ app.get('/admin/analytics', requireAuth, requireRole('admin'), async (req, res) 
   }
 });
 
+app.get('/admin/reward-rules', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const [rewardsResult, rewardRuleMap] = await Promise.all([
+      pool.query(
+        `SELECT id, code, name, description, points_cost, icon, is_active
+         FROM point_rewards
+         ORDER BY points_cost ASC, id ASC`
+      ),
+      getRewardRuleMap(pool)
+    ]);
+
+    const rules = rewardsResult.rows.map((reward) => {
+      const rule = getRewardRule(reward.code, rewardRuleMap);
+      const normalizedCode = String(reward.code || '').toUpperCase();
+      const defaultRule = getRewardRule(reward.code, null);
+
+      return {
+        code: reward.code,
+        name: reward.name,
+        description: reward.description,
+        pointsCost: Number(reward.points_cost || 0),
+        isActive: Boolean(reward.is_active),
+        cooldownDays: rule.cooldownDays,
+        maxPer30Days: rule.maxPer30Days,
+        maxPerDay: rule.maxPerDay,
+        defaultCooldownDays: defaultRule.cooldownDays,
+        defaultMaxPer30Days: defaultRule.maxPer30Days,
+        defaultMaxPerDay: defaultRule.maxPerDay,
+        isCustom: Boolean(rewardRuleMap[normalizedCode])
+      };
+    });
+
+    return res.json({ rules });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.patch('/admin/reward-rules/:code', requireAuth, requireRole('admin'), async (req, res) => {
+  const code = String(req.params.code || '').trim().toUpperCase();
+  const cooldownDays = Number(req.body?.cooldownDays);
+  const maxPer30Days = Number(req.body?.maxPer30Days);
+  const maxPerDay = Number(req.body?.maxPerDay);
+
+  if (!code) {
+    return res.status(400).json({ message: 'Reward code is required.' });
+  }
+
+  if (!Number.isInteger(cooldownDays) || cooldownDays < 0) {
+    return res.status(400).json({ message: 'cooldownDays must be an integer >= 0.' });
+  }
+
+  if (!Number.isInteger(maxPer30Days) || maxPer30Days <= 0) {
+    return res.status(400).json({ message: 'maxPer30Days must be an integer > 0.' });
+  }
+
+  if (!Number.isInteger(maxPerDay) || maxPerDay <= 0) {
+    return res.status(400).json({ message: 'maxPerDay must be an integer > 0.' });
+  }
+
+  try {
+    const rewardCheck = await pool.query(
+      `SELECT code, name FROM point_rewards WHERE code = $1`,
+      [code]
+    );
+
+    if (!rewardCheck.rows.length) {
+      return res.status(404).json({ message: 'Reward not found.' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO point_reward_rules (reward_code, cooldown_days, max_per_30_days, max_per_day, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (reward_code)
+       DO UPDATE
+       SET cooldown_days = EXCLUDED.cooldown_days,
+           max_per_30_days = EXCLUDED.max_per_30_days,
+           max_per_day = EXCLUDED.max_per_day,
+           updated_at = NOW()
+       RETURNING reward_code, cooldown_days, max_per_30_days, max_per_day, updated_at`,
+      [code, cooldownDays, maxPer30Days, maxPerDay]
+    );
+
+    await logAdminAction(pool, req.auth.user.id, 'reward_rule_updated', 'point_reward_rules', null, {
+      rewardCode: code,
+      cooldownDays,
+      maxPer30Days,
+      maxPerDay
+    });
+
+    const row = rows[0] || {};
+    return res.json({
+      rule: {
+        code: row.reward_code,
+        cooldownDays: Number(row.cooldown_days || 0),
+        maxPer30Days: Number(row.max_per_30_days || 0),
+        maxPerDay: Number(row.max_per_day || 0),
+        updatedAt: row.updated_at || null
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/admin/reward-rules/:code', requireAuth, requireRole('admin'), async (req, res) => {
+  const code = String(req.params.code || '').trim().toUpperCase();
+
+  if (!code) {
+    return res.status(400).json({ message: 'Reward code is required.' });
+  }
+
+  try {
+    const rewardCheck = await pool.query(
+      `SELECT code, name FROM point_rewards WHERE code = $1`,
+      [code]
+    );
+
+    if (!rewardCheck.rows.length) {
+      return res.status(404).json({ message: 'Reward not found.' });
+    }
+
+    await pool.query(
+      `DELETE FROM point_reward_rules
+       WHERE reward_code = $1`,
+      [code]
+    );
+
+    const fallbackRule = getRewardRule(code, null);
+
+    await logAdminAction(pool, req.auth.user.id, 'reward_rule_reset', 'point_reward_rules', null, {
+      rewardCode: code,
+      cooldownDays: fallbackRule.cooldownDays,
+      maxPer30Days: fallbackRule.maxPer30Days,
+      maxPerDay: fallbackRule.maxPerDay
+    });
+
+    return res.json({
+      message: `Reward rule reset for ${code}.`,
+      rule: {
+        code,
+        cooldownDays: fallbackRule.cooldownDays,
+        maxPer30Days: fallbackRule.maxPer30Days,
+        maxPerDay: fallbackRule.maxPerDay,
+        isCustom: false
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('/notifications', requireAuth, async (req, res) => {
+  const filter = String(req.query.filter || '').toLowerCase();
+  const unreadOnly = filter === 'unread';
+
   try {
     const { rows } = await pool.query(
       `SELECT *
        FROM notifications
        WHERE recipient_id = $1
+         AND ($2::boolean = FALSE OR is_read = FALSE)
        ORDER BY created_at DESC`,
-      [req.auth.user.id]
+      [req.auth.user.id, unreadOnly]
     );
 
     return res.json({ notifications: rows });
@@ -3545,29 +3781,45 @@ app.post('/notifications/:id/read', requireAuth, async (req, res) => {
 
 app.get('/achievements/me', requireAuth, async (req, res) => {
   try {
+    const pointStats = await getUserPointStats(pool, req.auth.user.id);
+
     const { rows } = await pool.query(
       `SELECT a.code,
               a.name,
               a.description,
               a.points_required,
               a.icon_url,
-              u.total_points,
               (
                 $2 = 'admin'
                 OR ua.user_id IS NOT NULL
-                OR u.total_points >= a.points_required
+                OR $3 >= a.points_required
               ) AS is_unlocked
        FROM achievements a
-       JOIN users u ON u.id = $1
        LEFT JOIN user_achievements ua
          ON ua.achievement_id = a.id
         AND ua.user_id = $1
        ORDER BY a.points_required ASC`,
-      [req.auth.user.id, req.auth.user.role]
+      [req.auth.user.id, req.auth.user.role, pointStats.lifetimePoints]
     );
 
-    const totalPoints = rows.length > 0 ? Number(rows[0].total_points || 0) : 0;
-    return res.json({ achievements: rows, totalPoints });
+    const { rows: reasonRows } = await pool.query(
+      `SELECT reason,
+              COALESCE(SUM(points), 0)::int AS points
+       FROM user_points_log
+       WHERE user_id = $1
+         AND points > 0
+       GROUP BY reason`,
+      [req.auth.user.id]
+    );
+
+    return res.json({
+      achievements: rows,
+      totalPoints: pointStats.availablePoints,
+      availablePoints: pointStats.availablePoints,
+      lifetimePoints: pointStats.lifetimePoints,
+      spentPoints: pointStats.spentPoints,
+      pointsByReason: reasonRows
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -3576,12 +3828,75 @@ app.get('/achievements/me', requireAuth, async (req, res) => {
 // GET /redeem/rewards — list all active rewards with user's current balance
 app.get('/redeem/rewards', requireAuth, async (req, res) => {
   try {
-    const [rewardsResult, userResult] = await Promise.all([
+    const [rewardsResult, pointStats, rewardRuleMap] = await Promise.all([
       pool.query(`SELECT id, code, name, description, points_cost, icon FROM point_rewards WHERE is_active = TRUE ORDER BY points_cost ASC`),
-      pool.query(`SELECT total_points FROM users WHERE id = $1`, [req.auth.user.id])
+      getUserPointStats(pool, req.auth.user.id),
+      getRewardRuleMap(pool)
     ]);
-    const totalPoints = Number(userResult.rows[0]?.total_points || 0);
-    return res.json({ rewards: rewardsResult.rows, totalPoints });
+
+    const { rows: rewardStatsRows } = await pool.query(
+      `SELECT reward_id,
+              MAX(redeemed_at) AS last_redeemed_at,
+              COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '30 days')::int AS redeemed_last_30_days
+       FROM redemptions
+       WHERE user_id = $1
+       GROUP BY reward_id`,
+      [req.auth.user.id]
+    );
+
+    const { rows: todayRows } = await pool.query(
+      `SELECT COUNT(*)::int AS redeemed_today
+       FROM redemptions
+       WHERE user_id = $1
+         AND redeemed_at >= date_trunc('day', NOW())`,
+      [req.auth.user.id]
+    );
+
+    const redeemedToday = Number(todayRows[0]?.redeemed_today || 0);
+    const rewardStatsMap = new Map(
+      rewardStatsRows.map((row) => [
+        Number(row.reward_id),
+        {
+          lastRedeemedAt: row.last_redeemed_at ? new Date(row.last_redeemed_at) : null,
+          redeemedLast30Days: Number(row.redeemed_last_30_days || 0),
+          redeemedToday
+        }
+      ])
+    );
+
+    const rewards = rewardsResult.rows.map((reward) => {
+      const snapshot = rewardStatsMap.get(Number(reward.id)) || {
+        lastRedeemedAt: null,
+        redeemedLast30Days: 0,
+        redeemedToday
+      };
+
+      const eligibility = evaluateRewardEligibility({
+        reward,
+        availablePoints: pointStats.availablePoints,
+        snapshot,
+        ruleMap: rewardRuleMap
+      });
+
+      return {
+        ...reward,
+        ...eligibility,
+        lastRedeemedAt: snapshot.lastRedeemedAt,
+        ruleSummary: {
+          cooldownDays: eligibility.cooldownDays,
+          maxPer30Days: eligibility.maxPer30Days,
+          maxPerDay: eligibility.maxPerDay
+        }
+      };
+    });
+
+    return res.json({
+      rewards,
+      totalPoints: pointStats.availablePoints,
+      availablePoints: pointStats.availablePoints,
+      redeemedToday,
+      maxPerDay: REWARD_RULES_DEFAULT.maxPerDay
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -3614,7 +3929,7 @@ app.post('/redeem/:rewardId', requireAuth, async (req, res) => {
     await client.query('BEGIN');
 
     const rewardResult = await client.query(
-      `SELECT id, name, points_cost FROM point_rewards WHERE id = $1 AND is_active = TRUE`,
+      `SELECT id, code, name, points_cost FROM point_rewards WHERE id = $1 AND is_active = TRUE`,
       [rewardId]
     );
     if (!rewardResult.rows.length) {
@@ -3623,15 +3938,29 @@ app.post('/redeem/:rewardId', requireAuth, async (req, res) => {
     }
     const reward = rewardResult.rows[0];
 
-    const userResult = await client.query(
-      `SELECT total_points FROM users WHERE id = $1 FOR UPDATE`,
-      [req.auth.user.id]
-    );
-    const currentPoints = Number(userResult.rows[0]?.total_points || 0);
+    const rewardRuleMap = await getRewardRuleMap(client);
+
+    await client.query(`SELECT id FROM users WHERE id = $1 FOR UPDATE`, [req.auth.user.id]);
+
+    const pointStats = await getUserPointStats(client, req.auth.user.id);
+    const currentPoints = pointStats.availablePoints;
 
     if (currentPoints < reward.points_cost) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: `Not enough points. You need ${reward.points_cost} pts but have ${currentPoints} pts.` });
+    }
+
+    const snapshot = await getUserRedemptionSnapshot(client, req.auth.user.id, reward.id);
+    const eligibility = evaluateRewardEligibility({
+      reward,
+      availablePoints: currentPoints,
+      snapshot,
+      ruleMap: rewardRuleMap
+    });
+
+    if (!eligibility.isEligible) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: eligibility.ineligibilityReason || 'This reward is currently not redeemable.' });
     }
 
     await client.query(
@@ -3652,7 +3981,11 @@ app.post('/redeem/:rewardId', requireAuth, async (req, res) => {
     await createNotification(client, req.auth.user.id, `You redeemed "${reward.name}" for ${reward.points_cost} points.`);
 
     await client.query('COMMIT');
-    return res.json({ message: `Successfully redeemed "${reward.name}"!`, pointsSpent: reward.points_cost });
+    return res.json({
+      message: `Successfully redeemed "${reward.name}"!`,
+      pointsSpent: reward.points_cost,
+      balanceAfter: currentPoints - reward.points_cost
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     return res.status(500).json({ message: error.message });
@@ -3988,3 +4321,4 @@ if (skipDbInit) {
       process.exit(1);
     });
 }
+

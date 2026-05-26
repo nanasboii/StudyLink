@@ -9,11 +9,14 @@
   verification: '/verification',
   
   // Admin Routes
+  adminReviews: '/admin/reviews',
+  adminReviewVerifications: '/admin/review-verifications',
   adminVerifications: '/admin/verifications',
   adminResources: '/admin/resources',
   adminAnalytics: '/admin/analytics',
   adminActivity: '/admin/activity',
   adminErrors: '/admin/errors',
+  adminRewardRules: '/admin/reward-rules',
   
   // User Routes
   notifications: '/notifications',

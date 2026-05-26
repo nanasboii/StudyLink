@@ -28,6 +28,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api } from '@/api.js'
+import { normalizeAdminVerification } from '@/utils/records.js'
 
 const applications = ref([])
 const message = ref('')
@@ -35,14 +36,7 @@ const message = ref('')
 const loadApplications = async () => {
   try {
     const resp = await api('/admin/tutor-verifications')
-    applications.value = (resp.verifications || resp.applications || []).map(item => ({
-      id: item.id,
-      userName: item.user_name || item.userName || 'Unknown',
-      courseCode: item.course_code || item.courseCode || '',
-      createdAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : '',
-      status: (item.status || 'PENDING').toUpperCase(),
-      documentUrl: item.document_url || item.documentUrl || ''
-    }))
+    applications.value = (resp.verifications || resp.applications || []).map(normalizeAdminVerification)
   } catch (err) {
     message.value = `Error: ${err.message}`
   }

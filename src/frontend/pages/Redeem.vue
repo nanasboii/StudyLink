@@ -11,6 +11,12 @@
       </div>
     </section>
 
+    <p class="limit-info">
+      Daily redemptions: {{ redeemedToday }} / {{ maxPerDay }}
+    </p>
+
+    <p v-if="message" class="status-msg" :class="{ error: messageType === 'error' }">{{ message }}</p>
+
     <section class="card rewards-section">
       <h3>Available Rewards</h3>
       <div class="rewards-grid">
@@ -18,21 +24,23 @@
           v-for="reward in rewards"
           :key="reward.id"
           class="reward-card"
-          :class="{ affordable: totalPoints >= reward.points_cost }"
+          :class="{ affordable: reward.isEligible }"
         >
           <div class="reward-icon">{{ reward.icon }}</div>
           <div class="reward-body">
             <h4 class="reward-name">{{ reward.name }}</h4>
             <p class="reward-desc">{{ reward.description }}</p>
+            <p class="reward-rules">{{ formatRuleSummary(reward) }}</p>
+            <p v-if="reward.ineligibilityReason" class="reward-lock-reason">{{ reward.ineligibilityReason }}</p>
           </div>
           <div class="reward-footer">
             <span class="reward-cost">{{ reward.points_cost }} pts</span>
             <button
               class="redeem-btn"
-              :disabled="totalPoints < reward.points_cost || redeeming === reward.id"
+              :disabled="!reward.isEligible || redeeming === reward.id"
               @click="confirmRedeem(reward)"
             >
-              {{ redeeming === reward.id ? 'Redeeming…' : totalPoints >= reward.points_cost ? 'Redeem' : 'Need more pts' }}
+              {{ redeeming === reward.id ? 'Redeeming…' : redeemButtonLabel(reward) }}
             </button>
           </div>
         </article>
@@ -47,7 +55,7 @@
           <span class="history-icon">{{ item.icon }}</span>
           <div class="history-info">
             <p class="history-name">{{ item.name }}</p>
-            <p class="history-date">{{ formatDate(item.redeemed_at) }}</p>
+              <p class="history-date">{{ formatDateValue(item.redeemed_at, '', 'en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) }}</p>
           </div>
           <span class="history-cost">-{{ item.points_spent }} pts</span>
         </li>
@@ -62,6 +70,8 @@
           <div class="modal-reward-icon">{{ pendingReward.icon }}</div>
           <h3 class="modal-title">Redeem "{{ pendingReward.name }}"?</h3>
           <p class="modal-desc">{{ pendingReward.description }}</p>
+          <p class="modal-rule">{{ formatRuleSummary(pendingReward) }}</p>
+          <p v-if="pendingReward.ineligibilityReason" class="modal-warning">{{ pendingReward.ineligibilityReason }}</p>
           <div class="modal-points-row">
             <div class="modal-stat">
               <span class="modal-stat-label">Cost</span>
@@ -74,7 +84,7 @@
           </div>
           <div class="modal-actions">
             <button class="btn-cancel" @click="pendingReward = null">Cancel</button>
-            <button class="btn-confirm" :disabled="redeeming === pendingReward.id" @click="doRedeem(pendingReward)">
+            <button class="btn-confirm" :disabled="redeeming === pendingReward.id || !pendingReward.isEligible" @click="doRedeem(pendingReward)">
               {{ redeeming === pendingReward.id ? 'Processing…' : 'Confirm Redeem' }}
             </button>
           </div>
@@ -87,18 +97,18 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api } from '@/api.js'
+import { formatDateValue } from '@/utils/records.js'
 
 const rewards = ref([])
 const history = ref([])
 const totalPoints = ref(0)
+const redeemedToday = ref(0)
+const maxPerDay = ref(0)
 const loading = ref(true)
 const redeeming = ref(null)
 const pendingReward = ref(null)
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+const message = ref('')
+const messageType = ref('success')
 
 const loadData = async () => {
   loading.value = true
@@ -109,22 +119,58 @@ const loadData = async () => {
     ])
     rewards.value = rewardsData.rewards || []
     totalPoints.value = Number(rewardsData.totalPoints || 0)
+    redeemedToday.value = Number(rewardsData.redeemedToday || 0)
+    maxPerDay.value = Number(rewardsData.maxPerDay || 0)
     history.value = historyData.history || []
+    message.value = ''
+  } catch (err) {
+    message.value = err.message || 'Failed to load rewards.'
+    messageType.value = 'error'
   } finally {
     loading.value = false
   }
 }
 
+const formatRuleSummary = (reward) => {
+  const cooldown = Number(reward?.cooldownDays || reward?.ruleSummary?.cooldownDays || 0)
+  const max30d = Number(reward?.maxPer30Days || reward?.ruleSummary?.maxPer30Days || 0)
+  const maxDaily = Number(reward?.maxPerDay || reward?.ruleSummary?.maxPerDay || maxPerDay.value || 0)
+
+  const parts = []
+  if (cooldown) parts.push(`${cooldown} day cooldown`)
+  if (max30d) parts.push(`${max30d} in 30 days`)
+  if (maxDaily) parts.push(`${maxDaily} total per day`)
+
+  return parts.length ? `Rules: ${parts.join(' • ')}` : 'Rules: standard redemption policy applies.'
+}
+
+const redeemButtonLabel = (reward) => {
+  if (!reward?.isEligible) {
+    return 'Locked'
+  }
+  return 'Redeem'
+}
+
 const confirmRedeem = (reward) => {
+  if (!reward?.isEligible) {
+    message.value = reward?.ineligibilityReason || 'This reward is not redeemable right now.'
+    messageType.value = 'error'
+    return
+  }
   pendingReward.value = reward
 }
 
 const doRedeem = async (reward) => {
   redeeming.value = reward.id
   try {
-    await api(`/redeem/${reward.id}`, 'POST')
+    const result = await api(`/redeem/${reward.id}`, 'POST')
+    message.value = result?.message || 'Redeemed successfully.'
+    messageType.value = 'success'
     pendingReward.value = null
     await loadData()
+  } catch (err) {
+    message.value = err.message || 'Redemption failed.'
+    messageType.value = 'error'
   } finally {
     redeeming.value = null
   }
@@ -196,6 +242,22 @@ onMounted(loadData)
   line-height: 1.1;
 }
 
+.limit-info {
+  margin: -6px 2px 0;
+  font-size: 0.84rem;
+  color: #7a4d60;
+}
+
+.status-msg {
+  margin: -4px 2px 0;
+  font-size: 0.88rem;
+  color: #1f7a47;
+}
+
+.status-msg.error {
+  color: #b12a4a;
+}
+
 /* Rewards grid */
 .rewards-section h3,
 .history-section h3 {
@@ -248,6 +310,19 @@ onMounted(loadData)
   font-size: 0.85rem;
   color: #7a4d60;
   line-height: 1.5;
+}
+
+.reward-rules {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  color: #8b6072;
+}
+
+.reward-lock-reason {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: #b12a4a;
+  font-weight: 600;
 }
 
 .reward-footer {
@@ -390,6 +465,19 @@ onMounted(loadData)
   font-size: 0.87rem;
   color: #7a4d60;
   line-height: 1.5;
+}
+
+.modal-rule {
+  margin: -10px 0 14px;
+  font-size: 0.78rem;
+  color: #866070;
+}
+
+.modal-warning {
+  margin: -8px 0 12px;
+  font-size: 0.8rem;
+  color: #b12a4a;
+  font-weight: 600;
 }
 
 .modal-points-row {

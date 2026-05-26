@@ -160,7 +160,11 @@ const boardLabel = (board) =>
   board === 'tutor' ? 'Top Tutors' : board === 'tutee' ? 'Top Tutees' : 'Overall'
 
 const goToProfile = (userId) => {
-  router.push({ name: 'PublicProfile', params: { userId } })
+  router.push({
+    name: 'PublicProfile',
+    params: { userId },
+    query: { from: 'leaderboards' }
+  })
 }
 
 const refreshLeaderboard = async () => {

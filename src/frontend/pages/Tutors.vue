@@ -187,7 +187,7 @@
                     <strong>{{ review.reviewer_name || 'Anonymous' }}</strong>
                     <span class="stars">{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span>
                   </div>
-                  <p class="review-meta">{{ review.reviewer_role || 'Tutee' }} • {{ formatDate(review.created_at) }}</p>
+                  <p class="review-meta">{{ review.reviewer_role || 'Tutee' }} • {{ formatDateValue(review.created_at, '', undefined, { month: 'short', day: 'numeric' }) }}</p>
                   <p class="review-comment">{{ review.comment || 'No comment' }}</p>
                 </div>
               </div>
@@ -212,6 +212,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser } from '@/api.js'
+import { formatDateValue } from '@/utils/records.js'
+import { normalizeTutor } from '@/utils/records.js'
 
 const router = useRouter()
 const currentUser = getUser()
@@ -293,16 +295,15 @@ const debouncedSearch = (() => {
   }
 })()
 
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString([], { month: 'short', day: 'numeric' })
-}
-
 const loadTutors = async () => {
   try {
     isLoading.value = true
     const data = await api('/tutors')
-    tutors.value = data.tutors || []
+    const normalizedTutors = (data?.tutors || []).map(normalizeTutor)
+    const uniqueTutors = Array.from(
+      new Map(normalizedTutors.map((tutor) => [String(tutor.id), tutor])).values()
+    )
+    tutors.value = uniqueTutors
     tutorAvatarErrors.value = {}
   } catch (error) {
     console.error('Failed to load tutors:', error)
@@ -337,7 +338,11 @@ const viewPublicProfile = () => {
 
   const tutorId = selectedTutorData.value.id
   selectedTutorData.value = null
-  router.push(`/users/${tutorId}`)
+  router.push({
+    name: 'PublicProfile',
+    params: { userId: tutorId },
+    query: { from: 'tutors' }
+  })
 }
 
 onMounted(() => {

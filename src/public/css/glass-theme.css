@@ -5,17 +5,17 @@
    ========================================================================== */
 
 :root {
-  --glass-pink-strong: #9e0f3f;
-  --glass-pink-strong-hover: #b31449;
-  --glass-pink-deep: #6f0a2e;
-  --glass-pink-ink: #4d0f2a;
-  --glass-pink-muted: #7a4a5f;
-  --glass-pink-border: rgba(153, 31, 73, 0.32);
-  --glass-pink-border-strong: rgba(110, 14, 49, 0.5);
-  --glass-pink-surface: rgba(255, 255, 255, 0.78);
-  --glass-pink-surface-strong: rgba(255, 255, 255, 0.92);
-  --glass-pink-glow: rgba(167, 21, 69, 0.22);
-  --glass-shadow: 0 12px 30px rgba(95, 14, 43, 0.22);
+  --glass-pink-strong: #a61f49;
+  --glass-pink-strong-hover: #ba2453;
+  --glass-pink-deep: #741837;
+  --glass-pink-ink: #431a2d;
+  --glass-pink-muted: #7d5a68;
+  --glass-pink-border: rgba(161, 32, 75, 0.22);
+  --glass-pink-border-strong: rgba(117, 24, 55, 0.42);
+  --glass-pink-surface: rgba(255, 255, 255, 0.82);
+  --glass-pink-surface-strong: rgba(255, 255, 255, 0.94);
+  --glass-pink-glow: rgba(177, 31, 75, 0.16);
+  --glass-shadow: 0 10px 24px rgba(74, 20, 41, 0.18);
 }
 
 /* ---------- Glass button base ------------------------------------------- */
@@ -30,9 +30,11 @@ button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.16));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.3)),
+    linear-gradient(165deg, rgba(255, 244, 248, 0.78), rgba(255, 232, 239, 0.72));
   color: var(--glass-pink-ink);
   padding: 10px 16px;
   font-size: 0.9rem;
@@ -43,8 +45,8 @@ button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    inset 0 -12px 24px rgba(255, 255, 255, 0.07),
-    0 10px 26px rgba(90, 11, 37, 0.26);
+    inset 0 -12px 24px rgba(255, 255, 255, 0.06),
+    0 10px 22px rgba(74, 20, 41, 0.16);
   transition:
     transform 150ms ease,
     box-shadow 150ms ease,
@@ -60,11 +62,11 @@ button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link
 .btn-ghost:hover,
 .chip:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.68);
+  border-color: rgba(255, 255, 255, 0.82);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 -14px 22px rgba(255, 255, 255, 0.08),
-    0 14px 30px rgba(90, 11, 37, 0.32);
+    0 14px 28px rgba(74, 20, 41, 0.22);
 }
 
 button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn):active,
@@ -75,8 +77,8 @@ button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link
 .chip:active {
   transform: translateY(0);
   box-shadow:
-    inset 0 2px 4px rgba(90, 11, 37, 0.16),
-    0 6px 18px rgba(90, 11, 37, 0.22);
+    inset 0 2px 4px rgba(74, 20, 41, 0.14),
+    0 6px 16px rgba(74, 20, 41, 0.18);
 }
 
 button:not(.icon-chip):not(.icon-only):not(.icon-btn):not(.ghost-icon):not(.link-btn):focus-visible,
@@ -100,14 +102,14 @@ button:disabled,
 button[type="submit"],
 button.primary {
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)),
     linear-gradient(165deg, var(--glass-pink-strong), var(--glass-pink-deep));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
     inset 0 -12px 22px rgba(255, 255, 255, 0.05),
-    0 12px 26px rgba(110, 14, 49, 0.38);
+    0 12px 24px rgba(117, 24, 55, 0.3);
 }
 
 .btn-primary:hover,

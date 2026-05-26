@@ -33,7 +33,7 @@
               </div>
               <div class="resource-meta-box">
                 <span>Published</span>
-                <strong>{{ toDateText(resource.created_at) }}</strong>
+                <strong>{{ formatDateValue(resource.created_at, '-') }}</strong>
               </div>
             </div>
 
@@ -98,7 +98,7 @@
             <article v-else v-for="review in reviews" :key="review.id || review.created_at" class="resource-comment">
               <div class="resource-comment-head">
                 <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
-                <p class="resource-comment-date">{{ toDateText(review.created_at) }}</p>
+                <p class="resource-comment-date">{{ formatDateValue(review.created_at, '-') }}</p>
               </div>
               <p class="resource-comment-rating">{{ renderStars(review.rating) }} ({{ Number(review.rating || 0).toFixed(1) }})</p>
               <p class="resource-comment-body">{{ review.comment || 'No comment provided.' }}</p>
@@ -116,6 +116,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, requireSession, showToast } from '@/api.js';
+import { formatDateValue } from '@/utils/records.js'
 
 const route = useRoute();
 const router = useRouter();
@@ -180,13 +181,6 @@ const renderStars = (rating) => {
     if (i === full && hasHalf) return '⯨';
     return '☆';
   }).join('');
-};
-
-const toDateText = (dateValue) => {
-  if (!dateValue) return '-';
-  const value = new Date(dateValue);
-  if (Number.isNaN(value.getTime())) return '-';
-  return value.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
 const canPreviewInBrowser = (rawUrl) => {

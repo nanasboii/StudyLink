@@ -10,11 +10,13 @@ const Review = () => import('../pages/Review.vue')
 const Leaderboards = () => import('../pages/Leaderboards.vue')
 const Session = () => import('../pages/Session.vue')
 const Verification = () => import('../pages/Verification.vue')
-const AdminVerifications = () => import('../pages/AdminVerifications.vue')
+const AdminReviewVerification = () => import('../pages/AdminReviewVerification.vue')
+const AdminReviews = () => import('../pages/AdminReviews.vue')
 const AdminResources = () => import('../pages/AdminResources.vue')
 const AdminAnalytics = () => import('../pages/AdminAnalytics.vue')
 const AdminActivity = () => import('../pages/AdminActivity.vue')
 const AdminErrors = () => import('../pages/AdminErrors.vue')
+const AdminRewardRules = () => import('../pages/AdminRewardRules.vue')
 const Notifications = () => import('../pages/Notifications.vue')
 const Achievements = () => import('../pages/Achievements.vue')
 const Redeem = () => import('../pages/Redeem.vue')
@@ -33,11 +35,14 @@ const routes = [
   { path: '/leaderboards', component: Leaderboards, name: 'Leaderboards', meta: { requiresAuth: true } },
   { path: '/session/:sessionId?', component: Session, name: 'Session', meta: { requiresAuth: true } },
   { path: '/verification', component: Verification, name: 'Verification', meta: { requiresAuth: true, requiresTutor: true } },
-  { path: '/admin/verifications', component: AdminVerifications, name: 'AdminVerifications', meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/reviews', component: AdminReviews, name: 'AdminReviews', meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/review-verifications', component: AdminReviewVerification, name: 'AdminReviewVerification', meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/verifications', redirect: '/admin/review-verifications' },
   { path: '/admin/resources', component: AdminResources, name: 'AdminResources', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/analytics', component: AdminAnalytics, name: 'AdminAnalytics', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/activity', component: AdminActivity, name: 'AdminActivity', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/errors', component: AdminErrors, name: 'AdminErrors', meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/reward-rules', component: AdminRewardRules, name: 'AdminRewardRules', meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/notifications', component: Notifications, name: 'Notifications', meta: { requiresAuth: true } },
   { path: '/achievements', component: Achievements, name: 'Achievements', meta: { requiresAuth: true } },
   { path: '/redeem', component: Redeem, name: 'Redeem', meta: { requiresAuth: true } },

@@ -6,7 +6,7 @@
           <p class="public-profile-kicker">Community profile</p>
           <h2>{{ profile.fullName }}</h2>
         </div>
-        <button @click="goBack" class="chip" type="button">Back to Leaderboard</button>
+        <button @click="goBack" class="chip" type="button">{{ backButtonLabel }}</button>
       </div>
 
       <div v-if="profile.id" class="card public-profile-card">
@@ -83,6 +83,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api.js'
+import { normalizeAssetUrl } from '@/utils/records.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,13 +91,6 @@ const router = useRouter()
 const profileData = ref({})
 const message = ref('')
 const profileAvatarError = ref(false)
-
-const normalizeProfilePictureUrl = (rawUrl) => {
-  const value = String(rawUrl || '').trim()
-  if (!value) return ''
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
-  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
-}
 
 const profile = computed(() => {
   const row = profileData.value || {}
@@ -119,7 +113,19 @@ const profile = computed(() => {
   }
 })
 
-const normalizedProfilePictureUrl = computed(() => normalizeProfilePictureUrl(profile.value.profilePictureUrl))
+const normalizedProfilePictureUrl = computed(() => normalizeAssetUrl(profile.value.profilePictureUrl))
+
+const sourcePage = computed(() => String(route.query.from || '').toLowerCase())
+
+const backButtonLabel = computed(() => {
+  if (sourcePage.value === 'tutors') {
+    return 'Back to Tutors'
+  }
+  if (sourcePage.value === 'leaderboards') {
+    return 'Back to Leaderboard'
+  }
+  return 'Back'
+})
 
 const roleLabel = (role) => {
   const value = String(role || 'tutee').toLowerCase()
@@ -136,7 +142,19 @@ const loadProfile = async () => {
   }
 }
 
-const goBack = () => router.back()
+const goBack = () => {
+  if (sourcePage.value === 'tutors') {
+    router.push('/tutors')
+    return
+  }
+
+  if (sourcePage.value === 'leaderboards') {
+    router.push('/leaderboards')
+    return
+  }
+
+  router.back()
+}
 
 onMounted(() => {
   loadProfile()
@@ -146,11 +164,15 @@ onMounted(() => {
 <style scoped>
 .public-profile-page {
   min-height: 100vh;
+  background:
+    radial-gradient(42rem 20rem at 20% 0%, rgba(177, 31, 75, 0.08), transparent 62%),
+    radial-gradient(36rem 18rem at 100% 15%, rgba(117, 24, 55, 0.08), transparent 58%);
 }
 
 .view {
   overflow-y: auto;
-  padding: 24px 16px;
+  padding: 28px 18px 40px;
+  max-width: 1120px;
 }
 
 .public-profile-header {
@@ -158,181 +180,202 @@ onMounted(() => {
   justify-content: space-between;
   align-items: flex-end;
   gap: 14px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(177, 31, 75, 0.1);
 }
 
 .public-profile-kicker {
   margin: 0 0 6px;
   font-size: 0.75rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #5e7082;
+  color: #8a5a6a;
 }
 
 .public-profile-header h2 {
   margin: 0;
-  font-size: clamp(28px, 3vw, 36px);
-  color: #2e2330;
+  font-size: clamp(30px, 3vw, 42px);
+  color: #271d25;
+  letter-spacing: -0.03em;
 }
 
 .chip {
-  border: 1px solid #c41e3a;
-  background: #111;
-  color: #fff;
+  border: 1px solid rgba(177, 31, 75, 0.18);
+  background: linear-gradient(180deg, #ffffff, #fff5f8);
+  color: #65172f;
   border-radius: 999px;
-  padding: 9px 16px;
+  padding: 10px 16px;
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 150ms ease;
+  box-shadow: 0 10px 22px rgba(74, 20, 41, 0.08);
 }
 
 .chip:hover {
-  background: #c41e3a;
+  background: linear-gradient(180deg, #fff, #ffeef3);
+  border-color: rgba(177, 31, 75, 0.3);
+  transform: translateY(-1px);
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #f0c4d1;
-  border-radius: 16px;
-  padding: 22px;
-  box-shadow: 0 8px 24px rgba(68, 17, 36, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 249, 0.94)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  border: 1px solid rgba(177, 31, 75, 0.14);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow:
+    0 18px 34px rgba(74, 20, 41, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
 .public-profile-card {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .public-profile-top {
-  display: flex;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 18px;
   align-items: center;
 }
 
 .public-profile-pic {
-  width: 96px;
-  height: 96px;
-  border-radius: 14px;
-  border: 1px solid #efc9d4;
+  width: 112px;
+  height: 112px;
+  border-radius: 24px;
+  border: 1px solid rgba(177, 31, 75, 0.16);
   object-fit: cover;
   background: #fff6f8;
+  box-shadow: 0 12px 24px rgba(74, 20, 41, 0.12);
 }
 
 .public-profile-pic-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff4f8;
-  color: #c41e3a;
-  border: 1px solid #f0c4d1;
+  background: linear-gradient(135deg, #fff7f9, #ffe8ef);
+  color: #a61f49;
+  border: 1px solid rgba(177, 31, 75, 0.14);
 }
 
 .public-profile-pic-fallback svg {
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   fill: currentColor;
 }
 
 .public-profile-top h3 {
   margin: 0;
-  color: #2e2330;
-  font-size: clamp(24px, 2vw, 30px);
+  color: #271d25;
+  font-size: clamp(26px, 2.1vw, 34px);
+  letter-spacing: -0.03em;
 }
 
 .public-profile-role,
 .public-profile-meta {
   margin: 4px 0 0;
-  color: #6a5b63;
+  color: #735a66;
   font-size: 0.95rem;
 }
 
 .public-profile-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
 }
 
 .public-profile-stat {
-  border: 1px solid #f2d3dc;
-  border-radius: 12px;
-  background: #fff;
-  padding: 10px;
+  border: 1px solid rgba(177, 31, 75, 0.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 249, 0.9));
+  padding: 12px 14px;
+  box-shadow: 0 10px 22px rgba(74, 20, 41, 0.06);
 }
 
 .public-profile-stat span {
   display: block;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #85747d;
+  color: #8a5a6a;
 }
 
 .public-profile-stat strong {
   display: block;
   margin-top: 4px;
-  color: #2e2330;
-  font-size: 1rem;
+  color: #271d25;
+  font-size: 1.02rem;
 }
 
 .public-profile-grid {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
 }
 
 .public-profile-row {
-  border: 1px solid #f2d3dc;
-  border-radius: 12px;
-  background: #fff;
-  padding: 10px;
+  border: 1px solid rgba(177, 31, 75, 0.12);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 249, 0.9));
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  box-shadow: 0 10px 22px rgba(74, 20, 41, 0.06);
 }
 
 .public-profile-row span {
-  color: #85747d;
+  color: #8a5a6a;
   font-size: 0.86rem;
 }
 
 .public-profile-row strong {
-  color: #2e2330;
+  color: #271d25;
   font-size: 0.92rem;
   text-align: right;
 }
 
 .public-profile-bio {
-  border: 1px solid #f2d3dc;
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
+  border: 1px solid rgba(177, 31, 75, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 249, 0.9));
+  padding: 14px 16px;
+  box-shadow: 0 10px 22px rgba(74, 20, 41, 0.06);
 }
 
 .public-profile-bio-label {
   margin: 0 0 6px;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #85747d;
+  color: #8a5a6a;
 }
 
 .public-profile-bio p {
   margin: 0;
   color: #3f2f38;
-  line-height: 1.45;
+  line-height: 1.55;
 }
 
 .message {
   margin-top: 12px;
-  color: #b42318;
+  color: #a61f49;
   font-weight: 600;
 }
 
 @media (max-width: 640px) {
+  .view {
+    padding: 20px 14px 32px;
+  }
+
   .public-profile-header {
     flex-direction: column;
     align-items: flex-start;
@@ -343,6 +386,7 @@ onMounted(() => {
   }
 
   .public-profile-top {
+    grid-template-columns: 1fr;
     align-items: flex-start;
   }
 

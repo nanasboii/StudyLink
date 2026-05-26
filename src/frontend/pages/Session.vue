@@ -118,7 +118,7 @@
                   </p>
                   <p v-if="item.sessionTime || item.date">
                     <span class="detail-label">Time:</span>
-                    {{ formatSessionTime(item.sessionTime || item.date) }}
+                    {{ formatDateTimeValue(item.sessionTime || item.date, 'N/A', 'en-MY', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                   </p>
                   <p v-if="item.courseCode || item.course">
                     <span class="detail-label">Course:</span>
@@ -142,6 +142,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api, getUser } from '@/api.js'
+import { formatDateTimeValue } from '@/utils/records.js'
 
 const user = getUser()
 const userRole = ref(user?.role || 'tutee')
@@ -198,21 +199,6 @@ const loadSessions = async () => {
   } catch (err) {
     console.error('Failed to load sessions:', err)
   }
-}
-
-const formatSessionTime = (raw) => {
-  if (!raw) return 'N/A'
-  const text = String(raw)
-  if (text.includes(' - ')) return text
-  const parsed = new Date(text)
-  if (Number.isNaN(parsed.getTime())) return text
-  return parsed.toLocaleString('en-MY', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 onMounted(() => {

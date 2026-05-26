@@ -106,17 +106,23 @@
       <router-link to="/settings" class="menu-item" @click="isUserMenuOpen = false">
         ⚙️ Settings
       </router-link>
-      <router-link to="/review" class="menu-item" @click="isUserMenuOpen = false">
+      <router-link v-if="currentUser?.role === 'admin'" to="/admin/reviews" class="menu-item" @click="isUserMenuOpen = false">
+        📝 Review Moderation
+      </router-link>
+      <router-link v-else to="/review" class="menu-item" @click="isUserMenuOpen = false">
         📝 Reviews
+      </router-link>
+      <router-link v-if="currentUser?.role === 'admin'" to="/admin/review-verifications" class="menu-item" @click="isUserMenuOpen = false">
+        ✓ Verification Review
+      </router-link>
+      <router-link v-if="currentUser?.role === 'admin'" to="/admin/reward-rules" class="menu-item" @click="isUserMenuOpen = false">
+        🎛 Reward Rules
       </router-link>
       <router-link to="/achievements" class="menu-item" @click="isUserMenuOpen = false">
         🏆 Achievements
       </router-link>
       <router-link to="/redeem" class="menu-item" @click="isUserMenuOpen = false">
         🎁 Redeem Points
-      </router-link>
-      <router-link to="/messages" class="menu-item" @click="isUserMenuOpen = false">
-        💬 Messages
       </router-link>
       <router-link v-if="currentUser?.role === 'tutor'" to="/verification" class="menu-item" @click="isUserMenuOpen = false">
         ✓ Verification
@@ -130,7 +136,7 @@
 </template>
 
 <script>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser, clearSession } from '@/api.js'
 
@@ -143,6 +149,7 @@ export default {
     const homeRoute = '/resources'
     const streakCount = ref(0)
     const unreadCount = ref(0)
+    const notificationPollTimer = ref(null)
     const isStreakModalOpen = ref(false)
     const isUserMenuOpen = ref(false)
     const lastCheckInDate = ref('Today')
@@ -331,12 +338,41 @@ export default {
     }
 
     const loadUnreadNotifications = async () => {
+      if (!currentUser.value) {
+        unreadCount.value = 0
+        return
+      }
+
       try {
         const resp = await api('/notifications?filter=unread')
-        unreadCount.value = resp.notifications?.length || 0
+        const notifications = Array.isArray(resp.notifications) ? resp.notifications : []
+        unreadCount.value = notifications.filter((item) => !Boolean(item.is_read ?? item.isRead)).length
       } catch (err) {
         console.debug('Failed to load notifications (this is normal if endpoint not yet available):', err.message)
       }
+    }
+
+    const startNotificationPolling = () => {
+      if (notificationPollTimer.value) {
+        window.clearInterval(notificationPollTimer.value)
+      }
+
+      notificationPollTimer.value = window.setInterval(() => {
+        loadUnreadNotifications()
+      }, 15000)
+    }
+
+    const stopNotificationPolling = () => {
+      if (!notificationPollTimer.value) {
+        return
+      }
+
+      window.clearInterval(notificationPollTimer.value)
+      notificationPollTimer.value = null
+    }
+
+    const refreshNotificationsOnFocus = () => {
+      loadUnreadNotifications()
     }
 
     const logout = () => {
@@ -349,11 +385,11 @@ export default {
       window.addEventListener('studylink-session-changed', syncCurrentUser)
       window.addEventListener('studylink-profile-updated', syncCurrentUser)
       window.addEventListener('storage', syncCurrentUser)
+      window.addEventListener('studylink-notifications-changed', loadUnreadNotifications)
+      window.addEventListener('focus', refreshNotificationsOnFocus)
 
       if (currentUser.value) {
         streakCount.value = currentUser.value.login_streak || 0
-        await loadUnreadNotifications()
-        window.addEventListener('studylink-notifications-changed', loadUnreadNotifications)
 
         // Auto-open the streak modal once after a fresh login.
         if (sessionStorage.getItem('studylinkShowStreakAfterLogin') === '1') {
@@ -363,11 +399,28 @@ export default {
       }
     })
 
+    watch(
+      currentUser,
+      async (user) => {
+        if (!user) {
+          unreadCount.value = 0
+          stopNotificationPolling()
+          return
+        }
+
+        await loadUnreadNotifications()
+        startNotificationPolling()
+      },
+      { immediate: true }
+    )
+
     onUnmounted(() => {
       window.removeEventListener('studylink-session-changed', syncCurrentUser)
       window.removeEventListener('studylink-profile-updated', syncCurrentUser)
       window.removeEventListener('storage', syncCurrentUser)
       window.removeEventListener('studylink-notifications-changed', loadUnreadNotifications)
+      window.removeEventListener('focus', refreshNotificationsOnFocus)
+      stopNotificationPolling()
     })
 
     return {

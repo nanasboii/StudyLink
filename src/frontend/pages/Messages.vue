@@ -30,7 +30,7 @@
           <div class="conv-avatar" :class="{ 'support-avatar': conv.is_support }">
             <img
               v-if="hasConversationAvatar(conv)"
-              :src="normalizeAvatarUrl(conv.other_user?.profilePicture)"
+              :src="normalizeAssetUrl(conv.other_user?.profilePicture)"
               :alt="convDisplayName(conv)"
               @error="markConversationAvatarError(conv)"
             />
@@ -61,7 +61,7 @@
         <div class="chat-header-avatar" :class="{ 'support-avatar': activeConv.is_support }">
           <img
             v-if="hasConversationAvatar(activeConv)"
-            :src="normalizeAvatarUrl(activeConv.other_user?.profilePicture)"
+            :src="normalizeAssetUrl(activeConv.other_user?.profilePicture)"
             :alt="convDisplayName(activeConv)"
             @error="markConversationAvatarError(activeConv)"
           />
@@ -162,6 +162,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { api, getUser } from '@/api.js'
+import { normalizeAssetUrl } from '@/utils/records.js'
 
 const currentUser = getUser()
 const currentUserId = currentUser?.id
@@ -188,16 +189,9 @@ const isAdmin = currentUser?.role === 'admin'
 
 const conversationAvatarKey = (conv) => String(conv?.id || '')
 
-const normalizeAvatarUrl = (rawUrl) => {
-  const value = String(rawUrl || '').trim()
-  if (!value) return ''
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
-  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
-}
-
 const hasConversationAvatar = (conv) => {
   const key = conversationAvatarKey(conv)
-  return !!normalizeAvatarUrl(conv?.other_user?.profilePicture) && !avatarLoadErrors.value[key]
+  return !!normalizeAssetUrl(conv?.other_user?.profilePicture) && !avatarLoadErrors.value[key]
 }
 
 const markConversationAvatarError = (conv) => {

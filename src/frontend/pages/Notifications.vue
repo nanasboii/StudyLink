@@ -57,6 +57,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api.js'
+import { normalizeNotification } from '@/utils/records.js'
 
 const allNotifications = ref([])
 const activeFilter = ref('all')
@@ -74,13 +75,6 @@ const filteredNotifications = computed(() => {
 
 const canLoadMore = computed(() => visibleCount.value < allNotifications.value.length)
 const unreadCount = computed(() => allNotifications.value.filter((n) => !n.isRead).length)
-
-const normalizeNotification = (item) => ({
-  id: item.id,
-  message: item.message,
-  isRead: Boolean(item.is_read ?? item.isRead),
-  createdAt: item.created_at ?? item.createdAt,
-})
 
 const relativeTime = (dateValue) => {
   const timestamp = new Date(dateValue).getTime()

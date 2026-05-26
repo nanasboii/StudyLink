@@ -8,22 +8,6 @@
     <section class="card settings-panel">
       <div class="settings-section">
         <h3>Security</h3>
-        
-        <div class="settings-item">
-          <div class="settings-item-info">
-            <label>Two-Factor Authentication (2FA)</label>
-            <p class="settings-hint">Add an extra layer of security to your account</p>
-          </div>
-          <div class="settings-item-action">
-            <button 
-              @click="toggle2FA" 
-              class="chip"
-              :class="{ active: twoFactorEnabled }"
-            >
-              {{ twoFactorEnabled ? 'Enabled' : 'Disabled' }}
-            </button>
-          </div>
-        </div>
 
         <div class="settings-item">
           <div class="settings-item-info">
@@ -145,7 +129,6 @@ const router = useRouter()
 const user = getUser() || {}
 
 const userEmail = ref(user.email || '')
-const twoFactorEnabled = ref(user.two_factor_enabled || user.twoFactorEnabled || false)
 const pushEnabled = ref(false)
 const pushLoading = ref(false)
 const pushSupported = ref(false)
@@ -156,36 +139,24 @@ const deleteForm = ref({ confirmEmail: '', password: '' })
 const message = ref('')
 const messageType = ref('success')
 
-const toggle2FA = async () => {
-  const togglePush = async () => {
-    pushLoading.value = true
-    try {
-      if (pushEnabled.value) {
-        await unsubscribeFromPush()
-        pushEnabled.value = false
-        message.value = 'Push notifications disabled.'
-      } else {
-        await subscribeToPush()
-        pushEnabled.value = true
-        message.value = 'Push notifications enabled!'
-      }
-      messageType.value = 'success'
-    } catch (err) {
-      message.value = err.message || 'Failed to update push notifications.'
-      messageType.value = 'error'
-    } finally {
-      pushLoading.value = false
-    }
-  }
-
+const togglePush = async () => {
+  pushLoading.value = true
   try {
-    await api('/auth/2fa/toggle', 'POST', { enable: !twoFactorEnabled.value })
-    twoFactorEnabled.value = !twoFactorEnabled.value
-    message.value = `2FA ${twoFactorEnabled.value ? 'enabled' : 'disabled'}`
+    if (pushEnabled.value) {
+      await unsubscribeFromPush()
+      pushEnabled.value = false
+      message.value = 'Push notifications disabled.'
+    } else {
+      await subscribeToPush()
+      pushEnabled.value = true
+      message.value = 'Push notifications enabled!'
+    }
     messageType.value = 'success'
-  } catch (error) {
-    message.value = error.message || 'Failed to update 2FA'
+  } catch (err) {
+    message.value = err.message || 'Failed to update push notifications.'
     messageType.value = 'error'
+  } finally {
+    pushLoading.value = false
   }
 }
 
@@ -227,17 +198,17 @@ const deleteAccount = async () => {
     router.push('/login')
   } catch (error) {
     message.value = error.message || 'Failed to delete account'
-
-    onMounted(async () => {
-      pushSupported.value = await isPushSupported()
-      if (pushSupported.value) {
-        const sub = await getCurrentSubscription()
-        pushEnabled.value = !!sub
-      }
-    })
     messageType.value = 'error'
   }
 }
+
+onMounted(async () => {
+  pushSupported.value = await isPushSupported()
+  if (pushSupported.value) {
+    const sub = await getCurrentSubscription()
+    pushEnabled.value = !!sub
+  }
+})
 </script>
 
 <style scoped>
