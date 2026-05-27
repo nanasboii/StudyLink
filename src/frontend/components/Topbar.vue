@@ -1,7 +1,10 @@
 ﻿<template>
   <header class="topbar">
     <div class="topbar-left">
-      <router-link to="/resources" class="brand-link">StudyLink{{ brandRoleLabel }}</router-link>
+      <router-link to="/resources" class="brand-link">
+        <span class="brand-title">StudyLink</span>
+        <span class="brand-role-suffix">{{ brandRoleLabel }}</span>
+      </router-link>
     </div>
     <div class="topbar-center">
       <nav class="main-nav" v-if="currentUser">
@@ -550,6 +553,19 @@ export default {
   color: #1d1d1f;
   text-decoration: none;
   letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+}
+
+.brand-title {
+  white-space: nowrap;
+}
+
+.brand-role-suffix {
+  color: #6e6e73;
+  white-space: nowrap;
 }
 
 .brand-link:hover {
@@ -616,7 +632,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 .icon-btn {
@@ -750,11 +766,14 @@ export default {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.44);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   z-index: 1000;
   backdrop-filter: blur(6px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-content {
@@ -764,6 +783,8 @@ export default {
   padding: 24px;
   max-width: 500px;
   width: min(500px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   margin: 0 auto;
   box-shadow: none;
 }
@@ -951,6 +972,9 @@ export default {
   right: 16px;
   z-index: 1000;
   border: 1px solid #e0e0e0;
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .user-menu-header {
@@ -1019,22 +1043,41 @@ export default {
 
 @media (max-width: 833px) {
   .topbar {
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 10px;
+    align-items: center;
   }
 
   .brand-link {
     font-size: 14px;
   }
 
+  .topbar-left {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    order: 2;
+    margin-left: auto;
+    gap: 6px;
+  }
+
   .topbar-center {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
     justify-content: flex-start;
     overflow: hidden;
   }
 
   .main-nav {
     gap: 10px;
+    width: 100%;
     overflow-x: auto;
+    justify-content: flex-start;
     padding-bottom: 2px;
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -1046,6 +1089,7 @@ export default {
 
   .nav-link {
     font-size: 11px;
+    padding: 2px 0;
   }
 
   .icon-btn,
@@ -1061,6 +1105,119 @@ export default {
   .message-btn svg {
     width: 16px;
     height: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .brand-link {
+    font-size: 13px;
+  }
+
+  .brand-role-suffix {
+    display: none;
+  }
+
+  .topbar-actions {
+    gap: 4px;
+    margin-left: 0;
+  }
+
+  .icon-btn,
+  .streak-btn,
+  .notify-btn,
+  .message-btn,
+  .profile-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .notify-badge,
+  .streak-btn-badge {
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 8px;
+  }
+
+  .user-menu {
+    left: 12px;
+    right: 12px;
+    top: 56px;
+    width: auto;
+    min-width: 0;
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
+  }
+
+  .modal-content,
+  .modal-content.streak-modal {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+}
+
+@media (max-height: 620px) {
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .modal-content,
+  .modal-content.streak-modal {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100vh - 20px);
+    margin-top: 2px;
+  }
+
+  .streak-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .modal-header {
+    margin-bottom: 14px;
+  }
+
+  .modal-header h2 {
+    font-size: 28px;
+  }
+
+  .modal-subtext {
+    font-size: 15px;
+  }
+
+  .calendar-header {
+    margin-bottom: 10px;
+  }
+
+  .weekday {
+    padding: 4px 0;
+    font-size: 11px;
+  }
+
+  .calendar-day {
+    font-size: 12px;
+  }
+}
+
+@media (max-height: 480px) {
+  .modal-header h2 {
+    font-size: 24px;
+  }
+
+  .modal-kicker {
+    font-size: 10px;
+  }
+
+  .stat-box {
+    padding: 10px;
+  }
+
+  .calendar-grid {
+    gap: 3px;
   }
 }
 </style>

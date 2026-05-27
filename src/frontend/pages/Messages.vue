@@ -370,6 +370,7 @@ watch(showNewChat, (val) => {
 .conversations-sidebar {
   width: 320px;
   flex-shrink: 0;
+  min-height: 0;
   border-right: 1px solid #f1cdd9;
   display: flex;
   flex-direction: column;
@@ -532,6 +533,7 @@ watch(showNewChat, (val) => {
 /* Chat panel */
 .chat-panel {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -871,21 +873,70 @@ watch(showNewChat, (val) => {
   opacity: 0;
 }
 
-/* Responsive */
-@media (max-width: 640px) {
-  .conversations-sidebar {
-    width: 100%;
-    height: 40%;
+@media (max-width: 900px) {
+  .messages-page {
+    height: calc(100vh - 56px);
   }
 
+  .conversations-sidebar {
+    width: 280px;
+  }
+
+  .bubble {
+    max-width: 74%;
+  }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
   .messages-page {
     flex-direction: column;
-    height: auto;
-    min-height: calc(100vh - 60px);
+    height: calc(100vh - 56px);
+    min-height: 0;
+  }
+
+  .conversations-sidebar {
+    width: 100%;
+    height: 42%;
+    min-height: 240px;
+    border-right: none;
+    border-bottom: 1px solid #f1cdd9;
   }
 
   .chat-panel {
-    height: 60%;
+    height: 58%;
+    min-height: 0;
+  }
+
+  .messages-list {
+    padding: 12px 14px;
+  }
+
+  .chat-header {
+    padding: 12px 14px;
+  }
+
+  .message-input-bar {
+    padding: 10px 12px;
+  }
+
+  .bubble {
+    max-width: 84%;
+  }
+}
+
+@media (max-width: 420px) {
+  .sidebar-header {
+    padding: 12px;
+  }
+
+  .conv-item {
+    padding: 8px 10px;
+    margin: 2px 6px;
+  }
+
+  .conversations-sidebar {
+    min-height: 220px;
   }
 }
 </style>

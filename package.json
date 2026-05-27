@@ -11,7 +11,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "seed": "node src/seed.js",
-    "test:flows": "node --test tests/critical-flows.integration.test.mjs"
+    "test:flows": "node --test tests/critical-flows.integration.test.mjs",
+    "security:scan": "node scripts/security-scan.mjs",
+    "security:scan:staged": "node scripts/security-scan.mjs --staged"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

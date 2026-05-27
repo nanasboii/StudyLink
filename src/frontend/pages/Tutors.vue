@@ -509,6 +509,7 @@ onUnmounted(() => {
   color: #6e6e73;
   margin-bottom: 4px;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .hero-stat strong {
@@ -534,6 +535,7 @@ onUnmounted(() => {
   border-radius: 10px;
   border: 1px solid #e0e0e0;
   padding: 0 12px;
+  width: 100%;
 }
 
 .tutor-search-shell input {
@@ -933,8 +935,35 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
+  .view {
+    padding: 14px 12px;
+  }
+
+  .search-row {
+    align-items: stretch;
+  }
+
+  .tutor-search-shell {
+    min-width: 0;
+  }
+
+  .search-row .chip {
+    width: 100%;
+    justify-content: center;
+  }
+
   .tutors-hero__stats {
     grid-template-columns: 1fr;
+  }
+
+  .tutor-card {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .tutor-avatar {
+    width: 52px;
+    height: 52px;
   }
 
   .modal-content {
@@ -945,6 +974,26 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: center;
     text-align: center;
+  }
+
+  .profile-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .tutor-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .availability-slot strong {
+    min-width: 0;
+  }
+
+  .course-code {
+    margin-left: 0;
   }
 }
 </style>

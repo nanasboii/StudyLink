@@ -119,7 +119,7 @@ You can gradually migrate CSS to scoped Vue component styles.
 
 Your `.env` is configured for Supabase:
 ```
-DATABASE_URL=postgresql://postgres:Najminas4%23@iazelegwxxnygtuncen.supabase.co:5432/postgres
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>
 ```
 
 The Express backend connects automatically.

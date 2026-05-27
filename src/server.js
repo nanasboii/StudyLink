@@ -10,15 +10,15 @@ require('dotenv').config();
 
 // ── VAPID setup ──────────────────────────────────────────────────────────────
 // Generate stable keys once and store in env vars (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).
-// On first run without env vars, new keys are generated and printed so you can persist them.
+// On first run without env vars, new keys are generated for this process.
 let vapidKeys;
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   vapidKeys = { publicKey: process.env.VAPID_PUBLIC_KEY, privateKey: process.env.VAPID_PRIVATE_KEY };
 } else {
   vapidKeys = webpush.generateVAPIDKeys();
   console.log('⚠  No VAPID keys in env – generated ephemeral keys (push subs will break on restart):');
-  console.log('   VAPID_PUBLIC_KEY=' + vapidKeys.publicKey);
-  console.log('   VAPID_PRIVATE_KEY=' + vapidKeys.privateKey);
+  console.log('   Public key preview:', vapidKeys.publicKey.slice(0, 16) + '...');
+  console.log('   Save generated VAPID keys in environment variables before deploying.');
 }
 webpush.setVapidDetails(
   'mailto:' + (process.env.ADMIN_EMAIL || 'admin@studylink.local'),
@@ -97,7 +97,9 @@ if (hasSmtpCredentials) {
 const app = express();
 // Use the configured PORT (defaults to 3000 in .env) so the frontend proxy can stay in sync.
 const defaultPort = Number(process.env.PORT || 3000);
-const portRetryCount = Math.max(0, Number(process.env.PORT_RETRY_COUNT || 10));
+// Keep retry disabled by default to avoid desync with Vite proxy target in local dev.
+// Set PORT_RETRY_COUNT to opt in when running backend without the Vite proxy.
+const portRetryCount = Math.max(0, Number(process.env.PORT_RETRY_COUNT || 0));
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';

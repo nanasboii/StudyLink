@@ -1,6 +1,15 @@
 node_modules
 .env
+.env.*
+!.env.example
+!.env.sample
+.env.production
 postgres_data
 dist
 .vite
 *.log
+
+# Local/generated user content and backups (not safe for public Git)
+src/uploads/
+uploads/
+studylink_backup.sql

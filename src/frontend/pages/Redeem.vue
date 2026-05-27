@@ -559,4 +559,77 @@ onMounted(loadData)
 .modal-fade-leave-to {
   opacity: 0;
 }
+
+@media (max-width: 820px) {
+  .redeem-page {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .rewards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .points-display {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .redeem-page {
+    padding: 12px;
+  }
+
+  .hero-title-wrap h2 {
+    font-size: 1.35rem;
+  }
+
+  .rewards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .history-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .history-cost {
+    margin-left: auto;
+  }
+
+  .modal-card {
+    width: min(100%, calc(100vw - 24px));
+    padding: 22px 16px 16px;
+  }
+
+  .modal-points-row {
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .modal-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .reward-footer {
+    align-items: stretch;
+  }
+
+  .redeem-btn {
+    width: 100%;
+  }
+}
 </style>

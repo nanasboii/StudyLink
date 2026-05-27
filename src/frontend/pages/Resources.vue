@@ -808,6 +808,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  overflow-wrap: anywhere;
 }
 
 .hero-stat strong {
@@ -832,6 +833,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   border: 1px solid #e0e0e0;
   padding: 0 12px;
+  width: 100%;
 }
 
 .resource-search-shell input {
@@ -1584,6 +1586,27 @@ button.primary:disabled {
 }
 
 @media (max-width: 640px) {
+  .view {
+    padding: 14px 12px;
+  }
+
+  .resource-toolbar {
+    align-items: stretch;
+  }
+
+  .resource-search-shell {
+    min-width: 0;
+  }
+
+  .action-row {
+    width: 100%;
+  }
+
+  .action-row .chip-strong {
+    width: 100%;
+    justify-content: center;
+  }
+
   .suggested-section {
     margin-bottom: 28px;
   }
@@ -1604,6 +1627,20 @@ button.primary:disabled {
 
   .resources-hero__stats {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .resources-list {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-search-shell input {
+    font-size: 13px;
+  }
+
+  .chip-row {
+    padding-bottom: 4px;
   }
 }
 

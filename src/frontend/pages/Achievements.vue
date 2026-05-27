@@ -683,6 +683,62 @@ onMounted(() => {
   .achievements-summary {
     grid-template-columns: 1fr;
   }
+
+  .points-display {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .badges-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .reason-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .achievements-page {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .hero-title-wrap h2 {
+    font-size: 1.45rem;
+  }
+
+  .summary-value {
+    font-size: 1.2rem;
+  }
+
+  .badges-grid,
+  .reason-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-card {
+    padding: 24px 18px 18px;
+    max-width: 100%;
+  }
+
+  .modal-desc {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .modal-points-row {
+    gap: 8px;
+  }
+
+  .modal-stat {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
 }
 </style>
 

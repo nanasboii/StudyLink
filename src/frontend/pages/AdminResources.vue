@@ -412,9 +412,7 @@ onMounted(() => {
   font-weight: 600;
   margin: 0 0 0.45rem;
   color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .uploader-line {
   display: flex;
@@ -531,5 +529,29 @@ onMounted(() => {
   .resource-card { flex-direction: column; }
   .resource-card-actions { width: 100%; justify-content: flex-end; }
   .date-text { margin-left: 0; }
+
+  .toolbar-row input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .result-count {
+    width: 100%;
+  }
+
+  .modal-card {
+    padding: 1.2rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .resource-card-actions {
+    justify-content: stretch;
+  }
+
+  .resource-card-actions .chip {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 </style>
