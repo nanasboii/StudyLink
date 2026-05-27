@@ -36,6 +36,7 @@
       </button>
       <button class="icon-btn message-btn" @click="navigateToMessages" title="Messages">
         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+        <span class="notify-badge" v-if="messageUnreadCount" :class="{ unread: messageUnreadCount > 0 }">{{ messageUnreadCount }}</span>
       </button>
       <button class="icon-btn profile-btn" @click="showUserMenu" title="User menu">
         <img
@@ -168,6 +169,7 @@ export default {
     })
     const streakCount = ref(0)
     const unreadCount = ref(0)
+    const messageUnreadCount = ref(0)
     const notificationPollTimer = ref(null)
     const isStreakModalOpen = ref(false)
     const isUserMenuOpen = ref(false)
@@ -400,6 +402,24 @@ export default {
       }
     }
 
+    const loadUnreadMessages = async () => {
+      if (!currentUser.value) {
+        messageUnreadCount.value = 0
+        return
+      }
+
+      try {
+        const resp = await api('/conversations')
+        const conversations = Array.isArray(resp.conversations) ? resp.conversations : []
+        messageUnreadCount.value = conversations.reduce((sum, item) => {
+          const unread = Number(item?.unread_count || 0)
+          return sum + (Number.isFinite(unread) ? unread : 0)
+        }, 0)
+      } catch (err) {
+        console.debug('Failed to load unread messages (this is normal if endpoint not yet available):', err.message)
+      }
+    }
+
     const startNotificationPolling = () => {
       if (notificationPollTimer.value) {
         window.clearInterval(notificationPollTimer.value)
@@ -407,6 +427,7 @@ export default {
 
       notificationPollTimer.value = window.setInterval(() => {
         loadUnreadNotifications()
+        loadUnreadMessages()
       }, 15000)
     }
 
@@ -421,6 +442,7 @@ export default {
 
     const refreshNotificationsOnFocus = () => {
       loadUnreadNotifications()
+      loadUnreadMessages()
     }
 
     const logout = () => {
@@ -452,11 +474,13 @@ export default {
       async (user) => {
         if (!user) {
           unreadCount.value = 0
+          messageUnreadCount.value = 0
           stopNotificationPolling()
           return
         }
 
         await loadUnreadNotifications()
+        await loadUnreadMessages()
         startNotificationPolling()
       },
       { immediate: true }
@@ -475,6 +499,7 @@ export default {
       currentUser,
       streakCount,
       unreadCount,
+      messageUnreadCount,
       isStreakModalOpen,
       isUserMenuOpen,
       lastCheckInDate,
@@ -498,24 +523,25 @@ export default {
 
 <style scoped>
 .topbar {
-  grid-row: 1;
-  display: grid;
-  grid-template-columns: minmax(120px, auto) 1fr auto;
+  display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 24px;
+  padding: 10px clamp(10px, 2vw, 24px);
   border-bottom: 1px solid #e0e0e0;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: saturate(180%) blur(20px);
   position: relative;
   z-index: 30;
+  width: 100%;
+  max-width: 100%;
 }
 
 .topbar-left {
-  justify-self: start;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .brand-link {
@@ -531,15 +557,20 @@ export default {
 }
 
 .topbar-center {
-  justify-self: stretch;
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .main-nav {
   display: flex;
   gap: 22px;
+  justify-content: center;
   align-items: center;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   white-space: nowrap;
   -ms-overflow-style: none;
@@ -581,10 +612,11 @@ export default {
 }
 
 .topbar-actions {
-  justify-self: end;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: 8px;
 }
 
 .icon-btn {
@@ -623,7 +655,8 @@ export default {
 }
 
 .streak-btn,
-.notify-btn {
+.notify-btn,
+.message-btn {
   width: 36px;
   height: 36px;
   padding: 0;
@@ -632,7 +665,8 @@ export default {
 }
 
 .streak-btn svg,
-.notify-btn svg {
+.notify-btn svg,
+.message-btn svg {
   width: 18px;
   height: 18px;
   color: #6e6e73;
@@ -676,7 +710,8 @@ export default {
 }
 
 .streak-btn:hover svg,
-.notify-btn:hover svg {
+.notify-btn:hover svg,
+.message-btn:hover svg {
   color: #b11f4b;
 }
 
@@ -984,7 +1019,6 @@ export default {
 
 @media (max-width: 833px) {
   .topbar {
-    grid-template-columns: auto 1fr auto;
     gap: 8px;
     padding: 8px 10px;
   }
@@ -1016,13 +1050,15 @@ export default {
 
   .icon-btn,
   .streak-btn,
-  .notify-btn {
+  .notify-btn,
+  .message-btn {
     width: 32px;
     height: 32px;
   }
 
   .streak-btn svg,
-  .notify-btn svg {
+  .notify-btn svg,
+  .message-btn svg {
     width: 16px;
     height: 16px;
   }

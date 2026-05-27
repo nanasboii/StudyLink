@@ -242,12 +242,12 @@ onMounted(() => {
 }
 
 .item {
-  border-left: 5px solid var(--primary);
-  padding: 12px;
+  border: 1px solid var(--hairline);
+  padding: 14px;
   margin-bottom: 12px;
   background: var(--surface);
-  border-radius: 0 8px 8px 0;
-  box-shadow: 0 2px 6px rgba(177, 31, 75, 0.06);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .title-row {
@@ -279,12 +279,14 @@ onMounted(() => {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
 
 .list {
+  display: grid;
+  gap: var(--space-10);
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   align-items: start;
 }
@@ -412,8 +414,8 @@ input {
 }
 
 .phone-shell {
-  width: min(1120px, 100%);
-  padding-inline: 12px;
+  width: min(1200px, 100%);
+  padding-inline: 8px;
   margin: 0 auto;
 }
 

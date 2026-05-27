@@ -31,6 +31,7 @@ StudyLink is a full-featured tutoring platform with:
 - **Resource management**: Upload, browse, review, and track downloads
 - **Booking system**: Request → Accept/Reject → Complete → Review workflow
 - **User achievements**: Leaderboards, badges, daily streaks, activity calendar
+- **Points economy**: Earn from activity and redeem rewards with configurable limits
 - **Verification workflow**: Tutor identity verification with admin approval
 - **Real-time notifications**: Activity feeds with unread indicators
 - **Admin tools**: User management, analytics, activity logs, error monitoring
@@ -38,9 +39,12 @@ StudyLink is a full-featured tutoring platform with:
 ### Key Features
 
 - Timezone-aware login streaks and activity calendar
+- Daily login streak points (configurable)
 - File and link-based resource uploads
 - Public tutor profiles and reviews
 - Admin moderation and analytics dashboard
+- Reward redemption rules with admin override controls
+- Messaging inbox with unread counters, including topbar chat badge
 - Email notifications (SMTP integration)
 - Session-based authentication with bearer tokens
 
@@ -74,7 +78,7 @@ curl http://localhost:3000/health
 Services available:
 - **API**: http://localhost:3000
 - **UI**: http://localhost:3000/ui/
-- **pgAdmin**: http://localhost:5050 (admin@studylink.com / admin_password)
+- **pgAdmin**: http://localhost:5050
 - **Database**: localhost:5432
 
 ### Option B: Local Development
@@ -105,17 +109,15 @@ StudyLink/
 ├── src/
 │   ├── server.js                 # Express API server
 │   ├── seed.js                   # Database seeding
-│   ├── frontend/                 # Vue 3 frontend (migration in progress)
+│   ├── frontend/                 # Vue 3 frontend
 │   │   ├── App.vue
 │   │   ├── main.js
 │   │   ├── routes.js
 │   │   ├── components/
 │   │   ├── pages/
 │   │   └── stores/
-│   └── public/                   # Legacy static frontend
-│       ├── pages/                # HTML pages
-│       ├── js/                   # Page-specific logic
-│       └── css/                  # Styling
+│   └── public/                   # Public assets (service worker, icons, CSS)
+│       └── css/                  # Shared styling
 ├── tests/
 │   └── critical-flows.integration.test.mjs
 ├── Dockerfile                    # Container build config
@@ -134,10 +136,10 @@ StudyLink/
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Node.js, Express, PostgreSQL |
-| **Frontend** | Vue 3 (in progress), vanilla JavaScript, CSS |
+| **Frontend** | Vue 3, Vue Router, CSS |
 | **Build** | Vite |
 | **Deployment** | Docker, Railway |
-| **Testing** | Vitest / custom integration tests |
+| **Testing** | Node.js test runner (`node --test`) integration tests |
 
 ---
 
@@ -149,8 +151,20 @@ StudyLink/
 # Start development server (with hot reload)
 npm run dev
 
+# Start backend only (watch mode)
+npm run dev:server
+
+# Start frontend only (Vite)
+npm run dev:frontend
+
 # Build for production
 npm run build
+
+# Run production server
+npm start
+
+# Preview production build
+npm run preview
 
 # Run integration tests
 npm run test:flows
@@ -222,7 +236,7 @@ docker exec -it studylink-app bash
 
 # View database from pgAdmin
 # Navigate to http://localhost:5050
-# Login: admin@studylink.com / admin_password
+# Login: use credentials configured in your local docker-compose/.env setup
 ```
 
 ### Troubleshooting Docker
@@ -233,9 +247,15 @@ docker exec -it studylink-app bash
 
 **Port already in use:**
 ```bash
-# Change port in docker-compose.yml or release the port
-lsof -i :3000  # Find process on port 3000
-kill -9 <PID>  # Kill the process
+# macOS/Linux
+lsof -i :3000
+kill -9 <PID>
+```
+
+```powershell
+# Windows PowerShell
+Get-NetTCPConnection -LocalPort 3000 -State Listen
+Stop-Process -Id <PID> -Force
 ```
 
 **Database not initializing:**
@@ -259,25 +279,31 @@ docker compose exec postgres psql -U studylink -d studylink -c "\dt"
 
 ### Summary by Resource
 
-<u>Public</u>: `GET /`, `GET /health`
+<u>Public</u>: `GET /`, `GET /health` (`GET /api/health` alias)
 
-<u>Auth</u>: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`
+<u>Auth</u>: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `POST /auth/change-password`, `POST /auth/delete-account`
 
 <u>User & Profile</u>: `GET /me`, `GET /me/login-history`, `PUT /me/profile`, `PUT /me/password`, `DELETE /me`, `POST /uploads/profile-picture`
 
-<u>Discovery</u>: `GET /courses`, `GET /tutors`, `GET /leaderboard`, `GET /users/:id/public`, `GET /users/:id/public/reviews`
+<u>Discovery</u>: `GET /courses`, `GET /tutors`, `GET /leaderboard`, `GET /users/search`, `GET /users/:id/public`, `GET /users/:id/public/reviews`
 
 <u>Bookings</u>: `POST /bookings`, `GET /bookings/inbox`, `POST /bookings/:id/decision`, `POST /bookings/:id/complete`, `POST /bookings/:id/cancel`, `POST /bookings/:id/review`, `GET /bookings/:id/reviews`
 
 <u>Availability</u>: `POST /availability`, `GET /availability/me`
 
-<u>Resources</u>: `POST /resources`, `GET /resources`, `GET /resources/:id`, `PUT /resources/:id`, `DELETE /resources/:id`, `POST /resources/upload`, `POST /resources/:id/download`, `GET /resources/:id/reviews`, `POST /resources/:id/reviews`
+<u>Resources</u>: `POST /resources`, `GET /resources`, `GET /resources/mine`, `GET /resources/:id`, `GET /resources/:id/file`, `PUT /resources/:id`, `DELETE /resources/:id`, `POST /resources/upload`, `POST /resources/:id/download`, `GET /resources/:id/reviews`, `POST /resources/:id/reviews`
 
-<u>Notifications & Achievements</u>: `GET /notifications`, `POST /notifications/:id/read`, `GET /achievements/me`
+<u>Notifications</u>: `GET /notifications`, `PATCH /notifications/mark-all-read`, `POST /notifications/:id/read`
+
+<u>Rewards & Achievements</u>: `GET /redeem/rewards`, `GET /redeem/history`, `POST /redeem/:rewardId`, `GET /achievements/me`
+
+<u>Messaging</u>: `GET /conversations`, `POST /conversations`, `POST /conversations/support`, `GET /conversations/:id/messages`, `POST /conversations/:id/messages`
+
+<u>Push</u>: `GET /push/vapid-public-key`, `POST /push/subscribe`, `DELETE /push/unsubscribe`
 
 <u>Verification</u>: `POST /tutor-verifications`, `GET /tutor-verifications/me`, `POST /uploads/verification`
 
-<u>Admin</u>: `GET /admin/users`, `PATCH /admin/users/:id`, `GET /admin/tutor-verifications`, `POST /admin/tutor-verifications/:id/decision`, `POST /admin/tutor-verifications/:id/request-reupload`, `GET /admin/resources`, `GET /admin/analytics`, `GET /admin/activity-logs`, `GET /admin/error-logs`
+<u>Admin</u>: `GET /admin/users`, `PATCH /admin/users/:id`, `GET /admin/tutor-verifications`, `POST /admin/tutor-verifications/:id/decision`, `POST /admin/tutor-verifications/:id/request-reupload`, `GET /admin/resources`, `GET /admin/analytics`, `GET /admin/activity-logs`, `GET /admin/error-logs`, `GET /admin/reward-rules`, `PATCH /admin/reward-rules/:code`, `DELETE /admin/reward-rules/:code`
 
 ### Detailed API Reference
 
@@ -289,22 +315,26 @@ docker compose exec postgres psql -U studylink -d studylink -c "\dt"
 |---|---|---|---|
 | GET | `/` | Public | API status summary |
 | GET | `/health` | Public | DB connectivity check |
+| GET | `/api/health` | Public | Health alias for proxy/env compatibility |
 | GET | `/ui/*` | Public | Serves frontend shell |
 | **Auth** | | | |
 | POST | `/auth/register` | Public | Create account |
 | POST | `/auth/login` | Public | Login (issues bearer token) |
 | POST | `/auth/logout` | Authenticated | Invalidate session |
+| POST | `/auth/change-password` | Authenticated | Change password |
+| POST | `/auth/delete-account` | Authenticated | Delete account (auth flow) |
 | **User** | | | |
 | GET | `/me` | Authenticated | Current user profile |
 | GET | `/me/login-history` | Authenticated | Daily login dates (calendar) |
 | PUT | `/me/profile` | Authenticated | Update profile |
-| PUT | `/me/password` | Authenticated | Change password |
+| PUT | `/me/password` | Authenticated | Change password (legacy profile route) |
 | DELETE | `/me` | Authenticated | Delete account |
 | POST | `/uploads/profile-picture` | Authenticated | Upload avatar |
 | **Discovery** | | | |
 | GET | `/courses` | Authenticated | List courses |
 | GET | `/tutors` | Authenticated | Search tutors |
 | GET | `/leaderboard` | Authenticated | Rankings/points |
+| GET | `/users/search` | Authenticated | User search for messaging |
 | GET | `/users/:id/public` | Authenticated | Public profile view |
 | GET | `/users/:id/public/reviews` | Authenticated | Public reviews |
 | **Booking** | | | |
@@ -321,7 +351,9 @@ docker compose exec postgres psql -U studylink -d studylink -c "\dt"
 | **Resources** | | | |
 | POST | `/resources` | Authenticated | Create resource |
 | GET | `/resources` | Authenticated | Browse/search |
+| GET | `/resources/mine` | Authenticated | List resources uploaded by current user |
 | GET | `/resources/:id` | Authenticated | View resource |
+| GET | `/resources/:id/file` | Public | Open/download resource file URL |
 | PUT | `/resources/:id` | Owner/Admin | Update |
 | DELETE | `/resources/:id` | Owner/Admin | Delete |
 | POST | `/resources/upload` | Authenticated | Upload file |
@@ -330,9 +362,24 @@ docker compose exec postgres psql -U studylink -d studylink -c "\dt"
 | POST | `/resources/:id/reviews` | Authenticated | Add rating |
 | **Notifications** | | | |
 | GET | `/notifications` | Authenticated | Activity feed |
+| PATCH | `/notifications/mark-all-read` | Authenticated | Mark all notifications read |
 | POST | `/notifications/:id/read` | Authenticated | Mark read |
+| **Rewards** | | | |
+| GET | `/redeem/rewards` | Authenticated | List rewards + eligibility |
+| GET | `/redeem/history` | Authenticated | Redemption history |
+| POST | `/redeem/:rewardId` | Authenticated | Redeem reward |
 | **Achievements** | | | |
 | GET | `/achievements/me` | Authenticated | User badges |
+| **Messaging** | | | |
+| GET | `/conversations` | Authenticated | List conversations |
+| POST | `/conversations` | Authenticated | Start direct conversation |
+| POST | `/conversations/support` | Authenticated | Start/reuse support conversation |
+| GET | `/conversations/:id/messages` | Authenticated | Fetch conversation messages |
+| POST | `/conversations/:id/messages` | Authenticated | Send conversation message |
+| **Push** | | | |
+| GET | `/push/vapid-public-key` | Authenticated | Fetch VAPID public key |
+| POST | `/push/subscribe` | Authenticated | Save browser push subscription |
+| DELETE | `/push/unsubscribe` | Authenticated | Remove push subscription |
 | **Verification** | | | |
 | POST | `/tutor-verifications` | Tutor | Submit for review |
 | GET | `/tutor-verifications/me` | Tutor | Check status |
@@ -347,6 +394,9 @@ docker compose exec postgres psql -U studylink -d studylink -c "\dt"
 | GET | `/admin/analytics` | Admin | KPI dashboard |
 | GET | `/admin/activity-logs` | Admin | Audit trail |
 | GET | `/admin/error-logs` | Admin | Error monitoring |
+| GET | `/admin/reward-rules` | Admin | View reward rule settings |
+| PATCH | `/admin/reward-rules/:code` | Admin | Update reward rule settings |
+| DELETE | `/admin/reward-rules/:code` | Admin | Reset rule to defaults |
 
 ---
 
@@ -374,6 +424,7 @@ PORT=3000
 NODE_ENV=development
 SESSION_DURATION_HOURS=24
 STREAK_TIMEZONE=Asia/Kuala_Lumpur
+LOGIN_STREAK_DAILY_POINTS=3
 ```
 
 ### Database (Choose One Method)
@@ -417,7 +468,7 @@ SKIP_DB_INIT=true  # If you import database manually
 If no external database is configured:
 
 - **Database user**: `studylink` / password: `studylink` / database: `studylink`
-- **Admin account**: `admin@studylink.local` / `admin123`
+- **Admin account**: created from `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables.
 
 ⚠️ **Security**: Never publish repositories with exposed credentials. Rotate immediately if committed.
 
@@ -513,10 +564,15 @@ Error: The server does not support SSL connections
 
 **Port Already in Use**
 ```bash
-# Find process on port 3000
+# macOS/Linux
 lsof -i :3000
-# Kill the process
 kill -9 <PID>
+```
+
+```powershell
+# Windows PowerShell
+Get-NetTCPConnection -LocalPort 3000 -State Listen
+Stop-Process -Id <PID> -Force
 ```
 
 **Database Connection Refused**
@@ -653,5 +709,3 @@ For issues, feature requests, or questions:
 - **Documentation**: See [VUE_MIGRATION.md](VUE_MIGRATION.md) for frontend migration status
 
 ---
-
-**Made with ❤️ for the education community**

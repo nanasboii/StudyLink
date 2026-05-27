@@ -97,6 +97,7 @@ if (hasSmtpCredentials) {
 const app = express();
 // Use the configured PORT (defaults to 3000 in .env) so the frontend proxy can stay in sync.
 const defaultPort = Number(process.env.PORT || 3000);
+const portRetryCount = Math.max(0, Number(process.env.PORT_RETRY_COUNT || 10));
 const sessionHours = Number(process.env.SESSION_DURATION_HOURS || 24);
 const streakTimeZone = process.env.STREAK_TIMEZONE || 'Asia/Kuala_Lumpur';
 const skipDbInit = String(process.env.SKIP_DB_INIT || '').toLowerCase() === 'true';
@@ -115,6 +116,8 @@ const REWARD_RULES_DEFAULT = {
   maxPer30Days: 3,
   maxPerDay: 3
 };
+
+const LOGIN_STREAK_DAILY_POINTS = Number(process.env.LOGIN_STREAK_DAILY_POINTS || 3);
 
 const REWARD_RULES_BY_CODE = {
   FREE_SESSION: { cooldownDays: 7, maxPer30Days: 2, maxPerDay: 1 },
@@ -166,25 +169,40 @@ async function removeProfilePictureFile(fileUrl) {
 }
 
 function startServer(preferredPort) {
-  const server = app.listen(preferredPort, () => {
-    const address = server.address();
-    const activePort = typeof address === 'object' && address ? address.port : preferredPort;
-    console.log(`StudyLink API listening on port ${activePort}`);
-    console.log(`API: http://localhost:${activePort}`);
-    console.log(`API (127.0.0.1): http://127.0.0.1:${activePort}`);
-    console.log(`UI: http://localhost:${activePort}/ui`);
-    console.log(`UI (127.0.0.1): http://127.0.0.1:${activePort}/ui`);
-  });
+  const maxPort = preferredPort + portRetryCount;
 
-  server.on('error', (error) => {
-    if (error && error.code === 'EADDRINUSE') {
-      console.error(`Unable to bind PORT=${preferredPort}. Stop the process using that port or change PORT in .env.`);
+  const startOnPort = (portToTry) => {
+    const server = app.listen(portToTry, () => {
+      const address = server.address();
+      const activePort = typeof address === 'object' && address ? address.port : portToTry;
+      console.log(`StudyLink API listening on port ${activePort}`);
+      console.log(`API: http://localhost:${activePort}`);
+      console.log(`API (127.0.0.1): http://127.0.0.1:${activePort}`);
+      console.log(`UI: http://localhost:${activePort}/ui`);
+      console.log(`UI (127.0.0.1): http://127.0.0.1:${activePort}/ui`);
+    });
+
+    server.on('error', (error) => {
+      if (error && error.code === 'EADDRINUSE') {
+        if (portToTry < maxPort) {
+          const nextPort = portToTry + 1;
+          console.warn(`PORT ${portToTry} is in use. Retrying on ${nextPort}...`);
+          startOnPort(nextPort);
+          return;
+        }
+
+        console.error(
+          `Unable to bind a free port from ${preferredPort} to ${maxPort}. Stop the process using those ports or change PORT in .env.`
+        );
+        process.exit(1);
+      }
+
+      console.error('Failed to start StudyLink API:', error);
       process.exit(1);
-    }
+    });
+  };
 
-    console.error('Failed to start StudyLink API:', error);
-    process.exit(1);
-  });
+  startOnPort(preferredPort);
 }
 
 if (!fs.existsSync(verificationUploadDir)) {
@@ -766,6 +784,7 @@ async function awardPoints(client, userId, points, reason) {
     if (text.includes('rated a resource')) return 'resource_review';
     if (text.includes('leaderboard')) return 'leaderboard_rank';
     if (text.includes('booking') || text.includes('session')) return 'booking_progress';
+    if (text.includes('login') || text.includes('streak')) return 'login_streak';
     if (text.includes('profile')) return 'profile_update';
     return 'general';
   })();
@@ -1501,6 +1520,7 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
     }
 
     const shouldShowStreak = previousLoginDate !== today;
+    const streakPointsAwarded = shouldShowStreak ? Math.max(0, LOGIN_STREAK_DAILY_POINTS) : 0;
 
     if (previousLoginDate) {
       await client.query(
@@ -1529,6 +1549,10 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
       [nextStreak, now, user.id]
     );
 
+    if (streakPointsAwarded > 0) {
+      await awardPoints(client, user.id, streakPointsAwarded, 'Daily login streak check-in');
+    }
+
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000);
 
@@ -1550,6 +1574,10 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
     await client.query('COMMIT');
 
     const updatedUser = updatedRows[0] || { ...user, login_streak: nextStreak, last_login_at: now };
+    const responseUser = {
+      ...updatedUser,
+      total_points: Number(updatedUser.total_points || 0) + streakPointsAwarded
+    };
 
     return res.json({
       message: 'Login successful.',
@@ -1559,10 +1587,11 @@ app.post('/auth/login', authRateLimiter, async (req, res) => {
         count: nextStreak,
         shouldShow: shouldShowStreak,
         message: formatLoginStreakMessage(nextStreak),
+        pointsAwarded: streakPointsAwarded,
         lastLoginAt: now,
         historyDates: historyRows.map((row) => row.login_date)
       },
-      user: sanitizeUser(updatedUser)
+      user: sanitizeUser(responseUser)
     });
   } catch (error) {
     if (client) {
@@ -1677,6 +1706,8 @@ app.get('/me/login-history', requireAuth, async (req, res) => {
 
     let currentStreak = Number(user.loginStreak || 0);
 
+    let streakPointsAwarded = 0;
+
     if (previousLoginDate !== today) {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
@@ -1704,6 +1735,11 @@ app.get('/me/login-history', requireAuth, async (req, res) => {
         [currentStreak, now, user.id]
       );
 
+      streakPointsAwarded = Math.max(0, LOGIN_STREAK_DAILY_POINTS);
+      if (streakPointsAwarded > 0) {
+        await awardPoints(pool, user.id, streakPointsAwarded, 'Daily login streak check-in');
+      }
+
       user.loginStreak = currentStreak;
       user.lastLoginAt = now;
     }
@@ -1720,7 +1756,8 @@ app.get('/me/login-history', requireAuth, async (req, res) => {
     return res.json({
       historyDates: rows.map((row) => row.login_date),
       count: currentStreak,
-      lastLoginAt: user.lastLoginAt
+      lastLoginAt: user.lastLoginAt,
+      pointsAwarded: streakPointsAwarded
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -1815,9 +1852,14 @@ app.put('/me/profile', requireAuth, async (req, res) => {
     console.error('Profile update side effect failed:', pointsError.message);
   }
 
+  const { rows: refreshedRows } = await pool.query(
+    'SELECT * FROM users WHERE id = $1',
+    [req.auth.user.id]
+  );
+
   return res.json({
     message: 'Profile updated.',
-    user: sanitizeUser(updatedUser)
+    user: sanitizeUser(refreshedRows[0] || updatedUser)
   });
 });
 

@@ -318,7 +318,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, getToken, getUser } from '@/api.js'
+import { api, getToken, getUser, setSession } from '@/api.js'
 
 const router = useRouter()
 const currentUser = getUser()
@@ -655,6 +655,12 @@ const handleUpload = async () => {
 
     uploadMessage.value = 'Resource uploaded successfully!'
     uploadMessageType.value = 'success'
+
+    const me = await api('/me')
+    if (token && me?.user) {
+      setSession(token, me.user)
+    }
+
     uploadForm.value = { title: '', courseCode: '', resourceType: '', description: '', resourceLink: '' }
     selectedUploadFile.value = null
     showUploadModal.value = false
