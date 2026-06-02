@@ -245,7 +245,6 @@ export default {
         { key: 'resources', label: 'Resources', path: '/resources' },
         { key: 'my-resources', label: 'My Uploads', path: '/my-resources' },
         { key: 'tutors', label: 'Tutors', path: '/tutors' },
-        { key: 'leaderboards', label: 'Leaderboard', path: '/leaderboards' },
         { key: 'session', label: 'Sessions', path: '/session' }
       ]
       
@@ -500,6 +499,7 @@ export default {
 
     return {
       currentUser,
+      isAdmin,
       streakCount,
       unreadCount,
       messageUnreadCount,

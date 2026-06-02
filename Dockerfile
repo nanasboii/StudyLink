@@ -18,5 +18,10 @@ RUN npm install --production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src ./src
 
+# Create and ensure uploads directories exist
+RUN mkdir -p /app/src/uploads/profile-pictures \
+    && mkdir -p /app/src/uploads/resources \
+    && mkdir -p /app/src/uploads/verifications
+
 EXPOSE 3000
 CMD ["node", "src/server.js"]

@@ -1973,6 +1973,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
            FROM user_achievements
            GROUP BY user_id
          ) ua ON ua.user_id = u.id
+         WHERE u.role != 'admin'
          ORDER BY COALESCE(ua.total_achievements, 0) DESC,
                   u.total_points DESC,
                   COALESCE(rc.reviews_received, 0) DESC,
@@ -2004,6 +2005,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
              FROM user_achievements
              GROUP BY user_id
            ) ua ON ua.user_id = u.id
+           WHERE u.role != 'admin'
            ORDER BY COALESCE(ua.total_achievements, 0) DESC,
                     u.total_points DESC,
                     u.full_name ASC
