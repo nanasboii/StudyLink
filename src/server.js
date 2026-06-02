@@ -149,25 +149,8 @@ function findUploadedFilePath(folderName, filename) {
   return null;
 }
 
-async function removeProfilePictureFile(fileUrl) {
-  const filePath = String(fileUrl || '');
-  if (!filePath.startsWith('/uploads/profile-pictures/')) {
-    return;
-  }
-
-  const fileName = path.basename(filePath);
-  const absolutePath = findUploadedFilePath('profile-pictures', fileName);
-  if (!absolutePath) {
-    return;
-  }
-
-  try {
-    await fs.promises.unlink(absolutePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.error('Profile picture cleanup failed:', error.message);
-    }
-  }
+async function removeProfilePictureFile() {
+  // No-op: profile pictures are now stored in database, no cleanup needed
 }
 
 function startServer(preferredPort) {
@@ -330,14 +313,7 @@ const allowedProfilePictureMimeTypes = new Set([
 ]);
 
 const profilePictureUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, profilePictureUploadDir),
-    filename: (req, file, cb) => {
-      const extension = path.extname(file.originalname || '').toLowerCase();
-      const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-      cb(null, `profile-${req.auth.user.id}-${unique}${extension}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024
   },
@@ -985,6 +961,12 @@ async function initializeDatabase() {
 
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS profile_picture BYTEA;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS profile_picture_mime_type VARCHAR(50);
 
       CREATE TABLE IF NOT EXISTS user_login_history (
         id SERIAL PRIMARY KEY,
@@ -1787,7 +1769,7 @@ app.put('/me/profile', requireAuth, async (req, res) => {
 
   if (
     nextProfilePictureUrl &&
-    !nextProfilePictureUrl.startsWith('/uploads/profile-pictures/')
+    !nextProfilePictureUrl.startsWith('/profile-picture/')
   ) {
     return res.status(400).json({ message: 'Invalid profile picture URL.' });
   }
@@ -1885,10 +1867,44 @@ app.post(
       return res.status(400).json({ message: 'image file is required.' });
     }
 
-    const fileUrl = `/uploads/profile-pictures/${req.file.filename}`;
-    return res.status(201).json({ fileUrl });
+    try {
+      await pool.query(
+        `UPDATE users SET profile_picture = $1, profile_picture_mime_type = $2 WHERE id = $3`,
+        [req.file.buffer, req.file.mimetype, req.auth.user.id]
+      );
+
+      const fileUrl = `/profile-picture/${req.auth.user.id}`;
+      return res.status(201).json({ fileUrl });
+    } catch (error) {
+      return res.status(500).json({ message: error.message });
+    }
   }
 );
+
+app.get('/profile-picture/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rows } = await pool.query(
+      'SELECT profile_picture, profile_picture_mime_type FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    if (!user.profile_picture) {
+      return res.status(404).json({ message: 'Profile picture not found.' });
+    }
+
+    res.set('Content-Type', user.profile_picture_mime_type || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    return res.send(user.profile_picture);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
 
 app.put('/me/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
