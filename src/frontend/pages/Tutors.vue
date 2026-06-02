@@ -37,7 +37,7 @@
                   <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
                 </svg>
               </button>
-              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
+              <button class="icon-chip" type="button" aria-label="Open filters" @click="toggleFilters" title="Toggle filters">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                   <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
                 </svg>
@@ -57,6 +57,28 @@
           >
             {{ skill }}
           </button>
+        </div>
+
+        <!-- Filter Panel Backdrop -->
+        <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
+
+        <!-- Simple Filter Panel -->
+        <div v-if="showFilters" class="filter-panel">
+          <div class="filter-section">
+            <div class="filter-header">
+              <h4>Course Code</h4>
+            </div>
+            <div class="filter-content">
+              <select v-model="selectedCourseCode" class="filter-select">
+                <option value="">All courses</option>
+                <option v-for="course in Array.from(new Set(tutors.flatMap(t => (t.availability || []).map(s => s.courseCode || s.course_code || '').filter(Boolean))))" :key="course" :value="course">{{ course }}</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="chip" type="button" @click="clearFilters">Clear</button>
+            <button class="chip chip-strong" type="button" @click="applyFilters">Apply</button>
+          </div>
         </div>
 
         <!-- Tutors List -->
@@ -235,6 +257,7 @@ const isLoading = ref(true)
 const searchQuery = ref('')
 const selectedSkill = ref('')
 const showFilters = ref(false)
+const selectedCourseCode = ref('')
 const visibleCount = ref(10)
 const pageSize = 10
 const selectedTutorData = ref(null)
@@ -275,8 +298,9 @@ const filteredTutors = computed(() => {
   let filtered = [...tutors.value]
 
   if (selectedSkill.value) {
+    const sel = String(selectedSkill.value || '').toLowerCase().trim()
     filtered = filtered.filter(t =>
-      Array.isArray(t.expertise) && t.expertise.includes(selectedSkill.value)
+      Array.isArray(t.expertise) && t.expertise.some(e => String(e || '').toLowerCase().includes(sel))
     )
   }
 
@@ -285,7 +309,15 @@ const filteredTutors = computed(() => {
     filtered = filtered.filter(t =>
       t.full_name?.toLowerCase().includes(q) ||
       t.major?.toLowerCase().includes(q) ||
-      (Array.isArray(t.expertise) && t.expertise.some(e => e.toLowerCase().includes(q)))
+      (Array.isArray(t.expertise) && t.expertise.some(e => e.toLowerCase().includes(q))) ||
+      (Array.isArray(t.availability) && t.availability.some(slot => String(slot.courseCode || slot.course_code || '').toLowerCase().includes(q)))
+    )
+  }
+
+  if (selectedCourseCode.value) {
+    const sc = String(selectedCourseCode.value).toLowerCase().trim()
+    filtered = filtered.filter(t =>
+      Array.isArray(t.availability) && t.availability.some(s => String(s.courseCode || s.course_code || '').toLowerCase().includes(sc))
     )
   }
 
@@ -309,7 +341,8 @@ const debouncedSearch = (() => {
 const loadTutors = async () => {
   try {
     isLoading.value = true
-    const data = await api('/tutors')
+    const qs = selectedCourseCode.value ? `?courseCode=${encodeURIComponent(String(selectedCourseCode.value).toUpperCase())}` : ''
+    const data = await api(`/tutors${qs}`)
     const normalizedTutors = (data?.tutors || []).map(normalizeTutor)
     const uniqueTutors = Array.from(
       new Map(normalizedTutors.map((tutor) => [String(tutor.id), tutor])).values()
@@ -321,6 +354,21 @@ const loadTutors = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const applyFilters = () => {
+  loadTutors()
+  showFilters.value = false
+}
+
+const clearFilters = () => {
+  selectedCourseCode.value = ''
+  loadTutors()
+  showFilters.value = false
+}
+
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
 }
 
 const selectTutor = async (tutor) => {

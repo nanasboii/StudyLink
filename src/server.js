@@ -1200,7 +1200,7 @@ async function initializeDatabase() {
            ('RESOURCE_PACK', 'Resource Pack Access', 'Unlock an exclusive curated bundle of study materials for your enrolled courses.', 60, '📦'),
            ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking a tutor for 7 days.', 100, '⚡'),
            ('CAMPUS_VOUCHER', 'Campus Store Voucher', 'Receive a RM10 voucher redeemable at the campus bookstore or print shop.', 150, '🎟️'),
-           ('PROFILE_SPOTLIGHT', 'Profile Spotlight', 'Have your tutor profile highlighted at the top of tutor listings for 3 days.', 40, '🌟')
+           ('PROFILE_SPOTLIGHT', 'Profile Spotlight', 'Have your profile highlighted at the top of listings for 3 days.', 40, '🌟')
        ),
        updated AS (
          UPDATE point_rewards r
