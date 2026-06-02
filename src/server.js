@@ -1906,6 +1906,44 @@ app.get('/profile-picture/:userId', async (req, res) => {
   }
 });
 
+// Backward compatibility: handle old /uploads/profile-pictures/{filename} URLs
+// Filename pattern: profile-{userId}-{timestamp}-{hash}.{ext}
+app.get('/uploads/profile-pictures/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const match = filename.match(/^profile-(\d+)-/);
+    if (!match || !match[1]) {
+      return res.status(404).json({ message: 'Invalid filename format.' });
+    }
+
+    const userId = match[1];
+    
+    // First try to serve from database
+    const { rows } = await pool.query(
+      'SELECT profile_picture, profile_picture_mime_type FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (rows.length > 0 && rows[0].profile_picture) {
+      const user = rows[0];
+      res.set('Content-Type', user.profile_picture_mime_type || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(user.profile_picture);
+    }
+
+    // Fallback: try to serve from filesystem for backward compatibility
+    const filePath = findUploadedFilePath('profile-pictures', filename);
+    if (filePath && fs.existsSync(filePath)) {
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.sendFile(filePath);
+    }
+
+    return res.status(404).json({ message: 'Profile picture not found.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.put('/me/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
