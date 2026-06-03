@@ -24,25 +24,24 @@
           </div>
         </section>
 
-        <div class="search-row resource-toolbar">
-          <div class="resource-search-shell" role="search">
-            <input 
-              v-model="searchQuery" 
-              placeholder="Search by course code, title, type, or uploader" 
-              @input="debouncedSearch"
-            />
-            <div class="search-inline-actions" aria-label="Search controls">
-              <button class="icon-chip" type="button" aria-label="Search" title="Search" @click="visibleCount = pageSize">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
-                </svg>
-              </button>
-              <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
-                </svg>
-              </button>
-            </div>
+        <div class="search-row resource-toolbar" role="search">
+          <input
+            class="resource-search-input"
+            v-model="searchQuery"
+            placeholder="Search by course code, title, type, or uploader"
+            @input="debouncedSearch"
+          />
+          <div class="search-inline-actions" aria-label="Search controls">
+            <button class="icon-chip" type="button" aria-label="Search" title="Search" @click="visibleCount = pageSize">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+              </svg>
+            </button>
+            <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
+              </svg>
+            </button>
           </div>
           <div class="action-row">
             <button class="chip chip-strong" type="button" @click="showUploadModal = true">Upload Resource</button>
@@ -707,8 +706,6 @@ const advanceSuggestedCarousel = () => {
 
 const startSuggestedCarousel = () => {
   stopSuggestedCarousel()
-
-  if (window.innerWidth <= 640) return
   if (!suggestedResources.value.length || suggestedResources.value.length < 2) return
 
   const carousel = suggestedCarouselRef.value
@@ -756,6 +753,12 @@ onBeforeUnmount(() => {
 .view {
   overflow-y: auto;
   padding: 20px 16px;
+  min-width: 0;
+}
+
+.view > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .resources-hero {
@@ -788,9 +791,7 @@ onBeforeUnmount(() => {
 
 .resources-hero__stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .hero-stat {
@@ -822,45 +823,27 @@ onBeforeUnmount(() => {
   gap: 10px;
   margin-bottom: 16px;
   flex-wrap: wrap;
-}
-
-.resource-search-shell {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  align-items: center;
-  background: white;
-  border-radius: 10px;
-  border: 1px solid #e0e0e0;
-  padding: 0 12px;
   width: 100%;
-}
+  box-sizing: border-box;
+    align-items: center;
+  }
 
-.resource-search-shell input {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 10px 0;
-  font-size: 14px;
-}
+  .search-row input.resource-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    padding: 10px 0;
+    font-size: 14px;
+    background: transparent;
+  }
 
-.search-inline-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.icon-chip {
-  background: none;
-  border: none;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #6e6e73;
-  transition: color 150ms ease;
-}
+  .search-inline-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    align-items: center;
+  }
 
 .icon-chip:hover {
   color: #1d1d1f;
@@ -1590,16 +1573,35 @@ button.primary:disabled {
     padding: 14px 12px;
   }
 
-  .resource-toolbar {
+  .search-row {
     align-items: stretch;
+    width: 100%;
+    min-width: 0;
   }
 
-  .resource-search-shell {
+  .resource-toolbar {
+    width: 100%;
+    flex-direction: column;
     min-width: 0;
   }
 
   .action-row {
     width: 100%;
+    min-width: 0;
+  }
+
+  .resources-hero__stats,
+  .resources-list,
+  .chip-row,
+  .suggested-carousel {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .hero-stat,
+  .resource-card-body,
+  .resource-cover {
+    min-width: 0;
   }
 
   .action-row .chip-strong {
@@ -1608,12 +1610,20 @@ button.primary:disabled {
   }
 
   .suggested-section {
+    width: 100%;
+    max-width: 100%;
     margin-bottom: 28px;
   }
 
   .suggested-section .search-row.compact {
+    width: 100%;
+    max-width: 100%;
     justify-content: flex-start;
     text-align: left;
+  }
+
+  .suggested-section .suggested-carousel {
+    max-width: 100%;
   }
 
   .suggested-carousel {
@@ -1635,7 +1645,7 @@ button.primary:disabled {
     grid-template-columns: 1fr;
   }
 
-  .resource-search-shell input {
+  .search-row input.resource-search-input {
     font-size: 13px;
   }
 
@@ -1658,7 +1668,6 @@ button.primary:disabled {
   border-radius: 18px;
 }
 
-.resource-search-shell,
 .suggested-card,
 .resource-card,
 .filter-panel,
@@ -1714,5 +1723,3 @@ button.primary:disabled {
   background: rgba(0, 0, 0, 0.44);
 }
 </style>
-
-

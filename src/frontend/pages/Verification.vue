@@ -119,6 +119,23 @@
               >
                 View Proof
               </button>
+              <input
+                ref="reuploadFileInput"
+                type="file"
+                accept=".pdf,.doc,.docx,image/png,image/jpeg"
+                style="display:none"
+                @change="handleReuploadFileChange"
+              />
+
+              <button
+                v-if="isReuploadRequested(selectedApplication)"
+                class="chip"
+                type="button"
+                :disabled="reuploadUploading"
+                @click="triggerReupload"
+              >
+                {{ reuploadUploading ? 'Uploading...' : 'Reupload Proof' }}
+              </button>
             </div>
           </section>
         </div>
@@ -146,12 +163,15 @@ const verificationFileInput = ref(null)
 const applications = ref([])
 const message = ref('')
 const selectedApplication = ref(null)
+const reuploadFileInput = ref(null)
+const reuploadFile = ref(null)
+const reuploadUploading = ref(false)
 
 const isReuploadRequested = (application) => {
   if (!application) return false
   const status = String(application.status || '').toUpperCase()
   const hasReviewNote = String(application.reviewNotes || '').trim().length > 0
-  return status === 'PENDING' && hasReviewNote
+  return status === 'REUPLOAD_REQUESTED' || (status === 'PENDING' && hasReviewNote)
 }
 
 const statusLabel = (application) => {
@@ -235,6 +255,43 @@ const submitVerification = async () => {
     await loadVerificationData()
   } catch (err) {
     message.value = `Error: ${err.message}`
+  }
+}
+
+const handleReuploadFileChange = (event) => {
+  reuploadFile.value = event.target.files[0] || null
+  if (reuploadFile.value) {
+    // start upload immediately
+    submitReupload()
+  }
+}
+
+const triggerReupload = () => {
+  if (reuploadFileInput.value) reuploadFileInput.value.click()
+}
+
+const submitReupload = async () => {
+  if (!reuploadFile.value || !selectedApplication.value) return
+  try {
+    reuploadUploading.value = true
+    const uploadData = new FormData()
+    uploadData.append('document', reuploadFile.value)
+    const uploadResult = await api('/uploads/verification', 'POST', uploadData)
+    const proofUrl = uploadResult?.fileUrl
+    if (!proofUrl) throw new Error('Upload failed to return file URL')
+
+    // Call reupload endpoint for tutor verification
+    await api(`/tutor-verifications/${selectedApplication.value.id}/reupload`, 'POST', { proofUrl })
+
+    // refresh data and close modal
+    await loadApplications()
+    selectedApplication.value = null
+  } catch (err) {
+    message.value = `Reupload failed: ${err.message}`
+  } finally {
+    reuploadUploading.value = false
+    reuploadFile.value = null
+    if (reuploadFileInput.value) reuploadFileInput.value.value = ''
   }
 }
 

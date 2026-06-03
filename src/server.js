@@ -3186,6 +3186,55 @@ app.get('/tutor-verifications/me', requireAuth, requireRole('tutor'), async (req
   }
 });
 
+// Tutor reupload endpoint: allows the tutor to attach a new proof URL
+app.post('/tutor-verifications/:id/reupload', requireAuth, requireRole('tutor'), async (req, res) => {
+  const applicationId = Number(req.params.id)
+  const proofUrl = String(req.body?.proofUrl || '').trim()
+
+  if (!Number.isInteger(applicationId) || applicationId < 1) {
+    return res.status(400).json({ message: 'Invalid application id.' })
+  }
+
+  if (!proofUrl) {
+    return res.status(400).json({ message: 'proofUrl is required.' })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, tutor_id, status FROM tutor_verifications WHERE id = $1 LIMIT 1`,
+      [applicationId]
+    )
+
+    if (!rows.length) return res.status(404).json({ message: 'Application not found.' })
+
+    const appRow = rows[0]
+    if (appRow.tutor_id !== req.auth.user.id) {
+      return res.status(403).json({ message: 'Not authorized to modify this application.' })
+    }
+
+    // Only allow reupload when admin requested it
+    if (String(appRow.status || '').toLowerCase() !== 'reupload_requested') {
+      return res.status(400).json({ message: 'Reupload not permitted for this application status.' })
+    }
+
+    await pool.query(
+      `UPDATE tutor_verifications
+       SET proof_url = $1,
+           status = 'pending',
+           review_notes = NULL,
+           reviewed_by = NULL,
+           reviewed_at = NULL
+       WHERE id = $2`,
+      [proofUrl, applicationId]
+    )
+
+    const updated = await pool.query(`SELECT * FROM tutor_verifications WHERE id = $1`, [applicationId])
+    return res.json({ application: updated.rows[0] })
+  } catch (error) {
+    return res.status(500).json({ message: error.message })
+  }
+})
+
 app.get(
   '/admin/tutor-verifications',
   requireAuth,

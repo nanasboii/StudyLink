@@ -584,10 +584,12 @@ onUnmounted(() => {
   border: 1px solid #e0e0e0;
   padding: 0 12px;
   width: 100%;
+  min-width: 0;
 }
 
 .tutor-search-shell input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   padding: 10px 0;
@@ -674,16 +676,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 150ms ease;
   text-align: left;
-}
-
-.tutor-card:hover {
-  border-color: #b11f4b;
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
-  transform: translateY(-2px);
-}
-
-.tutor-avatar {
-  flex-shrink: 0;
+  min-width: 0;
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -989,10 +982,17 @@ onUnmounted(() => {
 
   .search-row {
     align-items: stretch;
+    width: 100%;
+  }
+
+  .tutor-toolbar {
+    width: 100%;
+    flex-direction: column;
   }
 
   .tutor-search-shell {
     min-width: 0;
+    width: 100%;
   }
 
   .search-row .chip {
