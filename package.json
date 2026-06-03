@@ -1,6 +1,6 @@
 {
   "name": "studylink-starter",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "StudyLink starter app with PostgreSQL",
   "main": "src/server.js",
   "scripts": {
