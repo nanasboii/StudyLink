@@ -677,11 +677,12 @@ const handleUpload = async () => {
     formData.append('title', uploadForm.value.title)
     formData.append('courseCode', uploadForm.value.courseCode || '')
     formData.append('resourceType', uploadForm.value.resourceType)
-    
+    formData.append('description', uploadForm.value.description || '')
+
     if (trimmedLink) {
       formData.append('resourceLink', trimmedLink)
     }
-    
+
     if (selectedUploadFile.value) {
       formData.append('resourceFile', selectedUploadFile.value)
     }
@@ -704,10 +705,11 @@ const handleUpload = async () => {
           errorMessage = errorData.message
         }
       } catch (parseError) {
-        // Use HTTP status message if response is not JSON
-        const statusText = response.statusText || 'Unknown error'
-        if (statusText && statusText !== 'Bad Request') {
-          errorMessage = statusText
+        const errorText = await response.text()
+        if (errorText) {
+          errorMessage = errorText
+        } else if (response.statusText) {
+          errorMessage = response.statusText
         }
       }
       console.error('[UPLOAD] Error response:', errorMessage)
