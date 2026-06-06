@@ -267,37 +267,40 @@ const getPoolConfig = () => {
 
 const pool = new Pool(getPoolConfig());
 
+// Log database connection issues
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client in pool:', err);
+});
+
+pool.on('connect', () => {
+  console.log('✓ Database pool: new client connected');
+});
+
+// Test database connection on startup
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('❌ Database connection failed on startup:', err.message);
+    console.error('Pool config:', {
+      host: getPoolConfig().host || 'from DATABASE_URL',
+      port: getPoolConfig().port,
+      database: getPoolConfig().database,
+      user: getPoolConfig().user
+    });
+  } else {
+    console.log('✓ Database connected at:', res.rows[0].now);
+  }
+});
+
 app.use(express.json({ limit: '2mb' }));
 
-// Proxy /api/* requests to internal routes
-// This enables production support where Vite proxy doesn't exist
-app.use('/api', (req, res, next) => {
-  // Store the original path for debugging
-  const originalPath = req.path;
-  const originalUrl = req.originalUrl;
-  
-  // Rewrite the URL without /api prefix
-  req.url = req.url.replace(/^\/api/, '') || '/';
-  
-  // Create internal request/response handlers
-  const originalResEnd = res.end;
-  const originalResSend = res.send;
-  let responded = false;
-  
-  // Track if response was sent to avoid double-sending
-  const trackResponse = (fn) => {
-    return function(...args) {
-      if (!responded) {
-        responded = true;
-        return fn.apply(this, args);
-      }
-    };
-  };
-  
-  res.end = trackResponse(originalResEnd);
-  res.send = trackResponse(originalResSend);
-  
-  // Continue to route matching with rewritten URL
+// Handle /api/* requests by rewriting before route matching
+// This works in production where Vite proxy doesn't exist
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    const originalPath = req.path;
+    req.url = req.url.replace(/^\/api/, '') || '/';
+    console.log(`[API] Rewrote: ${originalPath} → ${req.path}`);
+  }
   next();
 });
 
@@ -1372,7 +1375,7 @@ async function initializeDatabase() {
     await client.query(
       `INSERT INTO users (student_id, full_name, email, password_hash, role, is_verified)
        VALUES ('ADMIN-001', 'StudyLink Admin', $1, $2, 'admin', TRUE)
-       ON CONFLICT (email) DO NOTHING`,
+       ON CONFLICT (student_id) DO NOTHING`,
       [adminEmail, adminPasswordHash]
     );
 
@@ -2697,21 +2700,27 @@ app.post(
   uploadRateLimiter,
   requireAuth,
   (req, res, next) => {
+    console.log('[UPLOAD] Multer processing file upload');
     resourceUpload.single('resourceFile')(req, res, (error) => {
       if (error) {
+        console.error('[UPLOAD] Multer error:', error.code, error.message);
         if (error.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ message: 'File is too large. Max size is 25MB.' });
         }
         return res.status(400).json({ message: error.message });
       }
+      console.log('[UPLOAD] File received:', req.file ? req.file.filename : 'no file (link only)');
       return next();
     });
   },
   async (req, res) => {
+    console.log('[UPLOAD] Handler starting - req.auth:', req.auth ? 'present' : 'missing');
     const courseCode = req.body.courseCode ? String(req.body.courseCode).trim().toUpperCase() : null;
     const title = String(req.body.title || '').trim();
     const resourceType = String(req.body.resourceType || '').trim();
     const resourceLink = String(req.body.resourceLink || '').trim();
+
+    console.log('[UPLOAD] Form data:', { courseCode, title, resourceType, hasFile: !!req.file, hasLink: !!resourceLink });
 
     if (!title || !resourceType) {
       if (req.file) {
@@ -2744,6 +2753,7 @@ app.post(
 
     const client = await pool.connect();
     try {
+      console.log('[UPLOAD] Starting database transaction');
       await client.query('BEGIN');
 
       const { rows } = await client.query(
@@ -2754,11 +2764,14 @@ app.post(
         [courseCode || null, req.auth.user.id, title, resourceType, resourceUrl, metadata]
       );
 
+      console.log('[UPLOAD] Resource inserted, id:', rows[0].id);
       await awardPoints(client, req.auth.user.id, 15, 'Uploaded resource');
 
       await client.query('COMMIT');
+      console.log('[UPLOAD] Transaction committed successfully');
       return res.status(201).json({ resource: rows[0] });
     } catch (error) {
+      console.error('[UPLOAD] Error:', error.message);
       await client.query('ROLLBACK');
       if (req.file) {
         try {
