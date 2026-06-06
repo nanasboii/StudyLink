@@ -344,7 +344,7 @@ const openResource = () => {
   }
 
   resourceDetailMessage.value = '';
-  openInNewTab(getResourceFileUrl());
+  window.open(getResourceFileUrl(), '_blank', 'noopener,noreferrer');
 };
 
 const getResourceDownloadExtension = (source) => {
@@ -380,14 +380,7 @@ const openDownload = () => {
   }
 
   resourceDetailMessage.value = '';
-  const downloadUrl = getResourceFileUrl(true);
-  const anchor = document.createElement('a');
-  anchor.href = downloadUrl;
-  anchor.download = getResourceDownloadFilename();
-  anchor.rel = 'noopener noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  window.location.href = getResourceFileUrl(true);
 };
 
 const goBack = () => {

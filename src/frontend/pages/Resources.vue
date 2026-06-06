@@ -307,6 +307,7 @@
               </button>
             </form>
             <p v-if="uploadMessage" :class="['message', uploadMessageType]">{{ uploadMessage }}</p>
+            <p v-if="uploadMessageDetails" class="message message-details">{{ uploadMessageDetails }}</p>
           </div>
         </div>
       </div>
@@ -336,6 +337,7 @@ const pageSize = 12
 const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadMessageType = ref('')
+const uploadMessageDetails = ref('')
 const selectedUploadFile = ref(null)
 const fileInputRef = ref(null)
 const uploadFormRef = ref(null)
@@ -663,6 +665,7 @@ const handleUpload = async () => {
 
   isUploading.value = true
   uploadMessage.value = ''
+  uploadMessageDetails.value = ''
   console.log('[UPLOAD] Starting upload', { 
     title: uploadForm.value.title,
     resourceType: uploadForm.value.resourceType,
@@ -696,27 +699,36 @@ const handleUpload = async () => {
     })
 
     console.log('[UPLOAD] Response received', { status: response.status, statusText: response.statusText })
+    const responseText = await response.text()
+    let result = null
+
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText)
+      } catch (parseError) {
+        console.warn('[UPLOAD] Response JSON parse failed, falling back to text', parseError)
+      }
+    }
 
     if (!response.ok) {
       let errorMessage = `Upload failed (HTTP ${response.status})`
-      try {
-        const errorData = await response.json()
-        if (errorData?.message) {
-          errorMessage = errorData.message
-        }
-      } catch (parseError) {
-        const errorText = await response.text()
-        if (errorText) {
-          errorMessage = errorText
-        } else if (response.statusText) {
-          errorMessage = response.statusText
-        }
+      if (result?.message) {
+        errorMessage = result.message
+      } else if (responseText && responseText.trim()) {
+        errorMessage = responseText.trim()
+      } else if (response.statusText) {
+        errorMessage = response.statusText
       }
       console.error('[UPLOAD] Error response:', errorMessage)
+      uploadMessageDetails.value = errorMessage
       throw new Error(errorMessage)
     }
 
-    const result = await response.json()
+    if (!result?.resource?.id) {
+      const missingResourceMessage = 'Upload response missing resource data'
+      uploadMessageDetails.value = missingResourceMessage
+      throw new Error(missingResourceMessage)
+    }
     console.log('[UPLOAD] Success response:', result)
     if (!result?.resource?.id) {
       throw new Error('Upload response missing resource data')
@@ -739,8 +751,9 @@ const handleUpload = async () => {
     await loadResources()
   } catch (error) {
     const message = error?.message || 'Upload failed'
-    uploadMessage.value = message
+    uploadMessage.value = 'Upload failed'
     uploadMessageType.value = 'error'
+    uploadMessageDetails.value = message
     console.error('[UPLOAD] Error caught:', message, error)
   } finally {
     isUploading.value = false
