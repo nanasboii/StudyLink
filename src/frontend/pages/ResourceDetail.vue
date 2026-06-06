@@ -244,18 +244,6 @@ const openInNewTab = (url) => {
   anchor.remove();
 };
 
-const triggerBrowserDownload = (url) => {
-  if (!url) return;
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.rel = 'noopener noreferrer';
-  // Let the browser save dialog handle the final filename from response headers.
-  anchor.setAttribute('download', '');
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-};
-
 // API Actions
 const loadResource = async () => {
   if (!resourceId.value) {
@@ -363,7 +351,7 @@ const openDownload = async () => {
   if (!resource.value) return;
   if (!canDownloadResource.value) return;
   try {
-    triggerBrowserDownload(`/api/resources/${resource.value.id}/file?download=1`);
+    openInNewTab(`/api/resources/${resource.value.id}/file?download=1`);
   } catch (error) {
     resourceDetailMessage.value = `Download failed: ${error.message}`;
   }
