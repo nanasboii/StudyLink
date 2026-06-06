@@ -270,7 +270,7 @@
           <div class="modal-content" @click.stop>
             <button class="modal-close" @click="showUploadModal = false">x</button>
             <h3>Upload Resource</h3>
-            <form @submit.prevent="handleUpload" class="stack">
+            <form ref="uploadFormRef" @submit.prevent="handleUpload" class="stack">
               <label>
                 Title
                 <input v-model="uploadForm.title" placeholder="Week 3 Lecture Slides" required />
@@ -296,7 +296,7 @@
               </label>
               <label>
                 Upload File (optional)
-                <input type="file" @change="onUploadFileChange" />
+                <input ref="fileInputRef" type="file" @change="onUploadFileChange" />
               </label>
               <label>
                 Resource Link (optional)
@@ -337,6 +337,8 @@ const isUploading = ref(false)
 const uploadMessage = ref('')
 const uploadMessageType = ref('')
 const selectedUploadFile = ref(null)
+const fileInputRef = ref(null)
+const uploadFormRef = ref(null)
 const suggestedCarouselRef = ref(null)
 let suggestedCarouselTimer = null
 const expandedSections = ref({
@@ -555,6 +557,13 @@ const onUploadFileChange = (event) => {
   selectedUploadFile.value = event?.target?.files?.[0] || null
   uploadMessage.value = ''
   
+  console.log('[FILE-CHANGE] File selected:', {
+    hasFile: Boolean(selectedUploadFile.value),
+    fileName: selectedUploadFile.value?.name,
+    fileSize: selectedUploadFile.value?.size,
+    fileType: selectedUploadFile.value?.type
+  })
+  
   if (selectedUploadFile.value) {
     const maxSizeMB = 25
     const maxSizeBytes = maxSizeMB * 1024 * 1024
@@ -626,15 +635,18 @@ const resetFilters = () => {
 }
 
 const handleUpload = async () => {
+  console.log('[HANDLEUPLOAD] Called, checking form validation')
   if (!uploadForm.value.title) {
     uploadMessage.value = 'Please enter a title'
     uploadMessageType.value = 'error'
+    console.warn('[HANDLEUPLOAD] Validation failed: missing title')
     return
   }
 
   if (!uploadForm.value.resourceType) {
     uploadMessage.value = 'Please select a resource type'
     uploadMessageType.value = 'error'
+    console.warn('[HANDLEUPLOAD] Validation failed: missing resourceType')
     return
   }
 
@@ -642,11 +654,24 @@ const handleUpload = async () => {
   if (!selectedUploadFile.value && !trimmedLink) {
     uploadMessage.value = 'Upload a file or paste a resource link'
     uploadMessageType.value = 'error'
+    console.warn('[HANDLEUPLOAD] Validation failed: no file and no link', { 
+      selectedUploadFile: Boolean(selectedUploadFile.value),
+      trimmedLink: Boolean(trimmedLink)
+    })
     return
   }
 
   isUploading.value = true
   uploadMessage.value = ''
+  console.log('[UPLOAD] Starting upload', { 
+    title: uploadForm.value.title,
+    resourceType: uploadForm.value.resourceType,
+    hasFile: Boolean(selectedUploadFile.value),
+    fileName: selectedUploadFile.value?.name,
+    fileSize: selectedUploadFile.value?.size,
+    hasLink: Boolean(trimmedLink)
+  })
+  
   try {
     const formData = new FormData()
     formData.append('title', uploadForm.value.title)
@@ -661,12 +686,15 @@ const handleUpload = async () => {
       formData.append('resourceFile', selectedUploadFile.value)
     }
 
+    console.log('[UPLOAD] FormData prepared, sending request')
     const token = getToken()
     const response = await fetch('/api/resources/upload', {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData
     })
+
+    console.log('[UPLOAD] Response received', { status: response.status, statusText: response.statusText })
 
     if (!response.ok) {
       let errorMessage = `Upload failed (HTTP ${response.status})`
@@ -682,10 +710,12 @@ const handleUpload = async () => {
           errorMessage = statusText
         }
       }
+      console.error('[UPLOAD] Error response:', errorMessage)
       throw new Error(errorMessage)
     }
 
     const result = await response.json()
+    console.log('[UPLOAD] Success response:', result)
     if (!result?.resource?.id) {
       throw new Error('Upload response missing resource data')
     }
@@ -700,13 +730,16 @@ const handleUpload = async () => {
 
     uploadForm.value = { title: '', courseCode: '', resourceType: '', description: '', resourceLink: '' }
     selectedUploadFile.value = null
+    if (fileInputRef.value) {
+      fileInputRef.value.value = ''
+    }
     showUploadModal.value = false
     await loadResources()
   } catch (error) {
     const message = error?.message || 'Upload failed'
     uploadMessage.value = message
     uploadMessageType.value = 'error'
-    console.error('Upload error:', error)
+    console.error('[UPLOAD] Error caught:', message, error)
   } finally {
     isUploading.value = false
   }
