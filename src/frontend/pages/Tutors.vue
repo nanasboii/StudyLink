@@ -584,10 +584,12 @@ onUnmounted(() => {
   border: 1px solid #e0e0e0;
   padding: 0 12px;
   width: 100%;
+  min-width: 0;
 }
 
 .tutor-search-shell input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
   padding: 10px 0;
@@ -989,10 +991,17 @@ onUnmounted(() => {
 
   .search-row {
     align-items: stretch;
+    width: 100;
+  }
+
+  .tutor-toolbar {
+    width: 100%;
+    flex-direction: column;
   }
 
   .tutor-search-shell {
     min-width: 0;
+    width: 100%;
   }
 
   .search-row .chip {
