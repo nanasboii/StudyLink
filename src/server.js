@@ -149,6 +149,34 @@ function findUploadedFilePath(folderName, filename) {
   return null;
 }
 
+function getMimeTypeForFile(filename) {
+  const ext = String(path.extname(filename || '')).toLowerCase();
+  const types = {
+    '.pdf': 'application/pdf',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.zip': 'application/zip',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  return types[ext] || 'application/octet-stream';
+}
+
 async function removeProfilePictureFile() {
   // No-op: profile pictures are now stored in database, no cleanup needed
 }
@@ -2913,9 +2941,15 @@ app.get('/resources/:id/file', async (req, res) => {
         const suggestedName = resource.title
           ? `${String(resource.title).trim() || 'resource'}${path.extname(fileName)}`
           : fileName;
-        res.setHeader('Content-Disposition', `attachment; filename="${suggestedName.replace(/"/g, '')}"`);
+        res.type(getMimeTypeForFile(fileName));
+        return res.download(absolutePath, suggestedName, (downloadError) => {
+          if (downloadError && !res.headersSent) {
+            res.status(500).json({ message: downloadError.message });
+          }
+        });
       }
 
+      res.type(getMimeTypeForFile(fileName));
       return res.sendFile(absolutePath);
     }
 
