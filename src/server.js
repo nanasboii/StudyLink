@@ -269,10 +269,35 @@ const pool = new Pool(getPoolConfig());
 
 app.use(express.json({ limit: '2mb' }));
 
-// API routing: strip /api prefix and forward to actual routes
-// This handles both development (with Vite proxy) and production (static files + backend)
+// Proxy /api/* requests to internal routes
+// This enables production support where Vite proxy doesn't exist
 app.use('/api', (req, res, next) => {
-  req.url = req.url.replace(/^\/api/, '');
+  // Store the original path for debugging
+  const originalPath = req.path;
+  const originalUrl = req.originalUrl;
+  
+  // Rewrite the URL without /api prefix
+  req.url = req.url.replace(/^\/api/, '') || '/';
+  
+  // Create internal request/response handlers
+  const originalResEnd = res.end;
+  const originalResSend = res.send;
+  let responded = false;
+  
+  // Track if response was sent to avoid double-sending
+  const trackResponse = (fn) => {
+    return function(...args) {
+      if (!responded) {
+        responded = true;
+        return fn.apply(this, args);
+      }
+    };
+  };
+  
+  res.end = trackResponse(originalResEnd);
+  res.send = trackResponse(originalResSend);
+  
+  // Continue to route matching with rewritten URL
   next();
 });
 
