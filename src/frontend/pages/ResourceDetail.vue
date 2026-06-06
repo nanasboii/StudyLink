@@ -347,6 +347,26 @@ const openResource = async () => {
   openInNewTab(`/api/resources/${resource.value.id}/file`);
 };
 
+const getResourceDownloadExtension = (source) => {
+  const cleaned = String(source || '').trim().split('?')[0].split('#')[0];
+  const match = cleaned.match(/\.([a-zA-Z0-9]+)$/);
+  return match ? `.${match[1]}` : '';
+};
+
+const getResourceDownloadFilename = () => {
+  const originalName = String(resource.value?.metadata?.originalName || '').trim();
+  if (originalName) return originalName;
+
+  const url = String(resource.value?.file_url || '').trim();
+  const urlNameMatch = url.match(/([^\/\\]+)(?:[?#].*)?$/);
+  if (urlNameMatch && urlNameMatch[1]) return urlNameMatch[1];
+
+  const title = String(resource.value?.title || 'resource').trim();
+  const safeTitle = title.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'resource';
+  const extension = getResourceDownloadExtension(url);
+  return `${safeTitle}${extension}`;
+};
+
 const openDownload = () => {
   if (!resource.value) return;
   if (!canDownloadResource.value) return;
@@ -355,7 +375,7 @@ const openDownload = () => {
   const downloadUrl = `/api/resources/${resource.value.id}/file?download=1`;
   const anchor = document.createElement('a');
   anchor.href = downloadUrl;
-  anchor.setAttribute('download', '');
+  anchor.download = getResourceDownloadFilename();
   anchor.rel = 'noopener noreferrer';
   document.body.appendChild(anchor);
   anchor.click();
