@@ -384,13 +384,6 @@ const resourceUpload = multer({
   }),
   limits: {
     fileSize: 25 * 1024 * 1024
-  },
-  fileFilter: (req, file, cb) => {
-    if (allowedResourceMimeTypes.has(file.mimetype)) {
-      cb(null, true);
-      return;
-    }
-    cb(new Error('File type not allowed. Supported: PDF, DOC, XLS, PPT, TXT, images, audio, video, ZIP'));
   }
 });
 

@@ -553,6 +553,21 @@ const loadResources = async () => {
 
 const onUploadFileChange = (event) => {
   selectedUploadFile.value = event?.target?.files?.[0] || null
+  
+  if (selectedUploadFile.value) {
+    const maxSizeMB = 25
+    const maxSizeBytes = maxSizeMB * 1024 * 1024
+    
+    if (selectedUploadFile.value.size > maxSizeBytes) {
+      uploadMessage.value = `File is too large. Maximum size is ${maxSizeMB}MB.`
+      uploadMessageType.value = 'error'
+      selectedUploadFile.value = null
+      event.target.value = ''
+      return
+    }
+    
+    uploadMessage.value = ''
+  }
 }
 
 const setMinRating = (value) => {
@@ -648,10 +663,19 @@ const handleUpload = async () => {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.message || `HTTP ${response.status}`)
+      let errorMessage = `Upload failed (HTTP ${response.status})`
+      try {
+        const error = await response.json()
+        if (error?.message) {
+          errorMessage = error.message
+        }
+      } catch (parseError) {
+        // Use default error message if response is not JSON
+      }
+      throw new Error(errorMessage)
     }
 
+    const result = await response.json()
     uploadMessage.value = 'Resource uploaded successfully!'
     uploadMessageType.value = 'success'
 
@@ -665,7 +689,7 @@ const handleUpload = async () => {
     showUploadModal.value = false
     await loadResources()
   } catch (error) {
-    uploadMessage.value = error.message || 'Upload failed'
+    uploadMessage.value = error?.message || 'Upload failed'
     uploadMessageType.value = 'error'
   } finally {
     isUploading.value = false

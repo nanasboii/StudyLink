@@ -357,13 +357,18 @@ const getResourceDownloadFilename = () => {
   const originalName = String(resource.value?.metadata?.originalName || '').trim();
   if (originalName) return originalName;
 
-  const url = String(resource.value?.file_url || '').trim();
-  const urlNameMatch = url.match(/([^\/\\]+)(?:[?#].*)?$/);
-  if (urlNameMatch && urlNameMatch[1]) return urlNameMatch[1];
+  const metadataFileName = String(resource.value?.metadata?.fileName || '').trim();
+  if (metadataFileName) return metadataFileName;
+
+  const fileUrl = String(resource.value?.file_url || '').trim();
+  const urlNameMatch = fileUrl.match(/([^\/\\?#]+)(?:[?#].*)?$/);
+  if (urlNameMatch && urlNameMatch[1] && urlNameMatch[1] !== 'file') {
+    return urlNameMatch[1];
+  }
 
   const title = String(resource.value?.title || 'resource').trim();
   const safeTitle = title.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'resource';
-  const extension = getResourceDownloadExtension(url);
+  const extension = getResourceDownloadExtension(fileUrl || metadataFileName);
   return `${safeTitle}${extension}`;
 };
 
@@ -375,6 +380,7 @@ const openDownload = () => {
   const downloadUrl = `/api/resources/${resource.value.id}/file?download=1`;
   const anchor = document.createElement('a');
   anchor.href = downloadUrl;
+  anchor.target = '_blank';
   anchor.download = getResourceDownloadFilename();
   anchor.rel = 'noopener noreferrer';
   document.body.appendChild(anchor);
