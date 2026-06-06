@@ -350,10 +350,37 @@ const openResource = async () => {
 const openDownload = async () => {
   if (!resource.value) return;
   if (!canDownloadResource.value) return;
+
+  resourceDetailMessage.value = '';
+  const downloadUrl = `/api/resources/${resource.value.id}/file?download=1`;
+
   try {
-    openInNewTab(`/api/resources/${resource.value.id}/file?download=1`);
+    const response = await fetch(downloadUrl, { credentials: 'same-origin' });
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      const message = errorBody?.message || response.statusText || 'Download failed.';
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/);
+    const filename = filenameMatch?.[1]
+      || resource.value.metadata?.originalName
+      || resource.value.title
+      || `resource-${resource.value.id}`;
+
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
   } catch (error) {
-    resourceDetailMessage.value = `Download failed: ${error.message}`;
+    resourceDetailMessage.value = `Download failed: ${error?.message || 'Unable to download.'}`;
   }
 };
 
