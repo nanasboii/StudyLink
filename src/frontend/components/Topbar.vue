@@ -122,6 +122,9 @@
       <router-link to="/achievements" class="menu-item" @click="isUserMenuOpen = false">
         Achievements
       </router-link>
+      <router-link to="/leaderboards" class="menu-item" @click="isUserMenuOpen = false">
+        Leaderboard
+      </router-link>
       <router-link to="/redeem" class="menu-item" @click="isUserMenuOpen = false">
         Redeem Points
       </router-link>
@@ -138,9 +141,6 @@
         </router-link>
         <router-link to="/tutors" class="menu-item" @click="isUserMenuOpen = false">
           Tutors
-        </router-link>
-        <router-link to="/leaderboards" class="menu-item" @click="isUserMenuOpen = false">
-          Leaderboard
         </router-link>
         <router-link to="/session" class="menu-item" @click="isUserMenuOpen = false">
           Sessions
