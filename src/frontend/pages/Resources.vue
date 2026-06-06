@@ -553,20 +553,24 @@ const loadResources = async () => {
 
 const onUploadFileChange = (event) => {
   selectedUploadFile.value = event?.target?.files?.[0] || null
+  uploadMessage.value = ''
   
   if (selectedUploadFile.value) {
     const maxSizeMB = 25
     const maxSizeBytes = maxSizeMB * 1024 * 1024
     
     if (selectedUploadFile.value.size > maxSizeBytes) {
-      uploadMessage.value = `File is too large. Maximum size is ${maxSizeMB}MB.`
+      uploadMessage.value = `File is too large. Maximum size is ${maxSizeMB}MB. Selected: ${(selectedUploadFile.value.size / 1024 / 1024).toFixed(2)}MB`
       uploadMessageType.value = 'error'
       selectedUploadFile.value = null
-      event.target.value = ''
+      if (event?.target) {
+        event.target.value = ''
+      }
       return
     }
     
-    uploadMessage.value = ''
+    uploadMessage.value = `Selected: ${selectedUploadFile.value.name}`
+    uploadMessageType.value = ''
   }
 }
 
@@ -648,9 +652,11 @@ const handleUpload = async () => {
     formData.append('title', uploadForm.value.title)
     formData.append('courseCode', uploadForm.value.courseCode || '')
     formData.append('resourceType', uploadForm.value.resourceType)
+    
     if (trimmedLink) {
       formData.append('resourceLink', trimmedLink)
     }
+    
     if (selectedUploadFile.value) {
       formData.append('resourceFile', selectedUploadFile.value)
     }
@@ -665,17 +671,25 @@ const handleUpload = async () => {
     if (!response.ok) {
       let errorMessage = `Upload failed (HTTP ${response.status})`
       try {
-        const error = await response.json()
-        if (error?.message) {
-          errorMessage = error.message
+        const errorData = await response.json()
+        if (errorData?.message) {
+          errorMessage = errorData.message
         }
       } catch (parseError) {
-        // Use default error message if response is not JSON
+        // Use HTTP status message if response is not JSON
+        const statusText = response.statusText || 'Unknown error'
+        if (statusText && statusText !== 'Bad Request') {
+          errorMessage = statusText
+        }
       }
       throw new Error(errorMessage)
     }
 
     const result = await response.json()
+    if (!result?.resource?.id) {
+      throw new Error('Upload response missing resource data')
+    }
+
     uploadMessage.value = 'Resource uploaded successfully!'
     uploadMessageType.value = 'success'
 
@@ -689,8 +703,10 @@ const handleUpload = async () => {
     showUploadModal.value = false
     await loadResources()
   } catch (error) {
-    uploadMessage.value = error?.message || 'Upload failed'
+    const message = error?.message || 'Upload failed'
+    uploadMessage.value = message
     uploadMessageType.value = 'error'
+    console.error('Upload error:', error)
   } finally {
     isUploading.value = false
   }

@@ -377,9 +377,10 @@ const resourceUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, resourceUploadDir),
     filename: (req, file, cb) => {
+      const userId = req.auth?.user?.id || 'unknown';
       const extension = path.extname(file.originalname || '').toLowerCase();
       const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-      cb(null, `resource-${req.auth.user.id}-${unique}${extension}`);
+      cb(null, `resource-${userId}-${unique}${extension}`);
     }
   }),
   limits: {
