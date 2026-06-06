@@ -330,13 +330,13 @@ const submitReview = async () => {
   }
 };
 
-const openResource = async () => {
-  if (!resource.value) return;
+const getResourceFileUrl = (download = false) => {
+  if (!resource.value?.id) return '';
+  return `/api/resources/${resource.value.id}/file${download ? '?download=1' : ''}`;
+};
 
-  if (!canPreviewInBrowser(resource.value.file_url)) {
-    resourceDetailMessage.value = 'This file type cannot be previewed in browser. Use Download to save it.';
-    return;
-  }
+const openResource = () => {
+  if (!resource.value) return;
 
   if (!resource.value.id) {
     resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
@@ -344,7 +344,7 @@ const openResource = async () => {
   }
 
   resourceDetailMessage.value = '';
-  openInNewTab(`/api/resources/${resource.value.id}/file`);
+  openInNewTab(getResourceFileUrl());
 };
 
 const getResourceDownloadExtension = (source) => {
@@ -374,13 +374,15 @@ const getResourceDownloadFilename = () => {
 
 const openDownload = () => {
   if (!resource.value) return;
-  if (!canDownloadResource.value) return;
+  if (!canDownloadResource.value) {
+    resourceDetailMessage.value = 'This resource cannot be downloaded directly.';
+    return;
+  }
 
   resourceDetailMessage.value = '';
-  const downloadUrl = `/api/resources/${resource.value.id}/file?download=1`;
+  const downloadUrl = getResourceFileUrl(true);
   const anchor = document.createElement('a');
   anchor.href = downloadUrl;
-  anchor.target = '_blank';
   anchor.download = getResourceDownloadFilename();
   anchor.rel = 'noopener noreferrer';
   document.body.appendChild(anchor);
