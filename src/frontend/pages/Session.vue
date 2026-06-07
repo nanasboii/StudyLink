@@ -191,6 +191,14 @@
                 Mark Complete
               </button>
               <button 
+                v-if="(userRole === 'tutor' || userRole === 'tutee') && (selectedSession.status === 'completed' || selectedSession.status === 'accepted')"
+                @click="goToReview"
+                class="btn-review"
+                type="button"
+              >
+                Leave Review
+              </button>
+              <button 
                 @click="selectedSession = null"
                 class="btn-close"
                 type="button"
@@ -212,11 +220,12 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { api, getUser } from '@/api.js'
 import { formatDateTimeValue } from '@/utils/records.js'
 
 const user = getUser()
+const router = useRouter()
 const route = useRoute()
 const userRole = ref(user?.role || 'tutee')
 const isAdmin = String(user?.role || '').toLowerCase().trim() === 'admin'
@@ -308,6 +317,10 @@ const completeSession = async () => {
   } catch (err) {
     message.value = `Error: ${err.message}`
   }
+}
+
+const goToReview = () => {
+  router.push({ name: 'Review', params: { resourceId: selectedSession.value.id } })
 }
 
 const loadSessions = async () => {
@@ -674,6 +687,7 @@ select:focus {
 .btn-approve,
 .btn-reject,
 .btn-complete,
+.btn-review,
 .btn-close {
   flex: 1;
   min-width: 100px;
@@ -714,6 +728,16 @@ select:focus {
 .btn-complete:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(190, 45, 104, 0.3);
+}
+
+.btn-review {
+  background: linear-gradient(135deg, #8b5a9e, #a367b5);
+  color: white;
+}
+
+.btn-review:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(139, 90, 158, 0.3);
 }
 
 .btn-close {
