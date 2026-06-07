@@ -99,7 +99,13 @@
           </div>
 
           <div v-else class="sessions-grid">
-            <div v-for="item in sessionList" :key="item.id" class="session-card">
+            <button 
+              v-for="item in sessionList" 
+              :key="item.id" 
+              class="session-card"
+              @click="selectedSession = item"
+              type="button"
+            >
               <div class="session-status-bar" :class="'status-' + (item.status || 'pending').toLowerCase()"></div>
               
               <div class="session-content">
@@ -126,9 +132,74 @@
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </section>
+
+        <!-- Session Detail Modal -->
+        <div v-if="selectedSession" class="modal-backdrop" @click.self="selectedSession = null">
+          <div class="modal-card">
+            <button class="modal-close" @click="selectedSession = null" type="button">×</button>
+            
+            <div class="modal-header">
+              <h3>Session Details</h3>
+              <span class="status-badge" :class="'status-' + (selectedSession.status || 'pending').toLowerCase()">
+                {{ (selectedSession.status || 'PENDING').toUpperCase() }}
+              </span>
+            </div>
+
+            <div class="modal-body">
+              <div class="detail-row">
+                <span class="detail-label">{{ userRole === 'tutor' ? 'From:' : 'With:' }}</span>
+                <span class="detail-value">{{ selectedSession.tuteeName || selectedSession.tutorName || 'N/A' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Time:</span>
+                <span class="detail-value">
+                  {{ formatDateTimeValue(selectedSession.sessionTime, 'N/A', 'en-MY', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Course:</span>
+                <span class="detail-value">{{ selectedSession.courseCode || 'N/A' }}</span>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button 
+                v-if="userRole === 'tutor' && selectedSession.status === 'pending'"
+                @click="approveSession"
+                class="btn-approve"
+                type="button"
+              >
+                Approve
+              </button>
+              <button 
+                v-if="userRole === 'tutor' && selectedSession.status === 'pending'"
+                @click="rejectSession"
+                class="btn-reject"
+                type="button"
+              >
+                Reject
+              </button>
+              <button 
+                v-if="userRole === 'tutor' && selectedSession.status === 'accepted'"
+                @click="completeSession"
+                class="btn-complete"
+                type="button"
+              >
+                Mark Complete
+              </button>
+              <button 
+                @click="selectedSession = null"
+                class="btn-close"
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
 
         <!-- Message Display -->
         <div v-if="message" class="message-box" :class="message.includes('Error') ? 'error' : 'success'">
@@ -154,6 +225,7 @@ const canBookSession = userRole.value === 'tutee' || isAdmin
 const availability = ref({ courseCode: '', dayOfWeek: 'Monday', startTime: '', endTime: '' })
 const booking = ref({ tutorId: '', courseCode: '', sessionTime: '' })
 const sessionList = ref([])
+const selectedSession = ref(null)
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const message = ref('')
 
@@ -199,6 +271,39 @@ const submitBooking = async () => {
     await api('/bookings', 'POST', booking.value)
     message.value = 'Booking sent!'
     booking.value = { tutorId: '', courseCode: '', sessionTime: '' }
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const approveSession = async () => {
+  try {
+    await api(`/bookings/${selectedSession.value.id}/decision`, 'POST', { decision: 'accepted' })
+    message.value = 'Booking approved!'
+    selectedSession.value = null
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const rejectSession = async () => {
+  try {
+    await api(`/bookings/${selectedSession.value.id}/decision`, 'POST', { decision: 'rejected' })
+    message.value = 'Booking rejected.'
+    selectedSession.value = null
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  }
+}
+
+const completeSession = async () => {
+  try {
+    await api(`/bookings/${selectedSession.value.id}/complete`, 'POST', {})
+    message.value = 'Session marked complete! Please leave a review.'
+    selectedSession.value = null
     await loadSessions()
   } catch (err) {
     message.value = `Error: ${err.message}`
@@ -446,6 +551,179 @@ select:focus {
   background: rgba(245, 218, 228, 0.86);
   border: 1px solid rgba(141, 15, 55, 0.36);
   color: #7d173b;
+}
+
+.session-card {
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.session-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(105, 18, 49, 0.18);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 248, 251, 0.85));
+  border: 1px solid rgba(164, 24, 71, 0.25);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(95, 14, 43, 0.3);
+  padding: 20px;
+  max-width: 400px;
+  width: 100%;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #7a1f45;
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: #4d0f2a;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #4d0f2a;
+  font-size: 1.2rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.status-pending {
+  background: rgba(190, 45, 104, 0.15);
+  color: #7a1f45;
+}
+
+.status-badge.status-accepted {
+  background: rgba(140, 15, 59, 0.15);
+  color: #5a1731;
+}
+
+.status-badge.status-completed {
+  background: rgba(100, 10, 40, 0.15);
+  color: #4d0f2a;
+}
+
+.modal-body {
+  margin-bottom: 20px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-value {
+  color: #4d0f2a;
+  font-weight: 600;
+  text-align: right;
+  flex: 1;
+  margin-left: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-approve,
+.btn-reject,
+.btn-complete,
+.btn-close {
+  flex: 1;
+  min-width: 100px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.btn-approve {
+  background: linear-gradient(135deg, #9e0f3f, #b21d5a);
+  color: white;
+}
+
+.btn-approve:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(158, 15, 63, 0.3);
+}
+
+.btn-reject {
+  background: linear-gradient(135deg, #7a1f45, #8e2d57);
+  color: white;
+}
+
+.btn-reject:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(122, 31, 69, 0.3);
+}
+
+.btn-complete {
+  background: linear-gradient(135deg, #be2d68, #d63a7a);
+  color: white;
+}
+
+.btn-complete:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(190, 45, 104, 0.3);
+}
+
+.btn-close {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(164, 24, 71, 0.2);
+  color: #7a1f45;
+}
+
+.btn-close:hover {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 @media (max-width: 700px) {
