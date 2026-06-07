@@ -207,17 +207,6 @@ const submitBooking = async () => {
 
 const loadSessions = async () => {
   try {
-    if (userRole.value === 'tutor') {
-      const resp = await api('/availability/me')
-      sessionList.value = (resp.availability || []).map((item) => ({
-        id: item.id,
-        status: 'available',
-        sessionTime: item.start_time && item.end_time ? `${item.start_time} - ${item.end_time}` : item.start_time || '',
-        courseCode: item.course_code || '',
-        dayOfWeek: item.day_of_week || '',
-      }))
-      return
-    }
     const resp = await api('/bookings/inbox')
     sessionList.value = (resp.bookings || []).map((item) => ({
       id: item.id,
