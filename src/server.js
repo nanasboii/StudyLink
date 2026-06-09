@@ -149,6 +149,29 @@ function findUploadedFilePath(folderName, filename) {
   return null;
 }
 
+function isLocalResourceFileMissing(fileUrl) {
+  const rawFileUrl = String(fileUrl || '').trim();
+  if (!rawFileUrl.startsWith('/uploads/resources/')) {
+    return false;
+  }
+
+  const filename = path.basename(rawFileUrl);
+  if (!filename) {
+    return true;
+  }
+
+  return !Boolean(findUploadedFilePath('resources', filename));
+}
+
+function decorateResourceWithFileAvailability(resource) {
+  if (!resource || typeof resource !== 'object') {
+    return resource;
+  }
+
+  resource.uploaded_file_missing = isLocalResourceFileMissing(resource.file_url);
+  return resource;
+}
+
 function getMimeTypeForFile(filename) {
   const ext = String(path.extname(filename || '')).toLowerCase();
   const types = {
@@ -2809,6 +2832,7 @@ app.get('/resources/mine', requireAuth, async (req, res) => {
        ORDER BY r.created_at DESC`,
       [req.auth.user.id]
     );
+    rows.forEach(decorateResourceWithFileAvailability);
     return res.json({ resources: rows });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -2857,6 +2881,7 @@ app.get('/resources', requireAuth, async (req, res) => {
       [courseCode, resourceType, queryText]
     );
 
+    rows.forEach(decorateResourceWithFileAvailability);
     return res.json({ resources: rows });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -2893,6 +2918,7 @@ app.get('/resources/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ message: 'Resource not found.' });
     }
 
+    decorateResourceWithFileAvailability(rows[0]);
     return res.json({ resource: rows[0] });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -3672,6 +3698,7 @@ app.get('/admin/resources', requireAuth, requireRole('admin'), async (req, res) 
        ORDER BY r.created_at DESC`
     );
 
+    rows.forEach(decorateResourceWithFileAvailability);
     return res.json({ resources: rows });
   } catch (error) {
     return res.status(500).json({ message: error.message });

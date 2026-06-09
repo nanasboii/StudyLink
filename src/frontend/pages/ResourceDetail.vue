@@ -40,9 +40,10 @@
             <p class="resource-source-line">Source: {{ sourceLabel }}</p>
 
             <div class="resource-action-row">
-              <button @click="openResource" class="chip chip-strong" type="button">Open Resource</button>
-              <button v-if="canDownloadResource" @click="openDownload" class="chip" type="button">Download</button>
+              <button @click="openResource" :disabled="!canOpenResource" class="chip chip-strong" type="button">Open Resource</button>
+              <button v-if="canDownloadResource" @click="openDownload" :disabled="fileMissing" class="chip" type="button">Download</button>
             </div>
+            <p v-if="fileMissing" class="message message-error">This resource file is missing from server storage and cannot be opened.</p>
           </div>
         </section>
 
@@ -166,14 +167,26 @@ const resourceTypeLabel = computed(() => {
 
 const sourceLabel = computed(() => {
   if (!resource.value) return '-';
+  if (resource.value.uploaded_file_missing) {
+    return 'Uploaded file is missing from server storage.';
+  }
   return String(resource.value.file_url || '').startsWith('http')
     ? `External link: ${resource.value.file_url}`
     : `File: ${resource.value.metadata?.originalName || resource.value.file_url || '-'}`;
 });
 
+const fileMissing = computed(() => Boolean(resource.value?.uploaded_file_missing));
+
 const canDownloadResource = computed(() => {
   if (!resource.value) return false;
+  if (resource.value.uploaded_file_missing) return false;
   return !String(resource.value.file_url || '').startsWith('http');
+});
+
+const canOpenResource = computed(() => {
+  if (!resource.value) return false;
+  if (resource.value.uploaded_file_missing) return false;
+  return Boolean(resource.value.file_url);
 });
 
 const backPath = computed(() => {
@@ -338,6 +351,11 @@ const getResourceFileUrl = (download = false) => {
 const openResource = () => {
   if (!resource.value) return;
 
+  if (resource.value.uploaded_file_missing) {
+    resourceDetailMessage.value = 'This uploaded resource file is missing from storage.';
+    return;
+  }
+
   if (!resource.value.id) {
     resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
     return;
@@ -374,6 +392,10 @@ const getResourceDownloadFilename = () => {
 
 const openDownload = () => {
   if (!resource.value) return;
+  if (resource.value.uploaded_file_missing) {
+    resourceDetailMessage.value = 'This uploaded resource file is missing from storage.';
+    return;
+  }
   if (!canDownloadResource.value) {
     resourceDetailMessage.value = 'This resource cannot be downloaded directly.';
     return;
