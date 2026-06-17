@@ -122,11 +122,19 @@ const REWARD_RULES_DEFAULT = {
 const LOGIN_STREAK_DAILY_POINTS = Number(process.env.LOGIN_STREAK_DAILY_POINTS || 3);
 
 const REWARD_RULES_BY_CODE = {
-  FREE_SESSION: { cooldownDays: 7, maxPer30Days: 2, maxPerDay: 1 },
-  RESOURCE_PACK: { cooldownDays: 3, maxPer30Days: 3, maxPerDay: 1 },
-  PRIORITY_BOOKING: { cooldownDays: 14, maxPer30Days: 1, maxPerDay: 1 },
-  CAMPUS_VOUCHER: { cooldownDays: 30, maxPer30Days: 1, maxPerDay: 1 },
-  PROFILE_SPOTLIGHT: { cooldownDays: 7, maxPer30Days: 2, maxPerDay: 1 }
+  // Tier 1: Platform Perks (easy to earn)
+  PROFILE_SPOTLIGHT:  { cooldownDays: 5,  maxPer30Days: 3, maxPerDay: 1 },
+  CUSTOM_BADGE:       { cooldownDays: 14, maxPer30Days: 2, maxPerDay: 1 },
+
+  // Tier 2: Academic Benefits (medium effort)
+  RESOURCE_PACK:      { cooldownDays: 7,  maxPer30Days: 2, maxPerDay: 1 },
+  PRIORITY_BOOKING:   { cooldownDays: 14, maxPer30Days: 1, maxPerDay: 1 },
+  FREE_SESSION:       { cooldownDays: 14, maxPer30Days: 1, maxPerDay: 1 },
+
+  // Tier 3: Real-World Rewards (high effort, real value)
+  STUDY_KIT:          { cooldownDays: 60, maxPer30Days: 1, maxPerDay: 1 },
+  MERIT_CERTIFICATE:  { cooldownDays: 90, maxPer30Days: 1, maxPerDay: 1 },
+  TNG_VOUCHER:        { cooldownDays: 90, maxPer30Days: 1, maxPerDay: 1 }
 };
 
 function findUploadedFilePath(folderName, filename) {
@@ -1322,11 +1330,14 @@ async function initializeDatabase() {
     await client.query(
       `WITH seed(code, name, description, points_cost, icon) AS (
          VALUES
-           ('FREE_SESSION', 'Free Tutoring Session', 'Redeem for one free 1-hour peer tutoring session with any available tutor.', 80, '📚'),
-           ('RESOURCE_PACK', 'Resource Pack Access', 'Unlock an exclusive curated bundle of study materials for your enrolled courses.', 60, '📦'),
-           ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking a tutor for 7 days.', 100, '⚡'),
-           ('CAMPUS_VOUCHER', 'Campus Store Voucher', 'Receive a RM10 voucher redeemable at the campus bookstore or print shop.', 150, '🎟️'),
-           ('PROFILE_SPOTLIGHT', 'Profile Spotlight', 'Have your profile highlighted at the top of listings for 3 days.', 40, '🌟')
+           ('PROFILE_SPOTLIGHT', 'Profile Spotlight', 'Have your profile highlighted at the top of tutor/tutee listings for 3 days. Great for visibility!', 50, '🌟'),
+           ('CUSTOM_BADGE', 'Exclusive Badge', 'Unlock a rare "Top Contributor" badge permanently displayed on your public profile.', 120, '🏅'),
+           ('RESOURCE_PACK', 'Resource Pack Access', 'Get early access to a curated bundle of premium study materials for your enrolled courses.', 250, '📦'),
+           ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking any tutor for 7 days.', 400, '⚡'),
+           ('FREE_SESSION', 'Free Tutoring Session', 'Redeem for one free 1-hour peer tutoring session with any verified tutor.', 600, '📚'),
+           ('STUDY_KIT', 'StudyLink Study Kit', 'Receive a physical study kit — branded notebook, premium pen, highlighters, and exclusive stickers. Collect at Student Affairs.', 1500, '🎒'),
+           ('MERIT_CERTIFICATE', 'Academic Merit Certificate', 'Receive an official StudyLink Academic Merit Certificate recognizing your contributions. Co-signed by Faculty of Computer Science.', 3000, '📜'),
+           ('TNG_VOUCHER', 'RM10 Touch ''n Go eWallet', 'Receive RM10 credit loaded directly into your Touch ''n Go eWallet. Verification of TnG account required upon redemption.', 5000, '💳')
        ),
        updated AS (
          UPDATE point_rewards r
@@ -1347,14 +1358,27 @@ async function initializeDatabase() {
        SELECT code, name, description, points_cost, icon FROM missing`
     );
 
+    // Remove the old CAMPUS_VOUCHER if it exists (replaced by TNG_VOUCHER)
+    await client.query(
+      `DELETE FROM point_rewards WHERE code = 'CAMPUS_VOUCHER'
+       AND NOT EXISTS (SELECT 1 FROM redemptions r JOIN point_rewards pr ON pr.id = r.reward_id WHERE pr.code = 'CAMPUS_VOUCHER')`
+    );
+    // If CAMPUS_VOUCHER has past redemptions, just deactivate it instead
+    await client.query(
+      `UPDATE point_rewards SET is_active = FALSE WHERE code = 'CAMPUS_VOUCHER'`
+    );
+
     await client.query(
       `WITH seed(reward_code, cooldown_days, max_per_30_days, max_per_day) AS (
          VALUES
-           ('FREE_SESSION', 7, 2, 1),
-           ('RESOURCE_PACK', 3, 3, 1),
+           ('PROFILE_SPOTLIGHT', 5, 3, 1),
+           ('CUSTOM_BADGE', 14, 2, 1),
+           ('RESOURCE_PACK', 7, 2, 1),
            ('PRIORITY_BOOKING', 14, 1, 1),
-           ('CAMPUS_VOUCHER', 30, 1, 1),
-           ('PROFILE_SPOTLIGHT', 7, 2, 1)
+           ('FREE_SESSION', 14, 1, 1),
+           ('STUDY_KIT', 60, 1, 1),
+           ('MERIT_CERTIFICATE', 90, 1, 1),
+           ('TNG_VOUCHER', 90, 1, 1)
        ),
        missing AS (
          SELECT s.*
@@ -2184,7 +2208,7 @@ app.get('/leaderboard', requireAuth, async (req, res) => {
              SELECT user_id, COUNT(*)::int AS total_achievements
              FROM user_achievements
              GROUP BY user_id
-           ) ua ON ua.user_id = u.id
+             ) ua ON ua.user_id = u.id
            WHERE u.role != 'admin'
            ORDER BY COALESCE(ua.total_achievements, 0) DESC,
                     u.total_points DESC,
@@ -5020,4 +5044,3 @@ if (skipDbInit) {
       process.exit(1);
     });
 }
-
