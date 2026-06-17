@@ -23,5 +23,9 @@
   profile: '/profile',
   settings: '/settings',
   publicProfile: '/public-profile',
-  resourceDetail: '/resource-detail'
+  resourceDetail: '/resource-detail',
+
+  quizzes: '/quizzes',
+  createQuiz: '/quizzes/create',
+  playQuiz: '/quizzes/:id/play'
 };

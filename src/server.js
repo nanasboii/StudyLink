@@ -1264,6 +1264,59 @@ async function initializeDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         UNIQUE (user_id, endpoint)
       );
+
+      CREATE TABLE IF NOT EXISTS quizzes (
+        id SERIAL PRIMARY KEY,
+        creator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        course_code VARCHAR(30),
+        title VARCHAR(250) NOT NULL,
+        description TEXT,
+        cover_color VARCHAR(7) NOT NULL DEFAULT '#b11f4b',
+        time_limit_seconds INTEGER NOT NULL DEFAULT 20,
+        is_published BOOLEAN NOT NULL DEFAULT FALSE,
+        play_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS quiz_questions (
+        id SERIAL PRIMARY KEY,
+        quiz_id INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+        question_text TEXT NOT NULL,
+        question_order INTEGER NOT NULL DEFAULT 0,
+        time_limit_seconds INTEGER,
+        points INTEGER NOT NULL DEFAULT 100,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS quiz_answers (
+        id SERIAL PRIMARY KEY,
+        question_id INTEGER NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+        answer_text VARCHAR(500) NOT NULL,
+        is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+        answer_order INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS quiz_attempts (
+        id SERIAL PRIMARY KEY,
+        quiz_id INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        score INTEGER NOT NULL DEFAULT 0,
+        total_points INTEGER NOT NULL DEFAULT 0,
+        correct_count INTEGER NOT NULL DEFAULT 0,
+        total_questions INTEGER NOT NULL DEFAULT 0,
+        time_taken_seconds INTEGER NOT NULL DEFAULT 0,
+        completed_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS quiz_attempt_answers (
+        id SERIAL PRIMARY KEY,
+        attempt_id INTEGER NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+        question_id INTEGER NOT NULL REFERENCES quiz_questions(id) ON DELETE CASCADE,
+        selected_answer_id INTEGER REFERENCES quiz_answers(id) ON DELETE SET NULL,
+        is_correct BOOLEAN NOT NULL DEFAULT FALSE,
+        time_taken_seconds INTEGER NOT NULL DEFAULT 0,
+        points_earned INTEGER NOT NULL DEFAULT 0
+      );
     `);
 
     await client.query(
@@ -2615,18 +2668,6 @@ app.get('/bookings/:id/reviews', requireAuth, async (req, res) => {
       [bookingId]
     );
 
-    return res.json({ reviews: rows });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-app.get('/users/me/submitted-reviews', requireAuth, async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      "SELECT br.id, br.booking_id, br.rating, br.comment, br.created_at, b.session_time, u.full_name AS reviewed_user_name FROM booking_reviews br JOIN bookings b ON b.id = br.booking_id JOIN users u ON u.id = CASE WHEN $1 = 'tutor' THEN b.tutee_id ELSE b.tutor_id END WHERE br.reviewer_id = $2 ORDER BY br.created_at DESC LIMIT 5",
-      [req.auth.user.role, req.auth.user.id]
-    );
     return res.json({ reviews: rows });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -4559,6 +4600,405 @@ app.use((err, req, res, next) => {
 
 // SPA fallback: serve index.html for any GET request that accepts HTML
 // This allows client-side routes to work when users navigate directly.
+
+// ============================================================
+// StudyLink Quiz Feature — Backend API Routes
+// Add these routes in server.js BEFORE the SPA fallback route.
+// ============================================================
+
+// ─── GET /quizzes — list all published quizzes (all users) ───
+app.get('/quizzes', requireAuth, async (req, res) => {
+  try {
+    const courseCode = req.query.course || '';
+    const search = req.query.search || '';
+    const sort = req.query.sort || 'newest';
+    const myOnly = req.query.mine === 'true';
+
+    let query = `
+      SELECT q.id, q.title, q.description, q.course_code, q.cover_color,
+             q.time_limit_seconds, q.play_count, q.is_published, q.created_at,
+             u.full_name AS creator_name, u.role AS creator_role, u.profile_picture_url AS creator_avatar,
+             COUNT(DISTINCT qq.id) AS question_count,
+             (SELECT COUNT(*) FROM quiz_attempts qa WHERE qa.quiz_id = q.id AND qa.user_id = $1) AS my_attempts,
+             (SELECT MAX(qa.score) FROM quiz_attempts qa WHERE qa.quiz_id = q.id AND qa.user_id = $1) AS my_best_score
+      FROM quizzes q
+      JOIN users u ON u.id = q.creator_id
+      LEFT JOIN quiz_questions qq ON qq.quiz_id = q.id
+    `;
+
+    const conditions = [];
+    const params = [req.auth.user.id];
+    let paramIndex = 2;
+
+    if (myOnly) {
+      conditions.push(`q.creator_id = $1`);
+    } else {
+      conditions.push(`q.is_published = TRUE`);
+    }
+
+    if (courseCode) {
+      conditions.push(`q.course_code = $${paramIndex}`);
+      params.push(courseCode);
+      paramIndex++;
+    }
+
+    if (search) {
+      conditions.push(`(q.title ILIKE $${paramIndex} OR q.description ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (conditions.length) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' GROUP BY q.id, u.full_name, u.role, u.profile_picture_url';
+
+    if (sort === 'popular') {
+      query += ' ORDER BY q.play_count DESC, q.created_at DESC';
+    } else if (sort === 'course') {
+      query += ' ORDER BY q.course_code ASC, q.created_at DESC';
+    } else {
+      query += ' ORDER BY q.created_at DESC';
+    }
+
+    const { rows } = await pool.query(query, params);
+    return res.json({ quizzes: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── GET /quizzes/:id — get single quiz with questions (for playing) ───
+app.get('/quizzes/:id', requireAuth, async (req, res) => {
+  try {
+    const quizId = Number(req.params.id);
+
+    const quizResult = await pool.query(
+      `SELECT q.*, u.full_name AS creator_name, u.role AS creator_role
+       FROM quizzes q JOIN users u ON u.id = q.creator_id
+       WHERE q.id = $1`,
+      [quizId]
+    );
+
+    if (!quizResult.rows.length) {
+      return res.status(404).json({ message: 'Quiz not found.' });
+    }
+
+    const quiz = quizResult.rows[0];
+
+    // Only published quizzes visible to non-creators
+    if (!quiz.is_published && quiz.creator_id !== req.auth.user.id) {
+      return res.status(403).json({ message: 'Quiz not available.' });
+    }
+
+    const questionsResult = await pool.query(
+      `SELECT id, question_text, question_order, time_limit_seconds, points
+       FROM quiz_questions WHERE quiz_id = $1 ORDER BY question_order ASC`,
+      [quizId]
+    );
+
+    const questions = [];
+    for (const q of questionsResult.rows) {
+      const answersResult = await pool.query(
+        `SELECT id, answer_text, is_correct, answer_order
+         FROM quiz_answers WHERE question_id = $1 ORDER BY answer_order ASC`,
+        [q.id]
+      );
+      questions.push({
+        ...q,
+        answers: answersResult.rows
+      });
+    }
+
+    // Get leaderboard for this quiz
+    const leaderboard = await pool.query(
+      `SELECT qa.user_id, u.full_name, u.profile_picture_url,
+              MAX(qa.score) AS best_score, COUNT(qa.id) AS attempts,
+              MIN(qa.time_taken_seconds) AS fastest_time
+       FROM quiz_attempts qa JOIN users u ON u.id = qa.user_id
+       WHERE qa.quiz_id = $1
+       GROUP BY qa.user_id, u.full_name, u.profile_picture_url
+       ORDER BY best_score DESC, fastest_time ASC
+       LIMIT 20`,
+      [quizId]
+    );
+
+    return res.json({
+      quiz: { ...quiz, questions },
+      leaderboard: leaderboard.rows
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /quizzes — create a quiz (tutor/admin only) ───
+app.post('/quizzes', requireAuth, requireRole('tutor', 'admin'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { title, description, courseCode, coverColor, timeLimitSeconds, questions } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'Quiz title is required.' });
+    }
+    if (!questions || !Array.isArray(questions) || questions.length < 1) {
+      return res.status(400).json({ message: 'At least one question is required.' });
+    }
+
+    await client.query('BEGIN');
+
+    const quizResult = await client.query(
+      `INSERT INTO quizzes (creator_id, title, description, course_code, cover_color, time_limit_seconds, is_published)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING id`,
+      [
+        req.auth.user.id,
+        title.trim(),
+        (description || '').trim(),
+        (courseCode || '').trim() || null,
+        coverColor || '#b11f4b',
+        Number(timeLimitSeconds) || 20
+      ]
+    );
+    const quizId = quizResult.rows[0].id;
+
+    for (let qi = 0; qi < questions.length; qi++) {
+      const q = questions[qi];
+      if (!q.questionText || !q.questionText.trim()) continue;
+
+      const questionResult = await client.query(
+        `INSERT INTO quiz_questions (quiz_id, question_text, question_order, time_limit_seconds, points)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [quizId, q.questionText.trim(), qi, Number(q.timeLimitSeconds) || null, Number(q.points) || 100]
+      );
+      const questionId = questionResult.rows[0].id;
+
+      const answers = q.answers || [];
+      for (let ai = 0; ai < answers.length; ai++) {
+        const a = answers[ai];
+        if (!a.answerText || !a.answerText.trim()) continue;
+        await client.query(
+          `INSERT INTO quiz_answers (question_id, answer_text, is_correct, answer_order)
+           VALUES ($1, $2, $3, $4)`,
+          [questionId, a.answerText.trim(), Boolean(a.isCorrect), ai]
+        );
+      }
+    }
+
+    // Award points for creating a quiz
+    await client.query(
+      `UPDATE users SET total_points = total_points + 10 WHERE id = $1`,
+      [req.auth.user.id]
+    );
+    await client.query(
+      `INSERT INTO user_points_log (user_id, points, reason) VALUES ($1, 10, 'Created a quiz')`,
+      [req.auth.user.id]
+    );
+
+    await client.query('COMMIT');
+    return res.json({ quizId, message: 'Quiz created successfully!' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── PUT /quizzes/:id — update a quiz (creator only) ───
+app.put('/quizzes/:id', requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const quizId = Number(req.params.id);
+    const { title, description, courseCode, coverColor, timeLimitSeconds, questions, isPublished } = req.body;
+
+    const existing = await client.query('SELECT creator_id FROM quizzes WHERE id = $1', [quizId]);
+    if (!existing.rows.length) return res.status(404).json({ message: 'Quiz not found.' });
+    if (existing.rows[0].creator_id !== req.auth.user.id && req.auth.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only the creator can edit this quiz.' });
+    }
+
+    await client.query('BEGIN');
+
+    await client.query(
+      `UPDATE quizzes SET title = $1, description = $2, course_code = $3, cover_color = $4,
+              time_limit_seconds = $5, is_published = $6 WHERE id = $7`,
+      [title, description, courseCode || null, coverColor || '#b11f4b',
+       Number(timeLimitSeconds) || 20, isPublished !== false, quizId]
+    );
+
+    if (questions && Array.isArray(questions)) {
+      // Delete old questions and answers
+      await client.query(
+        `DELETE FROM quiz_answers WHERE question_id IN (SELECT id FROM quiz_questions WHERE quiz_id = $1)`,
+        [quizId]
+      );
+      await client.query('DELETE FROM quiz_questions WHERE quiz_id = $1', [quizId]);
+
+      for (let qi = 0; qi < questions.length; qi++) {
+        const q = questions[qi];
+        if (!q.questionText || !q.questionText.trim()) continue;
+        const qr = await client.query(
+          `INSERT INTO quiz_questions (quiz_id, question_text, question_order, time_limit_seconds, points)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [quizId, q.questionText.trim(), qi, Number(q.timeLimitSeconds) || null, Number(q.points) || 100]
+        );
+        for (let ai = 0; ai < (q.answers || []).length; ai++) {
+          const a = q.answers[ai];
+          if (!a.answerText || !a.answerText.trim()) continue;
+          await client.query(
+            `INSERT INTO quiz_answers (question_id, answer_text, is_correct, answer_order)
+             VALUES ($1, $2, $3, $4)`,
+            [qr.rows[0].id, a.answerText.trim(), Boolean(a.isCorrect), ai]
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.json({ message: 'Quiz updated.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── DELETE /quizzes/:id — delete quiz (creator/admin only) ───
+app.delete('/quizzes/:id', requireAuth, async (req, res) => {
+  try {
+    const quizId = Number(req.params.id);
+    const existing = await pool.query('SELECT creator_id FROM quizzes WHERE id = $1', [quizId]);
+    if (!existing.rows.length) return res.status(404).json({ message: 'Quiz not found.' });
+    if (existing.rows[0].creator_id !== req.auth.user.id && req.auth.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Insufficient permissions.' });
+    }
+    await pool.query('DELETE FROM quizzes WHERE id = $1', [quizId]);
+    return res.json({ message: 'Quiz deleted.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /quizzes/:id/attempt — submit a completed quiz attempt ───
+app.post('/quizzes/:id/attempt', requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const quizId = Number(req.params.id);
+    const { answers, timeTakenSeconds } = req.body;
+
+    if (!answers || !Array.isArray(answers)) {
+      return res.status(400).json({ message: 'Answers are required.' });
+    }
+
+    await client.query('BEGIN');
+
+    // Increment play count
+    await client.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [quizId]);
+
+    // Get questions with correct answers
+    const questionsResult = await client.query(
+      `SELECT qq.id, qq.points, qa.id AS correct_answer_id
+       FROM quiz_questions qq
+       JOIN quiz_answers qa ON qa.question_id = qq.id AND qa.is_correct = TRUE
+       WHERE qq.quiz_id = $1
+       ORDER BY qq.question_order ASC`,
+      [quizId]
+    );
+
+    let totalScore = 0;
+    let correctCount = 0;
+    const totalQuestions = questionsResult.rows.length;
+    const totalPoints = questionsResult.rows.reduce((sum, q) => sum + (q.points || 100), 0);
+
+    // Create the attempt record
+    const attemptResult = await client.query(
+      `INSERT INTO quiz_attempts (quiz_id, user_id, score, total_points, correct_count, total_questions, time_taken_seconds)
+       VALUES ($1, $2, 0, $3, 0, $4, $5) RETURNING id`,
+      [quizId, req.auth.user.id, totalPoints, totalQuestions, Number(timeTakenSeconds) || 0]
+    );
+    const attemptId = attemptResult.rows[0].id;
+
+    // Process each answer
+    for (const ans of answers) {
+      const question = questionsResult.rows.find(q => q.id === Number(ans.questionId));
+      if (!question) continue;
+
+      const isCorrect = Number(ans.selectedAnswerId) === question.correct_answer_id;
+      const pointsEarned = isCorrect ? (question.points || 100) : 0;
+
+      if (isCorrect) {
+        correctCount++;
+        totalScore += pointsEarned;
+      }
+
+      await client.query(
+        `INSERT INTO quiz_attempt_answers (attempt_id, question_id, selected_answer_id, is_correct, time_taken_seconds, points_earned)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [attemptId, ans.questionId, ans.selectedAnswerId || null, isCorrect, Number(ans.timeTaken) || 0, pointsEarned]
+      );
+    }
+
+    // Update the attempt with final scores
+    await client.query(
+      `UPDATE quiz_attempts SET score = $1, correct_count = $2 WHERE id = $3`,
+      [totalScore, correctCount, attemptId]
+    );
+
+    // Award learning points (scaled by performance)
+    const earnedPoints = Math.round((correctCount / Math.max(totalQuestions, 1)) * 5);
+    if (earnedPoints > 0) {
+      await client.query(
+        `UPDATE users SET total_points = total_points + $1 WHERE id = $2`,
+        [earnedPoints, req.auth.user.id]
+      );
+      await client.query(
+        `INSERT INTO user_points_log (user_id, points, reason) VALUES ($1, $2, $3)`,
+        [req.auth.user.id, earnedPoints, `Quiz completed: ${correctCount}/${totalQuestions} correct`]
+      );
+    }
+
+    await client.query('COMMIT');
+    return res.json({
+      attemptId,
+      score: totalScore,
+      totalPoints,
+      correctCount,
+      totalQuestions,
+      earnedPoints,
+      message: `You scored ${correctCount}/${totalQuestions}!`
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── GET /quizzes/:id/leaderboard — quiz leaderboard ───
+app.get('/quizzes/:id/leaderboard', requireAuth, async (req, res) => {
+  try {
+    const quizId = Number(req.params.id);
+    const { rows } = await pool.query(
+      `SELECT qa.user_id, u.full_name, u.profile_picture_url,
+              MAX(qa.score) AS best_score, MAX(qa.total_points) AS total_points,
+              COUNT(qa.id) AS attempts,
+              MIN(qa.time_taken_seconds) AS fastest_time
+       FROM quiz_attempts qa JOIN users u ON u.id = qa.user_id
+       WHERE qa.quiz_id = $1
+       GROUP BY qa.user_id, u.full_name, u.profile_picture_url
+       ORDER BY best_score DESC, fastest_time ASC
+       LIMIT 50`,
+      [quizId]
+    );
+    return res.json({ leaderboard: rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('*', (req, res, next) => {
   if (req.method !== 'GET') return next();
   const accept = String(req.get('Accept') || '');

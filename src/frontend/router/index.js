@@ -24,6 +24,9 @@ const Settings = () => import('../pages/Settings.vue')
 const PublicProfile = () => import('../pages/PublicProfile.vue')
 const ResourceDetail = () => import('../pages/ResourceDetail.vue')
 const MyResources = () => import('../pages/MyResources.vue')
+const Quizzes = () => import('../pages/Quizzes.vue')
+const CreateQuiz = () => import('../pages/CreateQuiz.vue')
+const PlayQuiz = () => import('../pages/PlayQuiz.vue')
 
 const routes = [
   { path: '/login', component: Login, name: 'Login' },
@@ -51,6 +54,10 @@ const routes = [
   { path: '/users/:userId', component: PublicProfile, name: 'PublicProfile', meta: { requiresAuth: true } },
   { path: '/resources/:resourceId', component: ResourceDetail, name: 'ResourceDetail', meta: { requiresAuth: true } },
   { path: '/my-resources', component: MyResources, name: 'MyResources', meta: { requiresAuth: true } },
+  { path: '/quizzes', component: Quizzes, name: 'Quizzes', meta: { requiresAuth: true } },
+  { path: '/quizzes/create', component: CreateQuiz, name: 'CreateQuiz', meta: { requiresAuth: true } },
+  { path: '/quizzes/:quizId/edit', component: CreateQuiz, name: 'EditQuiz', meta: { requiresAuth: true } },
+  { path: '/quizzes/:id/play', component: PlayQuiz, name: 'PlayQuiz', meta: { requiresAuth: true } },
   {
     path: '/',
     redirect: () => {
