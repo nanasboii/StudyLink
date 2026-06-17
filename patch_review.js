@@ -1,4 +1,5 @@
-<template>
+const fs = require("fs");
+const fileContent = `<template>
   <div class="view page active">
     <h2>Leave Review</h2>
     <div class="card">
@@ -9,12 +10,12 @@
       <div class="list">
         <div v-for="booking in completedBookings" :key="booking.id" class="list-item" @click="selectBooking(booking)" style="cursor: pointer;">
           <p><strong>{{ booking.tutorName || booking.tuteeName }}</strong></p>
-          <p class="meta">{{ booking.courseCode }} ‚Ä¢ {{ booking.sessionTime }}</p>
+          <p class="meta">{{ booking.courseCode }} ï {{ booking.sessionTime }}</p>
         </div>
       </div>
     </div>
     <form @submit.prevent="submitReview" class="stack card">
-      <p>Tip: Select a completed booking below so the Booking ID is correct.</p>
+      <p class="meta">Tip: Select a completed booking below so the Booking ID is correct.</p>
       <label>Booking ID
         <input v-model.number="reviewData.bookingId" type="number" required />
       </label>
@@ -28,7 +29,6 @@
     </form>
     <p v-if="message" class="message">{{ message }}</p>
 
-    <!-- Recent Reviews Section -->
     <div class="card" style="margin-top: 24px;">
       <h3>Recent Reviews Submitted By You</h3>
       <div v-if="recentReviews.length === 0" class="meta" style="margin-top: 10px;">No recent reviews.</div>
@@ -36,9 +36,9 @@
         <div v-for="rev in recentReviews" :key="rev.id" class="list-item" style="display: flex; flex-direction: column; gap: 4px;">
           <div style="display: flex; justify-content: space-between;">
             <strong>{{ rev.reviewed_user_name || 'User' }}</strong>
-            <span style="color: #FFD700; font-weight: bold;">‚≠ê {{ rev.rating }}/5</span>
+            <span style="color: #FFD700; font-weight: bold;">? {{ rev.rating }}/5</span>
           </div>
-          <p class="meta" style="margin: 0; font-size: 0.85rem;">Booking #{{ rev.booking_id }} ‚Ä¢ {{ new Date(rev.created_at).toLocaleDateString() }}</p>
+          <p class="meta" style="margin: 0; font-size: 0.85rem;">Booking #{{ rev.booking_id }} ï {{ new Date(rev.created_at).toLocaleDateString() }}</p>
           <p style="margin: 4px 0 0 0; font-size: 0.95rem;" v-if="rev.comment">"{{ rev.comment }}"</p>
         </div>
       </div>
@@ -76,7 +76,7 @@ const loadCompletedBookings = async () => {
     const resp = await api('/bookings/inbox')
     completedBookings.value = (resp.bookings || []).filter((b) => b.status === 'completed')
   } catch (err) {
-    message.value = `Error: ${err.message}`
+    message.value = \`Error: ${err.message}\`
   }
 }
 
@@ -95,7 +95,7 @@ const submitReview = async () => {
     return
   }
   try {
-    await api(`/bookings/${reviewData.value.bookingId}/review`, 'POST', {
+    await api(\`/bookings/${reviewData.value.bookingId}/review\`, 'POST', {
       comment: reviewData.value.comment,
       rating: reviewData.value.rating,
     })
@@ -104,7 +104,10 @@ const submitReview = async () => {
     await loadCompletedBookings()
     await loadRecentReviews()
   } catch (err) {
-    message.value = `Error: ${err.message}`
+    message.value = \`Error: ${err.message}\`
   }
 }
 </script>
+`;
+fs.writeFileSync("src/frontend/pages/Review.vue", fileContent);
+console.log("Review.vue updated successfully!");
