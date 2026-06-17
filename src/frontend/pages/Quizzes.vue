@@ -179,11 +179,11 @@ const filterQuizzes = () => {
 }
 
 const openQuiz = (id) => {
-  router.push(`/quizzes/${id}`)
+  router.push({ name: 'PlayQuiz', params: { id } })
 }
 
 const playQuiz = (id) => {
-  router.push(`/quizzes/${id}/play`)
+  router.push({ name: 'PlayQuiz', params: { id } })
 }
 
 onMounted(loadQuizzes)
