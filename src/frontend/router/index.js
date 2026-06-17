@@ -57,6 +57,7 @@ const routes = [
   { path: '/quizzes', component: Quizzes, name: 'Quizzes', meta: { requiresAuth: true } },
   { path: '/quizzes/create', component: CreateQuiz, name: 'CreateQuiz', meta: { requiresAuth: true } },
   { path: '/quizzes/:quizId/edit', component: CreateQuiz, name: 'EditQuiz', meta: { requiresAuth: true } },
+  { path: '/quizzes/:id', component: PlayQuiz, name: 'QuizDetail', meta: { requiresAuth: true } },
   { path: '/quizzes/:id/play', component: PlayQuiz, name: 'PlayQuiz', meta: { requiresAuth: true } },
   {
     path: '/',
