@@ -53,7 +53,6 @@
     </div>
   </header>
 
-  <!-- Streak Modal -->
   <div v-if="isStreakModalOpen" class="modal-overlay" @click="isStreakModalOpen = false">
     <div class="modal-content streak-modal" @click.stop>
       <div class="modal-header">
@@ -102,7 +101,6 @@
     </div>
   </div>
 
-  <!-- User Menu -->
   <div v-if="isUserMenuOpen" class="modal-overlay" @click="isUserMenuOpen = false">
     <div class="user-menu" @click.stop>
       <div class="user-menu-header">
@@ -119,6 +117,18 @@
       <router-link to="/review" class="menu-item" @click="isUserMenuOpen = false">
         Reviews
       </router-link>
+      <router-link to="/quizzes" class="menu-item" @click="isUserMenuOpen = false">
+        Quizzes
+      </router-link>
+      <router-link
+        v-if="currentUser && (currentUser.role === 'tutor' || currentUser.role === 'admin')"
+        to="/quizzes/create"
+        class="menu-item menu-item--create-quiz"
+        @click="isUserMenuOpen = false"
+      >
+        ✏️ Create Quiz
+      </router-link>
+
       <router-link to="/achievements" class="menu-item" @click="isUserMenuOpen = false">
         Achievements
       </router-link>
@@ -245,7 +255,8 @@ export default {
         { key: 'resources', label: 'Resources', path: '/resources' },
         { key: 'my-resources', label: 'My Uploads', path: '/my-resources' },
         { key: 'tutors', label: 'Tutors', path: '/tutors' },
-        { key: 'session', label: 'Sessions', path: '/session' }
+        { key: 'session', label: 'Sessions', path: '/session' },
+        { key: 'quizzes', label: 'Quizzes', path: '/quizzes' }
       ]
       
       if (role === 'admin') {
@@ -254,6 +265,7 @@ export default {
           { key: 'resource-management', label: 'Resource Management', path: '/admin/resources' },
           { key: 'verifications', label: 'Verification Review', path: '/admin/review-verifications' },
           { key: 'reward-rules', label: 'Reward Rules', path: '/admin/reward-rules' },
+          { key: 'quizzes', label: 'Quizzes', path: '/quizzes' }
         ]
       }
       
@@ -1022,6 +1034,16 @@ export default {
   color: #b11f4b;
 }
 
+.menu-item--create-quiz {
+  color: #b11f4b;
+  font-weight: 600;
+  background: rgba(177, 31, 75, 0.04);
+}
+
+.menu-item--create-quiz:hover {
+  background: rgba(177, 31, 75, 0.1);
+}
+
 .logout-item {
   color: #b11f4b;
   font-weight: 600;
@@ -1221,4 +1243,3 @@ export default {
   }
 }
 </style>
-
