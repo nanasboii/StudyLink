@@ -247,16 +247,10 @@ const saveQuiz = async () => {
     }
 
     if (isEditing.value) {
-      await api(`/quizzes/${route.params.quizId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      })
+      await api(`/quizzes/${route.params.quizId}`, 'PUT', payload)
       successMsg.value = 'Quiz updated successfully!'
     } else {
-      const resp = await api('/quizzes', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      })
+      const resp = await api('/quizzes', 'POST', payload)
       successMsg.value = 'Quiz published! +10 Learning Points'
       setTimeout(() => router.push(`/quizzes/${resp.quizId}/play`), 1200)
     }

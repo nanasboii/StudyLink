@@ -341,12 +341,9 @@ const showFeedback = () => {
 const submitAttempt = async () => {
   state.value = 'loading'
   try {
-    const resp = await api(`/quizzes/${quizId}/attempt`, {
-      method: 'POST',
-      body: JSON.stringify({
-        answers: userAnswers.value,
-        timeTakenSeconds: totalTimeTaken.value
-      })
+    const resp = await api(`/quizzes/${quizId}/attempt`, 'POST', {
+      answers: userAnswers.value,
+      timeTakenSeconds: totalTimeTaken.value
     })
     earnedLP.value = resp.earnedPoints || 0
 
