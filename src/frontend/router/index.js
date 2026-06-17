@@ -68,7 +68,7 @@ const routes = [
       return '/resources'
     }
   }
-]
+] 
 
 const router = createRouter({
   history: createWebHistory(),
