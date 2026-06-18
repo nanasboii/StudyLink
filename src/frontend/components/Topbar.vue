@@ -273,7 +273,8 @@ export default {
           { key: 'resource-management', label: 'Resource Management', path: '/admin/resources' },
           { key: 'verifications', label: 'Verification Review', path: '/admin/review-verifications' },
           { key: 'reward-rules', label: 'Reward Rules', path: '/admin/reward-rules' },
-          { key: 'admin-activity', label: 'Admin Activity', path: '/admin/activity' }, // Added Admin Activity here
+          { key: 'admin-activity', label: 'Admin Activity', path: '/admin/activity' },
+          { key: 'admin-errors', label: 'Server Errors', path: '/admin/errors' },
           { key: 'quizzes', label: 'Quizzes', path: '/quizzes' }
         ]
       }
