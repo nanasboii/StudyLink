@@ -15,8 +15,7 @@
           </button>
         </div>
 
-        <!-- Summary stats (only once the user has uploads) -->
-        <div v-if="resources.length" class="summary-bar" aria-label="Upload summary">
+       <div v-if="resources.length" class="summary-bar" aria-label="Upload summary">
           <div class="summary-stat">
             <span class="summary-value">{{ resources.length }}</span>
             <span class="summary-label">Upload{{ resources.length !== 1 ? 's' : '' }}</span>
@@ -26,7 +25,9 @@
             <span class="summary-label">Review{{ totalReviews !== 1 ? 's' : '' }}</span>
           </div>
           <div class="summary-stat">
-            <span class="summary-value">{{ overallRating }}</span>
+            <span class="summary-value">
+              <span style="color:#f0b300; margin-right:2px;">★</span>{{ overallRating }}
+            </span>
             <span class="summary-label">Avg rating</span>
           </div>
         </div>
@@ -59,11 +60,15 @@
           </select>
         </div>
 
-        <!-- Empty state: no uploads at all -->
-        <div v-if="!isLoading && resources.length === 0" class="empty-block">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 4h6v6h6v10H6V4z"/></svg>
-          <p>You haven't uploaded any resources yet.</p>
-          <router-link to="/resources" class="chip chip-strong">Go to Resources</router-link>
+        <div v-if="!isLoading && resources.length === 0" class="empty-uploads">
+          <p style="font-size:2rem; margin:0;">📂</p>
+          <p style="font-weight:600; color:var(--ink); margin:8px 0 4px;">No uploads yet</p>
+          <p style="color:var(--glass-pink-muted); font-size:0.9rem; margin:0 0 16px;">
+            Share lecture notes, past papers or slides with your classmates.
+          </p>
+          <router-link to="/resources" class="chip chip-strong">
+            Go upload on Resources
+          </router-link>
         </div>
 
         <!-- Initial loading skeleton -->
@@ -118,9 +123,17 @@
               <router-link
                 :to="{ path: `/resources/${resource.id}`, query: { from: 'my-resources' } }"
                 class="chip chip-soft"
-              >View</router-link>
+              >
+                <!-- add an eye icon -->
+                <svg viewBox="0 0 24 24" width="13" height="13" style="margin-right:4px;" aria-hidden="true">
+                  <path d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
+                        fill="currentColor"/>
+                </svg>
+                View
+              </router-link>
               <button class="chip" type="button" @click="openEdit(resource)">Edit</button>
-              <button class="chip chip-danger" type="button" @click="confirmDelete(resource)">Delete</button>
+              <button class="chip chip-danger" type="button" @click="confirmDelete(resource)"
+                      style="margin-left: auto;">Delete</button>
             </div>
           </article>
         </div>
@@ -144,7 +157,8 @@
                 <select id="edit-type" v-model="editForm.resourceType">
                   <option value="past-year">Past Year Paper</option>
                   <option value="lecture-note">Lecture Note</option>
-                  <option value="slide">Slides</option>
+                  <option value="slides">Slides</option>
+                  <option value="pdf">PDF</option>
                   <option value="assignment">Assignment</option>
                   <option value="link">External Link</option>
                   <option value="miscellaneous">Miscellaneous</option>
@@ -220,10 +234,12 @@ let messageTimer = null
 const RESOURCE_TYPE_LABELS = {
   'past-year': 'Past Year Paper',
   'lecture-note': 'Lecture Note',
-  slide: 'Slides',
-  assignment: 'Assignment',
-  link: 'External Link',
-  miscellaneous: 'Miscellaneous',
+  'slides': 'Slides',
+  'slide': 'Slides',
+  'pdf': 'PDF',
+  'assignment': 'Assignment',
+  'link': 'External Link',
+  'miscellaneous': 'Miscellaneous',
 }
 
 const resourceTypeLabel = (value) => {
@@ -453,12 +469,9 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-/* ── Summary bar ── */
 .summary-bar {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0 2rem 1.25rem;
-  flex-wrap: wrap;
+  border-top: 2px solid var(--glass-pink-border);
+  padding-top: 1rem;
 }
 
 .summary-stat {
@@ -584,6 +597,14 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 
+.empty-uploads {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  border: 1px dashed var(--glass-pink-border);
+  border-radius: 16px;
+  margin-top: 1rem;
+}
+
 /* ── Resource list ── */
 .resource-list {
   display: flex;
@@ -656,15 +677,12 @@ onBeforeUnmount(() => {
 }
 
 .resource-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.6rem;
-  color: var(--ink);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
-
 .resource-stats {
   display: flex;
   gap: 0.5rem;
@@ -872,6 +890,7 @@ onBeforeUnmount(() => {
 
   .sort-select {
     width: 100%;
+    max-width: 200px;
   }
 
   .resource-card {
