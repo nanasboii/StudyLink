@@ -8,14 +8,18 @@
         <div class="auth-block">
           <h2>Enter personal info</h2>
           <form @submit.prevent="handleRegister" class="stack">
-            <label>
-              Register as
-              <select v-model="form.role" required @change="updateRoleFields">
-                <option value="">Select</option>
-                <option value="tutee">Tutee</option>
-                <option value="tutor">Tutor</option>
-              </select>
-            </label>
+            
+            <div class="role-selector">
+              <p class="role-label">I am registering as a:</p>
+              <div class="role-pill-row">
+                <button type="button" class="role-pill" :class="{ active: form.role === 'tutee' }" @click="form.role = 'tutee'">
+                  🎓 Tutee
+                </button>
+                <button type="button" class="role-pill" :class="{ active: form.role === 'tutor' }" @click="form.role = 'tutor'">
+                  📚 Tutor
+                </button>
+              </div>
+            </div>
 
             <div class="row-2">
               <label>
@@ -70,12 +74,20 @@
 
             <label>
               Password
-              <input v-model="form.password" type="password" minlength="8" required />
+              <input v-model="form.password" type="password" required />
+              <div class="password-strength" v-if="form.password.length > 0">
+                <div class="strength-bar" :class="passwordStrengthClass"></div>
+                <span class="strength-label">{{ passwordStrengthLabel }}</span>
+              </div>
             </label>
 
             <label>
               Verify Password
-              <input v-model="form.confirmPassword" type="password" minlength="8" required />
+              <input v-model="form.confirmPassword" type="password" required />
+              <span v-if="form.confirmPassword.length > 0" class="match-hint"
+                    :class="form.password === form.confirmPassword ? 'match-ok' : 'match-fail'">
+                {{ form.password === form.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match' }}
+              </span>
             </label>
 
             <button class="primary" type="submit" :disabled="isLoading">
@@ -92,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/api.js'
 
@@ -100,6 +112,7 @@ const router = useRouter()
 const isLoading = ref(false)
 const message = ref('')
 const messageType = ref('')
+let messageTimer = null; // BUG 8: Store timer here for cleanup
 
 const form = reactive({
   role: '',
@@ -117,16 +130,28 @@ const form = reactive({
   confirmPassword: ''
 })
 
-const updateRoleFields = () => {
-  // Just trigger reactivity
-}
+const passwordStrengthClass = computed(() => {
+  const p = form.password;
+  if (p.length < 8) return 'weak';
+  if (p.length >= 8 && /[0-9]/.test(p) && /[A-Za-z]/.test(p)) return 'strong';
+  return 'medium';
+});
+
+const passwordStrengthLabel = computed(() => {
+  return { weak: 'Too short', medium: 'Good', strong: 'Strong' }[passwordStrengthClass.value];
+});
 
 const validateEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+// BUG 6: Strict JS enforcement of password security rules
 const validatePassword = (password) => {
-  return password.length >= 8 && /[0-9]/.test(password)
+  return (
+    password.length >= 8 &&
+    /[0-9]/.test(password) &&
+    /[a-zA-Z]/.test(password)
+  );
 }
 
 const validatePhoneNumber = (phone) => {
@@ -134,14 +159,16 @@ const validatePhoneNumber = (phone) => {
   return /^[0-9+\-\s()]{7,20}$/.test(phone)
 }
 
+// BUG 8: Ensures the message auto-clear doesn't conflict/leak
 const showMessage = (text, type = 'error') => {
-  message.value = text
-  messageType.value = type
-  setTimeout(() => {
+  message.value = text;
+  messageType.value = type;
+  if (messageTimer) clearTimeout(messageTimer);
+  messageTimer = setTimeout(() => {
     if (message.value === text) {
-      message.value = ''
+      message.value = '';
     }
-  }, 5000)
+  }, 5000);
 }
 
 const handleRegister = async () => {
@@ -154,13 +181,26 @@ const handleRegister = async () => {
     return
   }
 
+  // BUG 4: Enforce valid strings instead of just blanks
+  if (!form.firstName.trim() || !form.lastName.trim()) {
+    showMessage('Please enter your first and last name.');
+    return;
+  }
+
+  // BUG 5: Enforce Student ID string existence
+  if (!form.studentId.trim()) {
+    showMessage('Please enter your Student ID.');
+    return;
+  }
+
   if (!validateEmail(form.email)) {
     showMessage('Please enter a valid email address.')
     return
   }
 
+  // BUG 6: Clearer password constraint error
   if (!validatePassword(form.password)) {
-    showMessage('Password must be at least 8 characters and include a number.')
+    showMessage('Password must be at least 8 characters with a letter and a number.')
     return
   }
 
@@ -174,10 +214,15 @@ const handleRegister = async () => {
     return
   }
 
+  // BUG 7: JS guard ensures manual input doesn't bypass html max/min limits
+  if (form.yearOfStudy && (form.yearOfStudy < 1 || form.yearOfStudy > 7)) {
+    showMessage('Year of study must be between 1 and 7.');
+    return;
+  }
+
   isLoading.value = true
 
   try {
-    // Parse expertise for tutors
     const expertise = form.role === 'tutor'
       ? form.expertise
           .split(',')
@@ -187,8 +232,8 @@ const handleRegister = async () => {
 
     await api('/auth/register', 'POST', {
       role: form.role,
-      studentId: form.studentId,
-      fullName: `${form.firstName} ${form.lastName}`,
+      studentId: form.studentId.trim(),
+      fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
       phoneNumber: form.phoneNumber || null,
       email: form.email,
       major: form.major || null,
@@ -209,6 +254,11 @@ const handleRegister = async () => {
     isLoading.value = false
   }
 }
+
+// BUG 8: Unmount cleanup
+onUnmounted(() => {
+  if (messageTimer) clearTimeout(messageTimer);
+});
 </script>
 
 <style scoped>
@@ -280,6 +330,38 @@ const handleRegister = async () => {
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
 }
 
+/* UI 4: Visual Role Selector styles */
+.role-selector {
+  margin-bottom: 8px;
+}
+.role-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #1d1d1f;
+}
+.role-pill-row {
+  display: flex;
+  gap: 10px;
+}
+.role-pill {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 2px solid #e0e0e0;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+  color: #1d1d1f;
+}
+.role-pill.active {
+  border-color: #b11f4b;
+  background: rgba(177, 31, 75, 0.06);
+  color: #b11f4b;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -331,6 +413,40 @@ select:focus {
 textarea {
   resize: vertical;
 }
+
+/* UI 5: Password Strength indicator styles */
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.strength-bar {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  transition: background 200ms, width 200ms;
+  background: #e0e0e0;
+}
+.strength-bar.weak { background: #e53935; width: 33%; }
+.strength-bar.medium { background: #f4b400; width: 66%; }
+.strength-bar.strong { background: #43a047; width: 100%; }
+.strength-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6e6e73;
+  min-width: 50px;
+}
+
+/* UI 6: Password Match Hint styles */
+.match-hint {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+  display: block;
+}
+.match-ok { color: #43a047; }
+.match-fail { color: #e53935; }
 
 button.primary {
   padding: 14px 24px;
@@ -399,5 +515,3 @@ button.primary:disabled {
   }
 }
 </style>
-
-

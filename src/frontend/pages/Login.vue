@@ -65,7 +65,7 @@
         <form class="login-form" @submit.prevent="handleLogin" novalidate>
           <label class="field">
             <span>Email *</span>
-            <input type="email" v-model="email" autocomplete="username" required />
+            <input type="email" v-model="email" @blur="email = email.trim()" autocomplete="username" required />
           </label>
 
           <label class="field">
@@ -74,6 +74,7 @@
               <input 
                 :type="isPasswordHidden ? 'password' : 'text'" 
                 v-model="password" 
+                :class="{ 'input-weak': password.length > 0 && password.length < 8 }"
                 autocomplete="current-password" 
                 required 
               />
@@ -100,14 +101,19 @@
             <span>Remember me</span>
           </label>
 
-          <button class="primary login-submit" type="submit">Sign In</button>
+          <button class="primary login-submit" type="submit" :disabled="isLoading">
+            {{ isLoading ? 'Signing in…' : 'Sign In' }}
+          </button>
         </form>
 
         <div class="login-footer-links">
           <router-link class="alt-link" to="/register">No account? Register here!</router-link>
+          <span class="alt-link muted">Forgot password? Contact your administrator.</span>
         </div>
         
-        <p v-if="authMessage" class="message">{{ authMessage }}</p>
+        <p v-if="authMessage" class="message" role="alert" aria-live="polite">
+          {{ authMessage }}
+        </p>
       </section>
     </main>
   </div>
@@ -127,6 +133,7 @@ const password = ref('');
 const rememberMe = ref(true);
 const isPasswordHidden = ref(true);
 const authMessage = ref('');
+const isLoading = ref(false); // BUG 1: Explicitly tracked here
 
 // Calendar state
 const currentMonth = ref(new Date());
@@ -223,8 +230,24 @@ const loadLoginStreak = () => {
 
 // Submission Logic
 const handleLogin = async () => {
+  if (isLoading.value) return; // BUG 1: Guard to prevent double click
+  
   authMessage.value = '';
+  
   const currentEmail = email.value.trim();
+  const currentPassword = password.value;
+
+  // BUG 2: Strict client-side checks to save an API call
+  if (!currentEmail) {
+    authMessage.value = 'Please enter your email address.';
+    return;
+  }
+  if (!currentPassword) {
+    authMessage.value = 'Please enter your password.';
+    return;
+  }
+
+  isLoading.value = true;
 
   if (rememberMe.value && currentEmail) {
     localStorage.setItem(REMEMBERED_EMAIL_KEY, currentEmail);
@@ -235,7 +258,7 @@ const handleLogin = async () => {
   try {
     const result = await api('/auth/login', 'POST', {
       email: currentEmail,
-      password: password.value
+      password: currentPassword
     });
 
     setSession(result.token, result.user);
@@ -247,6 +270,9 @@ const handleLogin = async () => {
     router.push(result.user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources);
   } catch (error) {
     authMessage.value = error.message || 'An error occurred during login.';
+  } finally {
+    // BUG 1: Guarantee the button loading state resets
+    isLoading.value = false;
   }
 };
 </script>
@@ -265,7 +291,7 @@ const handleLogin = async () => {
 .login-page-wrapper::before,
 .login-page-wrapper::after {
   content: '';
-  position: absolute; /* Changed from fixed to absolute to stick inside wrapper */
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: -2;
@@ -653,6 +679,11 @@ const handleLogin = async () => {
   box-shadow: 0 0 0 3px rgba(23, 115, 203, 0.18);
 }
 
+/* CSS rule added for the visual hint */
+.field input.input-weak {
+  border-color: #f0a500 !important;
+}
+
 .password-row {
   position: relative;
   display: block;
@@ -781,6 +812,12 @@ const handleLogin = async () => {
   text-decoration: underline;
 }
 
+.alt-link.muted {
+  color: #6e6e73;
+  text-decoration: none;
+  cursor: default;
+}
+
 .login-footer-links {
   display: flex;
   flex-direction: column;
@@ -795,8 +832,12 @@ const handleLogin = async () => {
 .message {
   min-height: 1.2em;
   margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff5f5;
+  border: 1px solid #ffd6d6;
+  color: #bf2f45;
   font-size: 13px;
-  color: #d92f3a; /* Added error color to ensure visibility */
 }
 
 @media (max-width: 640px) {
@@ -839,206 +880,4 @@ const handleLogin = async () => {
     display: block;
   }
 }
-
-/* Calendar Styles */
-.login-calendar-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 24px;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(196, 30, 58, 0.15);
-  backdrop-filter: blur(8px);
-  max-width: 320px;
-}
-
-.calendar-header {
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.calendar-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-
-.streak-count {
-  margin: 8px 0 0;
-  font-size: 28px;
-  color: #b11f4b;
-  font-weight: 700;
-}
-
-.calendar {
-  width: 100%;
-}
-
-.calendar-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.calendar-nav button {
-  background: #ffb7c5;
-  border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 700;
-  color: #b11f4b;
-  transition: all 150ms ease;
-}
-
-.calendar-nav button:hover {
-  background: #ff8fa3;
-  transform: scale(1.05);
-}
-
-.calendar-month {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.weekday {
-  text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #6e6e73;
-  padding: 6px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.calendar-days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-
-.calendar-day {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #6e6e73;
-  background: #f5f5f5;
-  cursor: default;
-}
-
-.calendar-day.empty {
-  background: transparent;
-  cursor: default;
-}
-
-.calendar-day.today {
-  background: #fff0f3;
-  color: #b11f4b;
-  font-weight: 700;
-  border: 2px solid #b11f4b;
-}
-
-.calendar-day.logged-in {
-  background: linear-gradient(135deg, #ffb7c5 0%, #ff8fa3 100%);
-  color: white;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
-}
-
-.calendar-day.logged-in.today {
-  background: linear-gradient(135deg, #ff8fa3 0%, #ff6b8a 100%);
-  border: 2px solid white;
-}
-
-.studylink-brand {
-  color: #1d1d1f;
-  letter-spacing: 0.08em;
-}
-
-.login-card {
-  border-radius: 18px;
-  border: 1px solid #e0e0e0;
-  background: #ffffff;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.login-card h2 {
-  color: #1d1d1f;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.field {
-  color: #1d1d1f;
-}
-
-.field input {
-  border: 1px solid #e0e0e0;
-  border-radius: 9999px;
-  box-shadow: none;
-  background: #ffffff;
-}
-
-.field input:focus-visible {
-  border-color: #b11f4b;
-  box-shadow: 0 0 0 2px rgba(177, 31, 75, 0.2);
-}
-
-.password-toggle {
-  border: 0;
-  background: transparent;
-  backdrop-filter: none;
-  color: #6e6e73;
-}
-
-.password-toggle:hover {
-  background: rgba(177, 31, 75, 0.08);
-}
-
-.login-submit {
-  border: 1px solid transparent;
-  border-radius: 9999px;
-  background: #b11f4b;
-  color: #ffffff;
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.login-submit:hover {
-  background: #9d1c43;
-  transform: none;
-  box-shadow: none;
-}
-
-.login-submit:focus-visible {
-  box-shadow: 0 0 0 2px rgba(177, 31, 75, 0.24);
-}
-
-.alt-link {
-  color: #b11f4b;
-}
-
-.message {
-  color: #bf2f45;
-}
-
 </style>
