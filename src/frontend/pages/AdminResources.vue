@@ -3,7 +3,6 @@
     <section class="phone-shell">
       <div class="view page active admin-resources-page">
 
-        <!-- Header -->
         <div class="page-header">
           <div>
             <p class="page-kicker">Admin · Content</p>
@@ -15,21 +14,63 @@
           </button>
         </div>
 
-        <!-- Search -->
+        <div class="summary-bar" v-if="!isLoading && allResources.length">
+          <div class="summary-stat">
+            <span class="summary-value">{{ allResources.length }}</span>
+            <span class="summary-label">Total</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ uniqueUploaders }}</span>
+            <span class="summary-label">Uploaders</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ uniqueCourses }}</span>
+            <span class="summary-label">Courses</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ todayCount }}</span>
+            <span class="summary-label">Today</span>
+          </div>
+        </div>
+
         <div class="toolbar-row">
           <input
             type="text"
             v-model="searchQuery"
             placeholder="Search by title, uploader or course…"
           />
-          <span class="result-count" v-if="!isLoading">{{ filteredResources.length }} resource{{ filteredResources.length !== 1 ? 's' : '' }}</span>
+          <select v-model="filterType" class="filter-select" aria-label="Filter by type">
+            <option value="">All types</option>
+            <option value="pdf">PDF</option>
+            <option value="slides">Slides</option>
+            <option value="lecture-note">Lecture Note</option>
+            <option value="past-year">Past Year Paper</option>
+            <option value="assignment">Assignment</option>
+            <option value="link">External Link</option>
+            <option value="miscellaneous">Miscellaneous</option>
+          </select>
+          <span class="result-count" v-if="!isLoading">
+            {{ filteredResources.length }} of {{ allResources.length }} resource{{ allResources.length !== 1 ? 's' : '' }}
+          </span>
         </div>
 
         <p v-if="adminMessage" class="feedback-msg" :class="messageType">{{ adminMessage }}</p>
 
-        <!-- List -->
         <div class="resource-list">
-          <div v-if="isLoading" class="empty-state">Loading resources…</div>
+          
+          <template v-if="isLoading">
+            <div v-for="n in 6" :key="n" class="resource-card skeleton-card">
+              <div class="resource-card-main">
+                <div class="skeleton-meta-row">
+                  <div class="skeleton-pill"></div>
+                  <div class="skeleton-pill narrow"></div>
+                </div>
+                <div class="skeleton-line title"></div>
+                <div class="skeleton-line short"></div>
+              </div>
+            </div>
+          </template>
+
           <div v-else-if="filteredResources.length === 0" class="empty-state">No resources found.</div>
 
           <article
@@ -41,7 +82,7 @@
           >
             <div class="resource-card-main">
               <div class="resource-meta-row">
-                <span class="type-pill">{{ resource.resource_type || 'misc' }}</span>
+                <span class="type-pill">{{ resourceTypeLabel(resource.resource_type) }}</span>
                 <span class="course-pill" v-if="resource.course_code">{{ resource.course_code }}</span>
                 <span class="date-text">{{ formatDateValue(resource.created_at, resource.created_at) }}</span>
               </div>
@@ -68,12 +109,19 @@
                 class="chip chip-soft"
               >Link</a>
               <button class="chip" type="button" @click="openEdit(resource)">Edit</button>
-              <button class="chip chip-danger" type="button" @click="confirmDelete(resource)">Delete</button>
+              
+              <button 
+                class="chip chip-danger" 
+                type="button" 
+                @click="confirmDelete(resource)" 
+                style="margin-left: auto;"
+              >
+                Delete
+              </button>
             </div>
           </article>
         </div>
 
-        <!-- Edit Modal -->
         <div v-if="editTarget" class="modal-overlay" @click.self="closeEdit">
           <div class="modal-card" role="dialog" aria-modal="true">
             <div class="modal-header">
@@ -83,14 +131,15 @@
             <form @submit.prevent="saveEdit" class="edit-form">
               <div class="field">
                 <label>Title</label>
-                <input v-model="editForm.title" type="text" required maxlength="200" />
+                <input ref="titleInputRef" v-model="editForm.title" type="text" required maxlength="200" />
               </div>
               <div class="field">
                 <label>Resource Type</label>
                 <select v-model="editForm.resourceType">
                   <option value="past-year">Past Year Paper</option>
                   <option value="lecture-note">Lecture Note</option>
-                  <option value="slide">Slides</option>
+                  <option value="slides">Slides</option>
+                  <option value="pdf">PDF</option>
                   <option value="assignment">Assignment</option>
                   <option value="link">External Link</option>
                   <option value="miscellaneous">Miscellaneous</option>
@@ -111,18 +160,25 @@
           </div>
         </div>
 
-        <!-- Delete Confirm Modal -->
         <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
-          <div class="modal-card modal-card-sm" role="dialog" aria-modal="true">
+          <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-label="Delete resource">
             <div class="modal-header">
               <h3>Delete Resource</h3>
-              <button class="close-btn" type="button" @click="cancelDelete">&times;</button>
+              <button class="close-btn" type="button" aria-label="Close" @click="cancelDelete">&times;</button>
             </div>
-            <p class="confirm-text">Delete <strong>{{ deleteTarget.title }}</strong>? This cannot be undone.</p>
+            <div class="delete-warning">
+              <div class="delete-warning-icon">⚠️</div>
+              <div>
+                <p class="confirm-text">
+                  Delete <strong>{{ deleteTarget?.title }}</strong>?
+                </p>
+                <p class="confirm-subtext">This will permanently remove the resource and all its reviews. This cannot be undone.</p>
+              </div>
+            </div>
             <div class="modal-actions">
               <button type="button" class="chip" @click="cancelDelete">Cancel</button>
               <button type="button" class="chip chip-danger" :disabled="isDeleting" @click="doDelete">
-                {{ isDeleting ? 'Deleting…' : 'Delete' }}
+                {{ isDeleting ? 'Deleting…' : 'Delete Resource' }}
               </button>
             </div>
           </div>
@@ -134,7 +190,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, requireRoleSession } from '@/api.js'
 import { formatDateValue } from '@/utils/records.js'
@@ -144,9 +200,14 @@ const router = useRouter()
 
 const allResources = ref([])
 const searchQuery = ref('')
+const filterType = ref('')
 const adminMessage = ref('')
 const messageType = ref('success')
 const isLoading = ref(true)
+
+let messageTimer = null // BUG 6: Timer for auto-clearing messages
+
+const titleInputRef = ref(null)
 
 // Edit state
 const editTarget = ref(null)
@@ -159,14 +220,56 @@ const deleteTarget = ref(null)
 const isDeleting = ref(false)
 const deepLinkHandled = ref(false)
 
+// IMPROVEMENT 1: Summary Bar Computed Props
+const uniqueUploaders = computed(() => new Set(allResources.value.map(r => r.uploader_email).filter(Boolean)).size)
+const uniqueCourses = computed(() => new Set(allResources.value.map(r => r.course_code).filter(Boolean)).size)
+const todayCount = computed(() => {
+  const today = new Date().toDateString()
+  return allResources.value.filter(r => new Date(r.created_at).toDateString() === today).length
+})
+
+// BUG 4: Modal state tracker for keyboard shortcuts and scroll lock
+const anyModalOpen = computed(() => Boolean(editTarget.value || deleteTarget.value))
+
+// IMPROVEMENT 4: Human-readable type mapping
+const RESOURCE_TYPE_LABELS = {
+  'past-year': 'Past Year Paper',
+  'lecture-note': 'Lecture Note',
+  'slides': 'Slides',
+  'slide': 'Slides',
+  'pdf': 'PDF',
+  'assignment': 'Assignment',
+  'link': 'External Link',
+  'miscellaneous': 'Misc',
+}
+
+const resourceTypeLabel = (value) => {
+  const key = String(value || '').trim().toLowerCase()
+  return RESOURCE_TYPE_LABELS[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Unknown')
+}
+
+// BUG 6 Fix: Auto-clearing messages
+const setAdminMessage = (text, type = 'success') => {
+  adminMessage.value = text
+  messageType.value = type
+  if (messageTimer) clearTimeout(messageTimer)
+  messageTimer = setTimeout(() => { adminMessage.value = '' }, 4000)
+}
+
+// BUG 7 Fix & IMPROVEMENT 2: Search now includes resource_type and filterType
 const filteredResources = computed(() => {
+  let list = allResources.value
+  if (filterType.value) {
+    list = list.filter(r => (r.resource_type || '') === filterType.value)
+  }
   const q = searchQuery.value.toLowerCase().trim()
-  if (!q) return allResources.value
-  return allResources.value.filter(r =>
+  if (!q) return list
+  return list.filter(r =>
     (r.title || '').toLowerCase().includes(q) ||
     (r.uploader_name || '').toLowerCase().includes(q) ||
     (r.uploader_email || '').toLowerCase().includes(q) ||
-    (r.course_code || '').toLowerCase().includes(q)
+    (r.course_code || '').toLowerCase().includes(q) ||
+    (r.resource_type || '').toLowerCase().includes(q)
   )
 })
 
@@ -178,8 +281,7 @@ const loadResources = async () => {
     allResources.value = response.resources || []
     await handleDeepLinkedEdit()
   } catch (error) {
-    adminMessage.value = `Error loading resources: ${error.message}`
-    messageType.value = 'error'
+    setAdminMessage(`Error loading resources: ${error.message}`, 'error')
   } finally {
     isLoading.value = false
   }
@@ -193,19 +295,31 @@ const openEdit = (resource) => {
     courseCode: resource.course_code || '',
   }
   editMessage.value = ''
+  // BUG 5 Fix: Auto-focus the title input when modal opens
+  nextTick(() => titleInputRef.value?.focus())
 }
 
 const closeEdit = () => { editTarget.value = null }
 
 const saveEdit = async () => {
+  const trimmedTitle = editForm.value.title.trim()
+  
+  // BUG 2 Fix: Client-side guard against empty whitespace titles
+  if (!trimmedTitle) {
+    editMessage.value = 'Title cannot be empty.'
+    return
+  }
+
   isSaving.value = true
   editMessage.value = ''
   try {
     const resp = await api(`/resources/${editTarget.value.id}`, 'PUT', {
-      title: editForm.value.title.trim(),
+      title: trimmedTitle,
       resourceType: editForm.value.resourceType,
       courseCode: editForm.value.courseCode.trim() || null,
     })
+    
+    // Update local state instead of full reload
     const idx = allResources.value.findIndex(r => r.id === editTarget.value.id)
     if (idx !== -1) {
       allResources.value[idx] = {
@@ -216,8 +330,7 @@ const saveEdit = async () => {
       }
     }
     closeEdit()
-    adminMessage.value = 'Resource updated.'
-    messageType.value = 'success'
+    setAdminMessage('Resource updated.', 'success')
   } catch (err) {
     editMessage.value = `Error: ${err.message}`
   } finally {
@@ -235,14 +348,15 @@ const doDelete = async () => {
   try {
     const targetId = deleteTarget.value.id
     await api(`/resources/${targetId}`, 'DELETE')
+    
+    // BUG 3 Fix: Local array removal prevents a full API reload and flashing
+    allResources.value = allResources.value.filter(r => r.id !== targetId)
+    
     cancelDelete()
-    await loadResources()
-    adminMessage.value = 'Resource deleted.'
-    messageType.value = 'success'
+    setAdminMessage('Resource deleted.', 'success')
   } catch (error) {
     cancelDelete()
-    adminMessage.value = error.message || 'Failed to delete resource.'
-    messageType.value = 'error'
+    setAdminMessage(error.message || 'Failed to delete resource.', 'error')
   } finally {
     isDeleting.value = false
   }
@@ -270,9 +384,28 @@ const handleDeepLinkedEdit = async () => {
   router.replace({ path: '/admin/resources' })
 }
 
+// BUG 4 Fix: Global Keydown handler for Escape to close modals
+const handleKeydown = (e) => {
+  if (e.key !== 'Escape') return
+  if (deleteTarget.value) cancelDelete()
+  else if (editTarget.value) closeEdit()
+}
+
+// BUG 4 Fix: Body scroll lock to prevent scrolling background while modal is open
+watch(anyModalOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
 onMounted(() => {
   requireRoleSession('admin')
+  window.addEventListener('keydown', handleKeydown)
   loadResources()
+})
+
+onBeforeUnmount(() => {
+  if (messageTimer) clearTimeout(messageTimer)
+  window.removeEventListener('keydown', handleKeydown)
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -299,6 +432,26 @@ onMounted(() => {
 .page-header h2 { font-size: clamp(1.4rem, 2.5vw, 2rem); margin: 0 0 0.25rem; }
 .page-subtext { font-size: 0.85rem; color: var(--glass-pink-muted); margin: 0; }
 
+/* ── Summary Bar ── */
+.summary-bar {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0 2rem 1.25rem;
+}
+.summary-stat {
+  flex: 1 1 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: var(--glass-pink-surface-strong);
+  border: 1px solid var(--glass-pink-border);
+}
+.summary-value { font-size: 1.4rem; font-weight: 700; color: var(--ink); line-height: 1; }
+.summary-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--glass-pink-muted); }
+
 /* ── Toolbar ── */
 .toolbar-row {
   display: flex;
@@ -320,6 +473,19 @@ onMounted(() => {
   transition: border-color 150ms;
 }
 .toolbar-row input:focus { border-color: var(--accent); }
+
+.filter-select {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--glass-pink-border);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+  color: var(--ink);
+  outline: none;
+  min-width: 140px;
+}
+.filter-select:focus { border-color: var(--accent); }
+
 .result-count {
   font-size: 0.8rem;
   color: var(--glass-pink-muted);
@@ -357,7 +523,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0 2rem;
+  padding: 0 2rem 2rem;
 }
 .resource-card {
   display: flex;
@@ -376,6 +542,28 @@ onMounted(() => {
   box-shadow: 0 6px 20px rgba(74,20,41,0.11);
   transform: translateY(-1px);
 }
+
+/* Skeleton Loaders */
+.skeleton-card { pointer-events: none; }
+.skeleton-meta-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.skeleton-pill {
+  height: 20px; width: 60px; border-radius: 999px;
+  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+.skeleton-pill.narrow { width: 40px; }
+.skeleton-line {
+  height: 13px; border-radius: 6px; margin-bottom: 8px;
+  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+.skeleton-line.title { width: 70%; height: 18px; }
+.skeleton-line.short { width: 40%; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+
 .resource-card-main { flex: 1; min-width: 0; }
 .resource-meta-row {
   display: flex;
@@ -510,21 +698,29 @@ onMounted(() => {
 }
 .field input:focus, .field select:focus { border-color: var(--accent); }
 
+/* Delete Warning Modal specific */
+.delete-warning {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  background: rgba(191,47,69,0.08); /* var(--danger-bg) equivalent */
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.delete-warning-icon { font-size: 1.4rem; flex-shrink: 0; }
+.confirm-text { font-size: 0.9rem; margin: 0 0 4px; font-weight: 600; color: var(--ink); }
+.confirm-subtext { margin: 0; font-size: 0.82rem; color: var(--danger); /* var(--danger-ink) equivalent */ }
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
-.confirm-text {
-  font-size: 0.9rem;
-  color: var(--ink);
-  margin: 0 0 1.25rem;
-  line-height: 1.5;
-}
 
 @media (max-width: 600px) {
-  .page-header, .toolbar-row, .resource-list { padding-left: 1rem; padding-right: 1rem; }
+  .page-header, .toolbar-row, .resource-list, .summary-bar { padding-left: 1rem; padding-right: 1rem; }
   .feedback-msg { margin-left: 1rem; margin-right: 1rem; }
   .resource-card { flex-direction: column; }
   .resource-card-actions { width: 100%; justify-content: flex-end; }
@@ -532,6 +728,10 @@ onMounted(() => {
 
   .toolbar-row input {
     min-width: 0;
+    width: 100%;
+  }
+  
+  .filter-select {
     width: 100%;
   }
 

@@ -3,34 +3,53 @@
     <section class="phone-shell">
       <div class="view page active analytics-page">
 
-        <!-- Header -->
         <div class="page-header">
           <div>
             <p class="page-kicker">Platform overview</p>
             <h2>Analytics Dashboard</h2>
             <p class="page-subtext">Live snapshot of StudyLink activity and growth.</p>
           </div>
-          <button @click="loadAnalytics" class="chip" type="button" :disabled="isLoading">
-            {{ isLoading ? 'Loading…' : 'Refresh' }}
-          </button>
+          <div class="header-right">
+            <p v-if="lastUpdated" class="last-updated">Updated {{ lastUpdated }}</p>
+            <button @click="loadAnalytics" class="chip" type="button" :disabled="isLoading">
+              {{ isLoading ? 'Loading…' : 'Refresh' }}
+            </button>
+          </div>
         </div>
 
         <p v-if="message" class="message error-msg">{{ message }}</p>
 
-        <!-- Stat cards -->
         <div class="stats-grid">
-          <div class="stat-card" v-for="card in statCards" :key="card.key">
-            <div class="stat-icon" :class="card.color">
-              <svg viewBox="0 0 24 24" aria-hidden="true" v-html="card.icon"></svg>
+          <template v-if="isLoading">
+            <div v-for="n in 6" :key="n" class="stat-card skeleton-card">
+              <div class="skeleton-icon"></div>
+              <div class="skeleton-body">
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line long"></div>
+              </div>
             </div>
-            <div class="stat-body">
-              <p class="stat-label">{{ card.label }}</p>
-              <p class="stat-value">{{ formatNumber(stats[card.key]) }}</p>
+          </template>
+          <template v-else>
+            <div 
+              class="stat-card" 
+              v-for="card in statCards" 
+              :key="card.key"
+              role="region" 
+              :aria-label="card.label"
+            >
+              <div class="stat-icon" :class="card.color" aria-hidden="true">
+                <svg viewBox="0 0 24 24" v-html="card.icon"></svg>
+              </div>
+              <div class="stat-body">
+                <p class="stat-label" :id="`stat-label-${card.key}`">{{ card.label }}</p>
+                <p class="stat-value" :aria-labelledby="`stat-label-${card.key}`">
+                  {{ formatNumber(stats[card.key]) }}
+                </p>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
 
-        <!-- 7-day trends -->
         <div class="section-header">
           <h3>7-Day Trends</h3>
           <p class="section-sub">Comparing last 7 days vs prior 7 days</p>
@@ -41,7 +60,10 @@
         <div class="trends-list">
           <div v-for="trend in trends" :key="trend.id" class="trend-card">
             <div class="trend-head">
-              <strong class="trend-label">{{ trend.label }}</strong>
+              <div>
+                <strong class="trend-label">{{ trend.label }}</strong>
+                <p class="trend-subtitle">{{ trend.current }} this week · {{ trend.previous }} prior week</p>
+              </div>
               <span class="trend-delta" :class="deltaClass(trend)">{{ deltaLabel(trend) }}</span>
             </div>
             <div class="trend-bars">
@@ -63,6 +85,40 @@
           </div>
         </div>
 
+        <div class="section-header" v-if="topContributors.length">
+          <h3>Top Contributors</h3>
+          <p class="section-sub">Users with the most uploaded resources</p>
+        </div>
+
+        <div class="contributors-list" v-if="topContributors.length">
+          <div v-for="(c, i) in topContributors" :key="c.email" class="contributor-row">
+            <div class="contributor-rank">{{ i + 1 }}</div>
+            <div class="contributor-avatar">{{ (c.name || 'U')[0].toUpperCase() }}</div>
+            <div class="contributor-info">
+              <p class="contributor-name">{{ c.name }}</p>
+              <p class="contributor-email">{{ c.email }}</p>
+            </div>
+            <div class="contributor-count">
+              <span class="contributor-badge">{{ c.resourcecount }} resource{{ c.resourcecount !== 1 ? 's' : '' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-header" v-if="Object.keys(pointsDistribution).length">
+          <h3>Points Distribution</h3>
+          <p class="section-sub">Breakdown of how points have been earned</p>
+        </div>
+
+        <div class="points-breakdown" v-if="Object.keys(pointsDistribution).length">
+          <div v-for="(val, key) in pointsDistribution" :key="key" class="points-row">
+            <span class="points-reason">{{ formatPointsReason(key) }}</span>
+            <div class="points-bar-track">
+              <div class="points-bar-fill" :style="{ width: pointsBarWidth(key) }"></div>
+            </div>
+            <span class="points-value">{{ Number(val).toLocaleString() }}</span>
+          </div>
+        </div>
+
       </div>
     </section>
   </main>
@@ -70,7 +126,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { api } from '@/api.js'
+import { api, requireRoleSession } from '@/api.js'
 
 const stats = ref({
   totalUsers: 0,
@@ -80,9 +136,15 @@ const stats = ref({
   totalPoints: 0,
   totalBadges: 0,
 })
+
+// BUG 6: Initialized refs for server data
 const trends = ref([])
+const topContributors = ref([])
+const pointsDistribution = ref({})
+
 const message = ref('')
 const isLoading = ref(false)
+const lastUpdated = ref(null)
 
 const statCards = [
   {
@@ -107,13 +169,15 @@ const statCards = [
     key: 'totalResources',
     label: 'Total Resources',
     color: 'blush',
-    icon: '<path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.53 15.86.5 13.25.5c-1.4 0-2.69.61-3.59 1.57L8 3.75 6.34 2.07C5.44 1.11 4.15.5 2.75.5.14.5-2 2.53-2 5.14c0 .48.11.92.18 1.36H-4v14h28V6h-4zM13.25 3c1.11 0 2 .89 2 2-.01.47-.14.89-.35 1.25L11.38 8.5C11.19 7.84 11 7.16 11 6.5V5c0-1.1.89-2 2-2zm-9.5 0c1.11 0 2 .89 2 2v1.5c0 .67-.19 1.34-.38 2L2.1 6.25C1.89 5.89 1.76 5.47 1.75 5c0-1.11.89-2 2-2z"/>',
+    // BUG 3 Fix: Replaced with valid SVG bounds
+    icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>',
   },
   {
     key: 'totalPoints',
     label: 'Total Points Awarded',
     color: 'pink',
-    icon: '<path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/>',
+    // BUG 4 Fix: Star icon for points
+    icon: '<path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>',
   },
   {
     key: 'totalBadges',
@@ -125,20 +189,35 @@ const statCards = [
 
 const formatNumber = (n) => (n ?? 0).toLocaleString()
 
+// BUG 5 Fix: Properly handle nulls -> NaN -> divisions by zero
 const deltaClass = (trend) => {
-  if (!trend.previous) return trend.current > 0 ? 'up' : 'neutral'
-  return trend.current >= trend.previous ? 'up' : 'down'
+  const current = Number(trend.current || 0)
+  const previous = Number(trend.previous || 0)
+  if (!previous) return current > 0 ? 'up' : 'neutral'
+  return current >= previous ? 'up' : 'down'
 }
 
 const deltaLabel = (trend) => {
-  if (!trend.previous) return trend.current > 0 ? '+100%' : '—'
-  const pct = Math.round(((trend.current - trend.previous) / trend.previous) * 100)
+  const current = Number(trend.current || 0)
+  const previous = Number(trend.previous || 0)
+  if (!previous) return current > 0 ? '+100%' : '—'
+  const pct = Math.round(((current - previous) / previous) * 100)
   return pct >= 0 ? `+${pct}%` : `${pct}%`
 }
 
 const barWidth = (trend, key) => {
-  const max = Math.max(trend.current, trend.previous, 1)
-  return `${Math.round((trend[key] / max) * 100)}%`
+  const max = Math.max(Number(trend.current || 0), Number(trend.previous || 0), 1)
+  return `${Math.round((Number(trend[key] || 0) / max) * 100)}%`
+}
+
+// IMPROVEMENT 2: Points Formatting Helpers
+const formatPointsReason = (key) =>
+  key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+const pointsBarWidth = (key) => {
+  const vals = Object.values(pointsDistribution.value).map(Number)
+  const max = Math.max(...vals, 1)
+  return `${Math.round((Number(pointsDistribution.value[key]) / max) * 100)}%`
 }
 
 const loadAnalytics = async () => {
@@ -148,6 +227,12 @@ const loadAnalytics = async () => {
     const resp = await api('/admin/analytics')
     stats.value = { ...stats.value, ...(resp.stats || {}) }
     trends.value = Array.isArray(resp.trends) ? resp.trends : []
+    
+    // BUG 6 Fix: Save topContributors & pointsDistribution
+    topContributors.value = Array.isArray(resp.topContributors) ? resp.topContributors : []
+    pointsDistribution.value = resp.pointsDistribution || {}
+    
+    lastUpdated.value = new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
   } catch (err) {
     message.value = `Error: ${err.message}`
   } finally {
@@ -156,6 +241,8 @@ const loadAnalytics = async () => {
 }
 
 onMounted(() => {
+  // BUG 1 Fix: Explicit admin gate
+  requireRoleSession('admin')
   loadAnalytics()
 })
 </script>
@@ -196,6 +283,19 @@ onMounted(() => {
   margin: 0;
 }
 
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.last-updated {
+  font-size: 0.75rem;
+  color: var(--glass-pink-muted);
+  margin: 0;
+}
+
 .error-msg {
   margin: 0 2rem 1rem;
   padding: 0.75rem 1rem;
@@ -230,6 +330,47 @@ onMounted(() => {
 .stat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(74, 20, 41, 0.12);
+}
+
+/* Skeleton Loaders */
+.skeleton-card {
+  background: var(--glass-pink-surface-strong);
+  border: 1px solid var(--glass-pink-border);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: none;
+}
+.skeleton-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  flex-shrink: 0;
+}
+.skeleton-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+.skeleton-line.short { width: 55%; }
+.skeleton-line.long  { width: 35%; }
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .stat-icon {
@@ -323,7 +464,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0 2rem;
+  padding: 0 2rem 2rem; /* added bottom padding */
 }
 
 .trend-card {
@@ -336,7 +477,7 @@ onMounted(() => {
 
 .trend-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 0.85rem;
 }
@@ -346,11 +487,19 @@ onMounted(() => {
   color: var(--ink);
 }
 
+.trend-subtitle {
+  font-size: 0.73rem;
+  color: var(--glass-pink-muted);
+  margin: 2px 0 0;
+  font-weight: 400;
+}
+
 .trend-delta {
   font-size: 0.78rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
+  margin-top: 2px; /* optical alignment */
 }
 
 .trend-delta.up {
@@ -415,12 +564,125 @@ onMounted(() => {
   text-align: right;
 }
 
+/* ── Top Contributors ── */
+.contributors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 2rem 2rem;
+}
+
+.contributor-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--glass-pink-surface-strong);
+  border: 1px solid var(--glass-pink-border);
+  border-radius: 12px;
+}
+
+.contributor-rank {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--glass-pink-muted);
+  width: 18px;
+  text-align: center;
+}
+
+.contributor-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(177, 31, 75, 0.12);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.contributor-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contributor-name {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.contributor-email {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--glass-pink-muted);
+}
+
+.contributor-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(177, 31, 75, 0.1);
+  color: var(--accent);
+}
+
+/* ── Points Distribution ── */
+.points-breakdown {
+  padding: 0 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.points-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 50px;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.points-reason {
+  font-size: 0.8rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.points-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(177, 31, 75, 0.08);
+  overflow: hidden;
+}
+
+.points-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b11f4b, #d94070);
+  transition: width 600ms ease;
+}
+
+.points-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: right;
+}
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .page-header,
   .stats-grid,
   .section-header,
-  .trends-list {
+  .trends-list,
+  .contributors-list,
+  .points-breakdown {
     padding-left: 1rem;
     padding-right: 1rem;
   }
