@@ -25,12 +25,24 @@
         </section>
 
         <div class="search-row resource-toolbar" role="search">
-          <input
-            class="resource-search-input"
-            v-model="searchQuery"
-            placeholder="Search by course code, title, type, or uploader"
-            @input="debouncedSearch"
-          />
+          <div class="search-input-wrap" style="position:relative;flex:1;display:flex;align-items:center;">
+            <input
+              class="resource-search-input"
+              v-model="searchQuery"
+              placeholder="Search by course code, title, type, or uploader"
+              @input="debouncedSearch"
+              style="width:100%"
+            />
+            <button
+              v-if="searchQuery"
+              class="search-clear-btn"
+              type="button"
+              aria-label="Clear search"
+              @click="searchQuery = ''; visibleCount = pageSize"
+              style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:#6e6e73;"
+            >✕</button>
+          </div>
+          
           <div class="search-inline-actions" aria-label="Search controls">
             <button class="icon-chip" type="button" aria-label="Search" title="Search" @click="visibleCount = pageSize">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -48,11 +60,21 @@
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
               </svg>
-              <span v-if="hasActiveFilters" style="position:absolute;top:2px;right:2px;width:7px;height:7px;background:#b11f4b;border-radius:50%;border:1.5px solid #fff"></span>
+              <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
             </button>
           </div>
-          <div class="action-row">
-            <button class="chip chip-strong" type="button" @click="showUploadModal = true">Upload Resource</button>
+          <div class="action-row" style="align-items: center;">
+            <button
+              v-if="canUpload"
+              class="chip chip-strong"
+              type="button"
+              @click="showUploadModal = true"
+            >
+              Upload Resource
+            </button>
+            <span v-else class="meta" style="font-size:12px;">
+              Only tutors can upload resources.
+            </span>
           </div>
         </div>
 
@@ -213,9 +235,17 @@
               </div>
               <div class="suggested-body">
                 <div class="suggested-type">{{ formatResourceTypeLabel(resource.resource_type) }}</div>
-                <strong>{{ resource.title }}</strong>
-                <div class="meta">{{ resource.course_code }} - {{ resource.contributor_name }}</div>
-                <div class="meta rating-line">Rating {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
+                <strong>
+                  <span v-if="resource.course_code">{{ resource.course_code }} — </span>{{ resource.title || 'Untitled' }}
+                </strong>
+                <div class="meta">{{ resource.contributor_name }}</div>
+                <div class="meta rating-line" style="display:flex;align-items:center;margin-top:2px;">
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="fill:#f4b400;margin-right:4px;">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  {{ Number(resource.avg_rating || 0).toFixed(1) }}
+                  <span v-if="!resource.avg_rating" class="muted" style="margin-left:4px;">(unrated)</span>
+                </div>
               </div>
             </button>
           </div>
@@ -228,15 +258,38 @@
               Fresh uploads from your community.
             </p>
           </div>
+
+          <div role="status" aria-live="polite" class="sr-only">
+            {{ filteredResources.length }} resource{{ filteredResources.length !== 1 ? 's' : '' }} found
+          </div>
+
           <div id="resourceList" class="resources-list">
-            <div v-if="loadError" class="empty-state" style="color:#b11f4b;">
-              {{ loadError }}
-              <button class="chip" style="margin-top:10px" @click="loadResources">Retry</button>
+            <div v-if="loadError" class="error-banner" role="alert" style="color:#b11f4b; text-align:center; padding:40px 20px; grid-column:1/-1;">
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="32" height="32" style="fill:currentColor; margin-bottom:12px;">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              <div>{{ loadError }}</div>
+              <button class="chip" style="margin-top:16px;" @click="loadResources">Retry</button>
             </div>
+            
             <div v-if="isLoading" class="loading">Loading resources...</div>
-            <div v-else-if="filteredResources.length === 0 && !loadError" class="empty-state">
-              No resources found. Try another filter, or upload your first resource.
+            
+            <div v-else-if="filteredResources.length === 0 && !loadError" class="empty-state-card" style="text-align:center; padding:60px 20px; grid-column:1/-1;">
+              <svg viewBox="0 0 64 64" width="48" height="48" aria-hidden="true" style="margin-bottom:16px;">
+                <path fill="#e0e0e0" d="M6 12h22l4 6h26v32H6z"/>
+                <circle cx="44" cy="40" r="8" fill="none" stroke="#b11f4b" stroke-width="2.5"/>
+                <path d="M50 46l4 4" stroke="#b11f4b" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+              <div style="margin-bottom: 6px; font-size:15px; color:#1d1d1f;">
+                <strong v-if="hasActiveFilters">No matches for your filters</strong>
+                <strong v-else>No resources yet</strong>
+              </div>
+              <p class="meta" v-if="hasActiveFilters">Try adjusting your search or clearing some filters.</p>
+              <p class="meta" v-else>Be the first to share a study resource with your community.</p>
+              <button v-if="hasActiveFilters" class="chip chip-strong" style="margin-top:16px;" @click="resetFilters">Clear filters</button>
+              <button v-else-if="canUpload" class="chip chip-strong" style="margin-top:16px;" @click="showUploadModal = true">Upload now</button>
             </div>
+
             <button 
               v-for="resource in paginatedResources" 
               :key="resource.id"
@@ -251,9 +304,20 @@
                 </div>
               </div>
               <div class="resource-card-body">
-                <strong>{{ resource.course_code }} - {{ resource.title }}</strong>
+                <strong>
+                  <span v-if="resource.course_code">{{ resource.course_code }} — </span>{{ resource.title || 'Untitled' }}
+                </strong>
                 <div class="meta">By {{ resource.contributor_name }}</div>
-                <div class="meta">Rating {{ Number(resource.avg_rating || 0).toFixed(1) }}</div>
+                <div class="meta rating-line" style="display:flex;align-items:center;margin-top:2px;">
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="fill:#f4b400;margin-right:4px;">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  {{ Number(resource.avg_rating || 0).toFixed(1) }}
+                  <span v-if="!resource.avg_rating" class="muted" style="margin-left:4px;">(unrated)</span>
+                </div>
+                <div class="meta" style="font-size:11px;color:#6e6e73;margin-top:6px;">
+                  {{ formatDateValue(resource.created_at, '') }}
+                </div>
               </div>
             </button>
           </div>
@@ -268,7 +332,11 @@
 
         <div v-if="showUploadModal" class="modal-backdrop" @click="!isUploading && (showUploadModal = false)">
           <div class="modal-content" @click.stop>
-            <button class="modal-close" @click="showUploadModal = false">x</button>
+            <button class="modal-close" @click="!isUploading && (showUploadModal = false)" :disabled="isUploading" aria-label="Close upload modal">
+              <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
+                <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
             <h3>Upload Resource</h3>
             <form ref="uploadFormRef" @submit.prevent="handleUpload" class="stack">
               <label>
@@ -286,8 +354,9 @@
                   <option value="past-year">Past Year Paper</option>
                   <option value="lecture-note">Lecture Notes</option>
                   <option value="slides">Slides</option>
+                  <option value="assignment">Assignment</option>
                   <option value="pdf">PDF</option>
-                  <option value="link">Link</option>
+                  <option value="link">External Link</option>
                 </select>
               </label>
               <label>
@@ -322,12 +391,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, getToken, getUser, setSession } from '@/api.js'
+import { api, getToken, getUser, setSession, requireSession } from '@/api.js'
+import { formatDateValue } from '@/utils/records.js'
 
 const router = useRouter()
 const currentUser = getUser()
+
+// ── Role gate: only tutors and admins may upload ──
+const canUpload = computed(() => {
+  const role = String(currentUser?.role || '').toLowerCase().trim()
+  return role === 'tutor' || role === 'admin'
+})
 
 const resources = ref([])
 const isLoading = ref(true)
@@ -472,14 +548,17 @@ const latestCount = computed(() => {
   return resources.value.filter(r => new Date(r.created_at).getTime() > cutoff).length
 })
 
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (selectedTypes.value.length) count += selectedTypes.value.length
+  if (selectedCourseCode.value) count++
+  if (selectedAccessType.value !== 'all') count++
+  if (filterMinRating.value !== 0 || filterMaxRating.value !== 5) count++
+  return count
+})
+
 const hasActiveFilters = computed(() =>
-  selectedTypes.value.length > 0 ||
-  selectedCourseCode.value !== '' ||
-  selectedAccessType.value !== 'all' ||
-  selectedSort.value !== 'newest' ||
-  filterMinRating.value !== 0 ||
-  filterMaxRating.value !== 5 ||
-  searchQuery.value.trim() !== ''
+  activeFilterCount.value > 0 || searchQuery.value.trim() !== '' || selectedSort.value !== 'newest'
 )
 
 const ratingRangeLabel = computed(() => {
@@ -575,7 +654,7 @@ const loadResources = async () => {
     const data = await api('/resources')
     resources.value = data.resources || []
     await nextTick()
-    startSuggestedCarousel()
+    requestAnimationFrame(() => startSuggestedCarousel())
   } catch (error) {
     loadError.value = error?.message || 'Failed to load resources.'
     console.error('Failed to load resources:', error)
@@ -587,13 +666,6 @@ const loadResources = async () => {
 const onUploadFileChange = (event) => {
   selectedUploadFile.value = event?.target?.files?.[0] || null
   uploadMessage.value = ''
-  
-  console.log('[FILE-CHANGE] File selected:', {
-    hasFile: Boolean(selectedUploadFile.value),
-    fileName: selectedUploadFile.value?.name,
-    fileSize: selectedUploadFile.value?.size,
-    fileType: selectedUploadFile.value?.type
-  })
   
   if (selectedUploadFile.value) {
     const maxSizeMB = 25
@@ -667,18 +739,15 @@ const resetFilters = () => {
 }
 
 const handleUpload = async () => {
-  console.log('[HANDLEUPLOAD] Called, checking form validation')
   if (!uploadForm.value.title) {
     uploadMessage.value = 'Please enter a title'
     uploadMessageType.value = 'error'
-    console.warn('[HANDLEUPLOAD] Validation failed: missing title')
     return
   }
 
   if (!uploadForm.value.resourceType) {
     uploadMessage.value = 'Please select a resource type'
     uploadMessageType.value = 'error'
-    console.warn('[HANDLEUPLOAD] Validation failed: missing resourceType')
     return
   }
 
@@ -707,14 +776,6 @@ const handleUpload = async () => {
   isUploading.value = true
   uploadMessage.value = ''
   uploadMessageDetails.value = ''
-  console.log('[UPLOAD] Starting upload', { 
-    title: uploadForm.value.title,
-    resourceType: uploadForm.value.resourceType,
-    hasFile: Boolean(selectedUploadFile.value),
-    fileName: selectedUploadFile.value?.name,
-    fileSize: selectedUploadFile.value?.size,
-    hasLink: Boolean(trimmedLink)
-  })
   
   try {
     const formData = new FormData()
@@ -731,7 +792,6 @@ const handleUpload = async () => {
       formData.append('resourceFile', selectedUploadFile.value)
     }
 
-    console.log('[UPLOAD] FormData prepared, sending request')
     const token = getToken()
     const response = await fetch('/api/resources/upload', {
       method: 'POST',
@@ -739,7 +799,6 @@ const handleUpload = async () => {
       body: formData
     })
 
-    console.log('[UPLOAD] Response received', { status: response.status, statusText: response.statusText })
     const responseText = await response.text()
     let result = null
 
@@ -747,7 +806,7 @@ const handleUpload = async () => {
       try {
         result = JSON.parse(responseText)
       } catch (parseError) {
-        console.warn('[UPLOAD] Response JSON parse failed, falling back to text', parseError)
+        console.warn('[UPLOAD] Response JSON parse failed, falling back to text')
       }
     }
 
@@ -760,7 +819,6 @@ const handleUpload = async () => {
       } else if (response.statusText) {
         errorMessage = response.statusText
       }
-      console.error('[UPLOAD] Error response:', errorMessage)
       uploadMessageDetails.value = errorMessage
       throw new Error(errorMessage)
     }
@@ -769,10 +827,6 @@ const handleUpload = async () => {
       const missingResourceMessage = 'Upload response missing resource data'
       uploadMessageDetails.value = missingResourceMessage
       throw new Error(missingResourceMessage)
-    }
-    console.log('[UPLOAD] Success response:', result)
-    if (!result?.resource?.id) {
-      throw new Error('Upload response missing resource data')
     }
 
     uploadMessage.value = 'Resource uploaded successfully!'
@@ -795,7 +849,6 @@ const handleUpload = async () => {
     uploadMessage.value = 'Upload failed'
     uploadMessageType.value = 'error'
     uploadMessageDetails.value = message
-    console.error('[UPLOAD] Error caught:', message, error)
   } finally {
     isUploading.value = false
   }
@@ -834,6 +887,7 @@ const advanceSuggestedCarousel = () => {
 }
 
 const startSuggestedCarousel = () => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   stopSuggestedCarousel()
   if (!suggestedResources.value.length || suggestedResources.value.length < 2) return
 
@@ -843,7 +897,20 @@ const startSuggestedCarousel = () => {
   suggestedCarouselTimer = window.setInterval(advanceSuggestedCarousel, 2800)
 }
 
+const handleKeydown = (e) => {
+  if (e.key === 'Escape' && showUploadModal.value && !isUploading.value) {
+    showUploadModal.value = false
+  }
+}
+
+watch(showUploadModal, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) window.addEventListener('keydown', handleKeydown)
+  else window.removeEventListener('keydown', handleKeydown)
+})
+
 onMounted(() => {
+  requireSession()
   const viewEl = document.querySelector('.view')
   if (viewEl) viewEl.scrollTop = 0
   loadResources()
@@ -851,6 +918,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopSuggestedCarousel()
+  window.removeEventListener('keydown', handleKeydown)
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -860,6 +929,18 @@ onBeforeUnmount(() => {
   display: block;
   padding: 0;
   background: linear-gradient(180deg, #ffffff, #f5f5f7);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .phone-shell {
@@ -918,6 +999,7 @@ onBeforeUnmount(() => {
 .resources-hero__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
 }
 
 .hero-stat {
@@ -951,25 +1033,25 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   width: 100%;
   box-sizing: border-box;
-    align-items: center;
-  }
+  align-items: center;
+}
 
-  .search-row input.resource-search-input {
-    flex: 1;
-    min-width: 0;
-    border: none;
-    outline: none;
-    padding: 10px 0;
-    font-size: 14px;
-    background: transparent;
-  }
+.search-row input.resource-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  font-size: 14px;
+  background: transparent;
+}
 
-  .search-inline-actions {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-    align-items: center;
-  }
+.search-inline-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
 
 .icon-chip:hover {
   color: #1d1d1f;
@@ -978,6 +1060,23 @@ onBeforeUnmount(() => {
 .icon-chip svg {
   width: 20px;
   height: 20px;
+}
+
+.filter-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #b11f4b;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #fff;
 }
 
 .action-row {
