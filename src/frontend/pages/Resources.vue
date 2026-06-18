@@ -68,6 +68,12 @@
           </div>
         </div>
 
+        <div v-if="searchQuery || hasActiveFilters" style="margin-top: -8px; margin-bottom: 16px; padding: 0 4px;">
+          <p class="meta" style="font-size: 13px;">
+            Showing <strong>{{ filteredResources.length }}</strong> of {{ totalResources }} resource{{ totalResources !== 1 ? 's' : '' }}
+          </p>
+        </div>
+
         <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
 
         <div v-if="showFilters" class="filter-panel">
@@ -271,19 +277,21 @@
                 <path d="M50 46l4 4" stroke="#b11f4b" stroke-width="2.5" stroke-linecap="round"/>
               </svg>
               <div style="margin-bottom: 6px; font-size:15px; color:#1d1d1f;">
-                <strong v-if="hasActiveFilters">No matches for your filters</strong>
+                <strong v-if="searchQuery">No resources match "{{ searchQuery }}"</strong>
+                <strong v-else-if="hasActiveFilters">No matches for your filters</strong>
                 <strong v-else>No resources yet</strong>
               </div>
-              <p class="meta" v-if="hasActiveFilters">Try adjusting your search or clearing some filters.</p>
+              <p class="meta" v-if="searchQuery || hasActiveFilters">Try adjusting your search or clearing some filters.</p>
               <p class="meta" v-else>Be the first to share a study resource with your community.</p>
-              <button v-if="hasActiveFilters" class="chip chip-strong" style="margin-top:16px;" @click="resetFilters">Clear filters</button>
-              <button v-else-if="canUpload" class="chip chip-strong" style="margin-top:16px;" @click="showUploadModal = true">Upload now</button>
+              
+              <button v-if="searchQuery || hasActiveFilters" class="chip chip-strong" style="margin-top:16px;" @click="resetFilters">Clear search & filters</button>
+              <button v-else-if="canUpload" class="chip chip-strong" style="margin-top:16px;" @click="showUploadModal = true">Be the first to upload for this course</button>
             </div>
 
             <button 
               v-for="resource in paginatedResources" 
               :key="resource.id"
-              class="resource-card"
+              :class="['resource-card', resource.resource_type ? 'type-' + normalizeResourceType(resource.resource_type) : '']"
               @click="openResource(resource)"
             >
               <div class="resource-cover" :class="resourceCoverClass(resource)">
@@ -303,6 +311,9 @@
                     <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                   </svg>
                   {{ Number(resource.avg_rating || 0).toFixed(1) }}
+                  <span v-if="resource.review_count || resource.rating_count" class="meta" style="margin-left:4px; font-size:11px;">
+                    ({{ resource.review_count || resource.rating_count }})
+                  </span>
                   <span v-if="!resource.avg_rating" class="muted" style="margin-left:4px;">(unrated)</span>
                 </div>
                 <div class="meta" style="font-size:11px;color:#6e6e73;margin-top:6px;">
@@ -1103,7 +1114,16 @@ onBeforeUnmount(() => {
   gap: 8px;
   overflow-x: auto;
   margin-bottom: 20px;
-  padding-bottom: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  
+  /* Sticky styling added here */
+  position: sticky;
+  top: -20px; /* Aligns smoothly under the header/scroll container bounds */
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .chip {
@@ -1248,6 +1268,13 @@ onBeforeUnmount(() => {
   transition: all 150ms ease;
   text-align: left;
 }
+
+.resource-card { border-left: 3px solid transparent; }
+.resource-card.type-pdf       { border-left-color: #e53935; }
+.resource-card.type-notes     { border-left-color: #1e88e5; }
+.resource-card.type-slides    { border-left-color: #8e24aa; }
+.resource-card.type-past-year { border-left-color: #f4511e; }
+.resource-card.type-link      { border-left-color: #43a047; }
 
 .resource-card:hover {
   border-color: #b11f4b;
