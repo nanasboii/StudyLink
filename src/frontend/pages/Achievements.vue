@@ -1,7 +1,6 @@
 ﻿<template>
   <main class="view page active achievements-page">
 
-    <!-- Hero -->
     <section class="card achievements-hero">
       <div class="hero-title-wrap">
         <h2>Achievements</h2>
@@ -13,10 +12,8 @@
       </div>
     </section>
 
-    <!-- Error -->
     <p v-if="message" class="message message-error" role="alert" aria-live="assertive">{{ message }}</p>
 
-    <!-- Summary tiles -->
     <section class="achievements-summary">
       <article class="summary-tile card">
         <p class="summary-label">Lifetime Earned</p>
@@ -45,7 +42,6 @@
       </article>
     </section>
 
-    <!-- How Points Were Earned -->
     <section class="card points-logic-section" v-if="!isLoading && reasonBreakdown.length">
       <h3>How Your Points Were Earned</h3>
       <div class="reason-grid">
@@ -59,13 +55,11 @@
       </div>
     </section>
 
-    <!-- Empty state for new users -->
     <section class="card points-logic-section" v-else-if="!isLoading">
       <h3>How Your Points Were Earned</h3>
       <p class="meta-empty">No points earned yet. Start uploading resources, booking sessions, and leaving reviews!</p>
     </section>
 
-    <!-- Ways to Earn Guide -->
     <section class="card earn-guide-section">
       <h3>Ways to Earn Points</h3>
       <div class="earn-grid">
@@ -114,16 +108,13 @@
       </div>
     </section>
 
-    <!-- Badges -->
     <section class="card achievements-section">
       <h3>Your Badges</h3>
 
-      <!-- Loading skeleton -->
       <div v-if="isLoading" class="badges-grid">
         <article v-for="n in 6" :key="n" class="badge-item badge-skeleton"></article>
       </div>
 
-      <!-- Loaded badges -->
       <div v-else class="badges-grid">
         <article
           v-for="badge in achievements"
@@ -141,7 +132,6 @@
           <p class="badge-desc">{{ badge.description || 'Unlock this milestone by contributing to StudyLink.' }}</p>
           <p class="badge-points">{{ badge.pointsRequired }} pts required</p>
 
-          <!-- Mini progress bar for locked badges -->
           <div v-if="!badge.isUnlocked" class="badge-progress-mini-wrap">
             <div class="badge-progress-mini">
               <div
@@ -157,7 +147,6 @@
       </div>
     </section>
 
-    <!-- Badge Detail Modal -->
     <Transition name="modal-fade">
       <div v-if="selectedBadge" class="modal-overlay" @click.self="selectedBadge = null" role="dialog" aria-modal="true" :aria-label="selectedBadge.name">
         <div class="modal-card">
@@ -225,11 +214,8 @@ const selectedBadge = ref(null)
 
 const openBadge = (badge) => { selectedBadge.value = badge }
 
-// ── Computed ─────────────────────────────────────────────────────────────────
-
 const unlockedCount = computed(() => achievements.value.filter((a) => a.isUnlocked).length)
 
-// FIX B1: badges are unlocked by lifetime points, not available balance
 const progressPoints = computed(() => lifetimePoints.value)
 
 const nextTarget = computed(() =>
@@ -244,7 +230,6 @@ const nextTargetLabel = computed(() => {
   return `${nextTarget.value.name} (${remainingPoints(nextTarget.value)} pts left)`
 })
 
-// FIX P1: added login_streak + booking_review; confirmed resource_upload key matches server
 const reasonLabelByCode = {
   resource_upload:    'Resource Uploads',
   tutor_verification: 'Tutor Verification',
@@ -284,8 +269,6 @@ const reasonBreakdown = computed(() =>
     .sort((a, b) => b.points - a.points)
 )
 
-// ── Badge helpers ────────────────────────────────────────────────────────────
-
 const onBadgeIconError = (event) => {
   const fallback = '/assets/badges/first-steps.svg'
   const target = event?.target
@@ -302,8 +285,6 @@ const progressPercent = (badge) => {
   const target = Math.max(Number(badge.pointsRequired || 0), 1)
   return Math.min(100, Math.round((progressPoints.value / target) * 100))
 }
-
-// ── Modal accessibility (Esc + scroll lock) ──────────────────────────────────
 
 const handleKeydown = (e) => {
   if (e.key === 'Escape' && selectedBadge.value) {
@@ -322,8 +303,6 @@ onBeforeUnmount(() => {
   document.body.style.overflow = ''
 })
 
-// ── Data loading ─────────────────────────────────────────────────────────────
-
 const loadAchievements = async () => {
   isLoading.value = true
   try {
@@ -336,7 +315,6 @@ const loadAchievements = async () => {
     achievements.value = (achievementsData.achievements || [])
       .map(normalizeAchievement)
       .sort((a, b) => {
-        // Unlocked badges first, then by points required ascending
         if (a.isUnlocked !== b.isUnlocked) return a.isUnlocked ? -1 : 1
         return a.pointsRequired - b.pointsRequired
       })
@@ -364,11 +342,13 @@ onMounted(() => {
   gap: 14px;
 }
 
+/* Glass Card 🪟 */
 .card {
-  border: 1px solid #f1cdd9;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 16px;
-  background: linear-gradient(180deg, #fffefe 0%, #fff7fa 100%);
-  box-shadow: 0 12px 28px rgba(141, 28, 66, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(2, 26, 84, 0.05);
   padding: 18px;
 }
 
@@ -383,12 +363,12 @@ onMounted(() => {
 .hero-title-wrap h2 {
   margin: 0;
   font-size: clamp(24px, 3vw, 34px);
-  color: #4a1f32;
+  color: #021A54;
 }
 
 .hero-title-wrap p {
   margin: 6px 0 0;
-  color: #83566a;
+  color: rgba(2, 26, 84, 0.7);
   font-size: 0.95rem;
 }
 
@@ -396,10 +376,11 @@ onMounted(() => {
   min-width: 170px;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid #f0b6c8;
-  background: linear-gradient(135deg, #d91c5c, #8f1c46);
-  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, #FF85BB, #FFCEE3);
+  color: #021A54;
   text-align: center;
+  box-shadow: 0 4px 12px rgba(255, 133, 187, 0.3);
 }
 
 .points-label {
@@ -439,7 +420,7 @@ onMounted(() => {
 
 .summary-label {
   margin: 0;
-  color: #7d5a68;
+  color: rgba(2, 26, 84, 0.7);
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -448,7 +429,7 @@ onMounted(() => {
 
 .summary-value {
   margin: 8px 0 0;
-  color: #5d1f36;
+  color: #021A54;
   font-size: 1.35rem;
   font-weight: 800;
 }
@@ -463,6 +444,11 @@ onMounted(() => {
   font-size: 0.8rem;
   padding: 6px 12px;
   text-decoration: none;
+  background: #FF85BB;
+  color: #021A54;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
 }
 
 /* ── Error message ── */
@@ -470,9 +456,9 @@ onMounted(() => {
   margin: 0;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #fdeef3;
-  border: 1px solid #f5c0cf;
-  color: #9a244b;
+  background: rgba(255, 133, 187, 0.2);
+  border: 1px solid #FF85BB;
+  color: #021A54;
   font-size: 0.9rem;
   font-weight: 600;
 }
@@ -482,7 +468,7 @@ onMounted(() => {
 .earn-guide-section h3,
 .achievements-section h3 {
   margin: 0 0 12px;
-  color: #4f2437;
+  color: #021A54;
   font-size: 1rem;
 }
 
@@ -493,9 +479,9 @@ onMounted(() => {
 }
 
 .reason-item {
-  border: 1px solid #f0d8e1;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 12px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.5);
   padding: 10px 12px;
   display: flex;
   align-items: center;
@@ -509,20 +495,20 @@ onMounted(() => {
 
 .reason-label {
   margin: 0;
-  color: #6c4656;
+  color: rgba(2, 26, 84, 0.8);
   font-size: 0.8rem;
 }
 
 .reason-points {
   margin: 2px 0 0;
-  color: #5d1f36;
+  color: #021A54;
   font-size: 1rem;
   font-weight: 800;
 }
 
 .meta-empty {
   margin: 0;
-  color: #9a7080;
+  color: rgba(2, 26, 84, 0.6);
   font-size: 0.9rem;
 }
 
@@ -537,9 +523,9 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid #f0d8e1;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 12px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.5);
   padding: 10px 12px;
 }
 
@@ -550,13 +536,13 @@ onMounted(() => {
 
 .earn-item strong {
   display: block;
-  color: #4a2132;
+  color: #021A54;
   font-size: 0.88rem;
 }
 
 .earn-item p {
   margin: 2px 0 0;
-  color: #96264f;
+  color: #FF85BB;
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -572,7 +558,7 @@ onMounted(() => {
 .badge-skeleton {
   height: 200px;
   border-radius: 14px;
-  background: linear-gradient(90deg, #f5e8ed 25%, #fdf0f4 50%, #f5e8ed 75%);
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.4) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
@@ -583,9 +569,9 @@ onMounted(() => {
 }
 
 .badge-item {
-  border: 1px solid #f2d9e1;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 14px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.4);
   padding: 14px;
   display: grid;
   justify-items: center;
@@ -597,13 +583,13 @@ onMounted(() => {
 
 .badge-item:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(162, 35, 86, 0.15);
+  box-shadow: 0 8px 20px rgba(2, 26, 84, 0.1);
 }
 
 .badge-item.unlocked {
-  border-color: #e88eb1;
-  background: linear-gradient(180deg, #fff, #f5f5f7);
-  box-shadow: 0 10px 22px rgba(162, 35, 86, 0.12);
+  border-color: #FF85BB;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 22px rgba(2, 26, 84, 0.08);
   opacity: 1;
 }
 
@@ -622,8 +608,8 @@ onMounted(() => {
   position: absolute;
   bottom: 0;
   right: -4px;
-  background: #1a8a4a;
-  color: #fff;
+  background: #FF85BB;
+  color: #021A54;
   border-radius: 50%;
   width: 18px;
   height: 18px;
@@ -636,20 +622,20 @@ onMounted(() => {
 
 .badge-name {
   margin: 0;
-  color: #4a2132;
+  color: #021A54;
   font-size: 1rem;
 }
 
 .badge-desc {
   margin: 0;
-  color: #7a5a66;
+  color: rgba(2, 26, 84, 0.7);
   font-size: 0.86rem;
   line-height: 1.45;
 }
 
 .badge-points {
   margin: 4px 0 0;
-  color: #96264f;
+  color: #FF85BB;
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -666,28 +652,28 @@ onMounted(() => {
   flex: 1;
   height: 6px;
   border-radius: 999px;
-  background: #f2e3e9;
+  background: rgba(255, 206, 227, 0.5);
   overflow: hidden;
 }
 
 .badge-progress-mini-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #d91c5c, #94234c);
+  background: #FF85BB;
   transition: width 300ms ease;
 }
 
 .badge-progress-pct {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #96264f;
+  color: #FF85BB;
   min-width: 28px;
   text-align: right;
 }
 
 .badge-status {
   margin: 0;
-  color: #6e4a58;
+  color: #021A54;
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -697,8 +683,8 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(60, 10, 30, 0.45);
-  backdrop-filter: blur(3px);
+  background: rgba(2, 26, 84, 0.2);
+  backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -707,12 +693,14 @@ onMounted(() => {
 
 .modal-card {
   position: relative;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 20px;
   padding: 32px 28px 24px;
   max-width: 420px;
   width: 100%;
-  box-shadow: 0 24px 60px rgba(100, 10, 40, 0.22);
+  box-shadow: 0 24px 60px rgba(2, 26, 84, 0.15);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -723,7 +711,7 @@ onMounted(() => {
   position: absolute;
   top: 14px;
   right: 14px;
-  background: #f5f0f2;
+  background: rgba(255, 255, 255, 0.6);
   border: none;
   border-radius: 8px;
   width: 32px;
@@ -732,12 +720,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #7a4a58;
+  color: #021A54;
   transition: background 0.15s;
 }
 
 .modal-close:hover {
-  background: #f0dce5;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .modal-icon {
@@ -756,26 +744,26 @@ onMounted(() => {
 }
 
 .pill-unlocked {
-  background: #d4f0e0;
-  color: #1a6e3d;
+  background: #FFCEE3;
+  color: #021A54;
 }
 
 .pill-locked {
-  background: #f5e8ed;
-  color: #8a3050;
+  background: rgba(2, 26, 84, 0.1);
+  color: rgba(2, 26, 84, 0.6);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.25rem;
-  color: #3e1828;
+  color: #021A54;
   text-align: center;
 }
 
 .modal-desc {
   margin: 0;
   font-size: 0.9rem;
-  color: #7a5060;
+  color: rgba(2, 26, 84, 0.7);
   text-align: center;
   max-width: 320px;
   line-height: 1.5;
@@ -801,18 +789,18 @@ onMounted(() => {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #9e7080;
+  color: rgba(2, 26, 84, 0.6);
   font-weight: 700;
 }
 
 .modal-stat-value {
   font-size: 1.1rem;
-  color: #5d1838;
+  color: #021A54;
   font-weight: 800;
 }
 
 .modal-stat-value.need {
-  color: #c0254f;
+  color: #FF85BB;
 }
 
 .modal-progress-wrap {
@@ -826,30 +814,30 @@ onMounted(() => {
   flex: 1;
   height: 10px;
   border-radius: 999px;
-  background: #f2e3e9;
+  background: rgba(255, 206, 227, 0.5);
   overflow: hidden;
 }
 
 .modal-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #d91c5c, #8f1c46);
+  background: #FF85BB;
   transition: width 400ms ease;
 }
 
 .modal-progress-pct {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #96264f;
+  color: #FF85BB;
   min-width: 36px;
 }
 
 .modal-tip {
   margin: 0;
   font-size: 0.85rem;
-  color: #7a5060;
-  background: #f5f5f7;
-  border: 1px solid #f2d4e0;
+  color: rgba(2, 26, 84, 0.7);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 10px;
   padding: 10px 14px;
   width: 100%;
