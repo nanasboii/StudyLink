@@ -55,7 +55,7 @@
             <p class="form-tip">Tip: Use the tutor's matric number from the Tutor page.</p>
 
             <div class="form-group">
-              <label for="tutorId">Tutor Matric Number <span class="required">*</span></label>
+              <label for="tutorId">Booking ID <span class="required">*</span></label>
               <input 
                 id="tutorId"
                 v-model="booking.tutorId" 
@@ -190,8 +190,35 @@
               >
                 Mark Complete
               </button>
+
+              <div v-if="showReviewForm" class="review-inline">
+                <p style="font-weight:600; margin-bottom:8px;">Rate this session</p>
+                <div class="star-row">
+                  <button
+                    v-for="star in 5"
+                    :key="star"
+                    type="button"
+                    class="star-btn"
+                    :class="{ active: star <= reviewRating }"
+                    @click="reviewRating = star"
+                  >★</button>
+                </div>
+                <textarea
+                  v-model="reviewComment"
+                  placeholder="Leave a comment (optional)"
+                  rows="3"
+                  style="width:100%; margin-top:10px; padding:8px; border-radius:8px; border:1px solid #ccc; resize:vertical;"
+                ></textarea>
+                <div class="modal-actions" style="margin-top:10px;">
+                  <button @click="submitSessionReview" class="btn-approve" type="button" :disabled="reviewSubmitting">
+                    {{ reviewSubmitting ? 'Submitting...' : 'Submit Review' }}
+                  </button>
+                  <button @click="cancelReview" class="btn-close" type="button">Cancel</button>
+                </div>
+              </div>
+
               <button 
-                v-if="(userRole === 'tutor' || userRole === 'tutee') && (selectedSession.status === 'completed' || selectedSession.status === 'accepted')"
+                v-else-if="(userRole === 'tutor' || userRole === 'tutee') && selectedSession.status === 'completed'"
                 @click="goToReview"
                 class="btn-review"
                 type="button"
@@ -319,8 +346,43 @@ const completeSession = async () => {
   }
 }
 
+const showReviewForm = ref(false)
+const reviewRating = ref(0)
+const reviewComment = ref('')
+const reviewSubmitting = ref(false)
+
 const goToReview = () => {
-  router.push({ name: 'Review', params: { resourceId: selectedSession.value.id } })
+  showReviewForm.value = true
+}
+
+const submitSessionReview = async () => {
+  if (!reviewRating.value || reviewRating.value < 1 || reviewRating.value > 5) {
+    message.value = 'Please select a rating between 1 and 5.'
+    return
+  }
+  reviewSubmitting.value = true
+  try {
+    await api(`/bookings/${selectedSession.value.id}/review`, 'POST', {
+      rating: reviewRating.value,
+      comment: reviewComment.value || '',
+    })
+    message.value = 'Review submitted! Thank you.'
+    showReviewForm.value = false
+    reviewRating.value = 0
+    reviewComment.value = ''
+    selectedSession.value = null
+    await loadSessions()
+  } catch (err) {
+    message.value = `Error: ${err.message}`
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
+const cancelReview = () => {
+  showReviewForm.value = false
+  reviewRating.value = 0
+  reviewComment.value = ''
 }
 
 const loadSessions = async () => {
@@ -748,6 +810,37 @@ select:focus {
 
 .btn-close:hover {
   background: rgba(255, 255, 255, 0.9);
+}
+
+.review-inline {
+  padding: 12px;
+  background: rgba(255,248,251,0.8);
+  border-radius: 12px;
+  border: 1px solid rgba(164,24,71,0.15);
+  margin-top: 10px;
+}
+
+.star-row {
+  display: flex;
+  gap: 6px;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #ddd;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.star-btn.active {
+  color: #c8922a;
+}
+
+.star-btn:hover {
+  color: #e0a030;
 }
 
 @media (max-width: 700px) {
