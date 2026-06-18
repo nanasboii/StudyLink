@@ -28,21 +28,30 @@ export async function getPushPermission() {
 }
 
 export async function subscribeToPush() {
-  if (!(await isPushSupported())) throw new Error('Push not supported in this browser.')
+  if (!(await isPushSupported())) {
+    throw new Error('Push notifications are not supported in this browser.')
+  }
 
   const permission = await Notification.requestPermission()
-  if (permission !== 'granted') throw new Error('Notification permission denied.')
+  if (permission === 'denied') {
+    throw new Error('Notification permission was denied. Please allow notifications in your browser settings.')
+  }
+  if (permission !== 'granted') {
+    throw new Error('Notification permission was not granted.')
+  }
 
   const reg = await navigator.serviceWorker.ready
 
-  // Clear any stale subscription first (VAPID keys may have changed on server restart)
-  const existingSub = await reg.pushManager.getSubscription()
-  if (existingSub) {
-    await existingSub.unsubscribe().catch(() => {})
+  // Unsubscribe from any stale subscription first (handles VAPID key rotation)
+  try {
+    const existingSub = await reg.pushManager.getSubscription()
+    if (existingSub) await existingSub.unsubscribe()
+  } catch {
+    // Ignore cleanup errors
   }
 
   const { publicKey } = await api('/push/vapid-public-key')
-  
+
   let subscription
   try {
     subscription = await reg.pushManager.subscribe({
@@ -50,8 +59,14 @@ export async function subscribeToPush() {
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     })
   } catch (err) {
-    // If subscribe still fails (e.g. browser permission state issue), give a clear message
-    throw new Error('Could not register with push service. Try refreshing and enabling notifications again.')
+    // Brave browser blocks push via its privacy shield
+    if (err?.name === 'NotAllowedError') {
+      throw new Error('Push notifications blocked by browser. In Brave: click the Brave shield icon → disable "Block fingerprinting" for this site.')
+    }
+    if (err?.name === 'AbortError' || err?.message?.includes('push service')) {
+      throw new Error('Push service unreachable. This can happen in Brave browser — try Chrome or Firefox for push notifications.')
+    }
+    throw new Error(`Push subscription failed: ${err?.message || 'Unknown error'}`)
   }
 
   await api('/push/subscribe', 'POST', subscription.toJSON())

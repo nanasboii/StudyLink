@@ -22,7 +22,13 @@
         <div class="settings-item">
           <div class="settings-item-info">
             <label>Push Notifications</label>
-            <p class="settings-hint">Receive browser notifications for messages, points and activity</p>
+            <p class="settings-hint">
+              Receive browser notifications for messages, points and activity.
+              <span v-if="pushError" style="color:#b11f4b; display:block; margin-top:4px; font-size:11px;">
+                {{ pushError }}
+              </span>
+              <span v-if="!pushSupported" style="color:#888; font-size:11px;">Not supported in this browser.</span>
+            </p>
           </div>
           <div class="settings-item-action">
             <button
@@ -139,8 +145,11 @@ const deleteForm = ref({ confirmEmail: '', password: '' })
 const message = ref('')
 const messageType = ref('success')
 
+const pushError = ref('')
+
 const togglePush = async () => {
   pushLoading.value = true
+  pushError.value = ''
   try {
     if (pushEnabled.value) {
       await unsubscribeFromPush()
@@ -153,7 +162,8 @@ const togglePush = async () => {
     }
     messageType.value = 'success'
   } catch (err) {
-    message.value = err.message || 'Failed to update push notifications.'
+    pushError.value = err.message || 'Failed to update push notifications.'
+    message.value = pushError.value
     messageType.value = 'error'
   } finally {
     pushLoading.value = false
