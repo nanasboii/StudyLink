@@ -77,13 +77,17 @@
         <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
 
         <div v-if="showFilters" class="filter-panel">
+          
           <div class="filter-section">
-            <div class="filter-header">
+            <button 
+              type="button" 
+              class="filter-header"
+              @click="expandedSections.rating = !expandedSections.rating"
+              :aria-expanded="expandedSections.rating"
+            >
               <h4>Star Rating</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.rating = !expandedSections.rating">
-                {{ expandedSections.rating ? '-' : '+' }}
-              </button>
-            </div>
+              <span class="expand-icon">{{ expandedSections.rating ? '−' : '+' }}</span>
+            </button>
             <div v-if="expandedSections.rating" class="filter-content">
               <div class="rating-slider-wrap">
                 <div
@@ -117,39 +121,60 @@
                 <div class="rating-markers" aria-hidden="true">
                   <span v-for="star in ratingSteps" :key="star">{{ star }} star</span>
                 </div>
-                <div class="rating-value">{{ ratingRangeLabel }}</div>
+                <div class="rating-value" :style="(filterMinRating !== 0 || filterMaxRating !== 5) ? 'color:#b11f4b;font-weight:600' : ''">
+                  {{ ratingRangeLabel }}
+                </div>
               </div>
             </div>
           </div>
 
           <div class="filter-section">
-            <div class="filter-header">
+            <button 
+              type="button" 
+              class="filter-header"
+              @click="expandedSections.type = !expandedSections.type"
+              :aria-expanded="expandedSections.type"
+            >
               <h4>Resource Type</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.type = !expandedSections.type">
-                {{ expandedSections.type ? '-' : '+' }}
-              </button>
-            </div>
+              <span class="expand-icon">{{ expandedSections.type ? '−' : '+' }}</span>
+            </button>
             <div v-if="expandedSections.type" class="filter-content">
-              <label v-for="rt in resourceTypeOptions" :key="rt.value" class="filter-checkbox">
-                <input 
-                  type="checkbox" 
-                  :checked="selectedTypes.includes(rt.value)"
-                  @change="toggleResourceType(rt.value)"
-                />
-                <span>{{ rt.label }}</span>
-              </label>
+              <div class="filter-pill-row" style="flex-wrap:wrap;">
+                <button
+                  v-for="rt in resourceTypeOptions"
+                  :key="rt.value"
+                  type="button"
+                  class="filter-pill"
+                  :class="{ active: selectedTypes.includes(rt.value) }"
+                  @click="toggleResourceType(rt.value)"
+                >
+                  {{ rt.label }}
+                </button>
+              </div>
             </div>
           </div>
 
           <div class="filter-section">
-            <div class="filter-header">
+            <button 
+              type="button" 
+              class="filter-header"
+              @click="expandedSections.course = !expandedSections.course"
+              :aria-expanded="expandedSections.course"
+            >
               <h4>Course Code</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.course = !expandedSections.course">
-                {{ expandedSections.course ? '-' : '+' }}
-              </button>
-            </div>
+              <span class="expand-icon">{{ expandedSections.course ? '−' : '+' }}</span>
+            </button>
             <div v-if="expandedSections.course" class="filter-content">
-              <select v-model="selectedCourseCode" class="filter-select">
+              <div v-if="courseOptions.length <= 8" class="filter-pill-row" style="flex-wrap:wrap;">
+                <button type="button" class="filter-pill" 
+                        :class="{ active: selectedCourseCode === '' }" 
+                        @click="selectedCourseCode = ''">All</button>
+                <button v-for="course in courseOptions" :key="course" 
+                        type="button" class="filter-pill"
+                        :class="{ active: selectedCourseCode === course }"
+                        @click="selectedCourseCode = course">{{ course }}</button>
+              </div>
+              <select v-else v-model="selectedCourseCode" class="filter-select">
                 <option value="">All courses</option>
                 <option v-for="course in courseOptions" :key="course" :value="course">{{ course }}</option>
               </select>
@@ -157,12 +182,15 @@
           </div>
 
           <div class="filter-section">
-            <div class="filter-header">
+            <button 
+              type="button" 
+              class="filter-header"
+              @click="expandedSections.access = !expandedSections.access"
+              :aria-expanded="expandedSections.access"
+            >
               <h4>Access Type</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.access = !expandedSections.access">
-                {{ expandedSections.access ? '-' : '+' }}
-              </button>
-            </div>
+              <span class="expand-icon">{{ expandedSections.access ? '−' : '+' }}</span>
+            </button>
             <div v-if="expandedSections.access" class="filter-content">
               <div class="filter-pill-row">
                 <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'all' }" @click="selectedAccessType = 'all'">All</button>
@@ -173,12 +201,15 @@
           </div>
 
           <div class="filter-section">
-            <div class="filter-header">
+            <button 
+              type="button" 
+              class="filter-header"
+              @click="expandedSections.sort = !expandedSections.sort"
+              :aria-expanded="expandedSections.sort"
+            >
               <h4>Sort By</h4>
-              <button type="button" class="expand-btn" @click="expandedSections.sort = !expandedSections.sort">
-                {{ expandedSections.sort ? '-' : '+' }}
-              </button>
-            </div>
+              <span class="expand-icon">{{ expandedSections.sort ? '−' : '+' }}</span>
+            </button>
             <div v-if="expandedSections.sort" class="filter-content">
               <select v-model="selectedSort" class="filter-select">
                 <option value="newest">Newest uploads</option>
@@ -1095,18 +1126,62 @@ onBeforeUnmount(() => {
 }
 
 .filter-section {
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.filter-section h4 {
-  margin: 0 0 12px 0;
+.filter-section:last-of-type {
+  border-bottom: none;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.filter-header h4 {
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: #1d1d1f;
+  flex: 1;
 }
 
-.filter-section:last-child {
-  margin-bottom: 0;
+.filter-header:hover h4 {
+  color: #b11f4b;
+}
+
+.expand-icon {
+  font-size: 18px;
+  color: #6e6e73;
+  line-height: 1;
+}
+
+.filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideDown 150ms ease;
+  margin-top: 12px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
 }
 
 .chip-row {
@@ -1116,10 +1191,8 @@ onBeforeUnmount(() => {
   margin-bottom: 20px;
   padding-top: 12px;
   padding-bottom: 12px;
-  
-  /* Sticky styling added here */
   position: sticky;
-  top: -20px; /* Aligns smoothly under the header/scroll container bounds */
+  top: -20px;
   z-index: 10;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
@@ -1504,95 +1577,6 @@ button.primary:disabled {
   }
 }
 
-.filter-section {
-  margin-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 12px;
-}
-
-.filter-section:last-child {
-  margin-bottom: 0;
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.filter-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  cursor: pointer;
-}
-
-.filter-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
-  flex: 1;
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: #6e6e73;
-  cursor: pointer;
-  padding: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 150ms ease;
-}
-
-.expand-btn:hover {
-  color: #b11f4b;
-}
-
-.filter-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: slideDown 150ms ease;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 500px;
-  }
-}
-
-.filter-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #6e6e73;
-  user-select: none;
-  transition: color 150ms ease;
-}
-
-.filter-checkbox:hover {
-  color: #1d1d1f;
-}
-
-.filter-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: #b11f4b;
-  border: 2px solid #d1dadf;
-  border-radius: 4px;
-}
-
 .rating-slider-wrap {
   display: flex;
   flex-direction: column;
@@ -1717,8 +1701,7 @@ button.primary:disabled {
 
 .rating-value {
   font-size: 12px;
-  color: #b11f4b;
-  font-weight: 600;
+  color: #6e6e73;
   text-align: center;
 }
 
@@ -1770,20 +1753,21 @@ button.primary:disabled {
 
 .filter-action-row {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 10px;
-  margin-top: 12px;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .filter-reset-btn {
-  border: 1px solid #d9d9dd;
-  background: #fff;
-  color: #6e6e73;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font-size: 14px;
+  border-radius: 9999px;
+  padding: 12px;
   font-weight: 600;
+  font-size: 14px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: 1px solid #e0e0e0;
   cursor: pointer;
+  transition: all 150ms ease;
 }
 
 .filter-apply-btn {
@@ -1791,14 +1775,11 @@ button.primary:disabled {
   color: white;
   border: none;
   padding: 12px 16px;
-  border-radius: 8px;
+  border-radius: 9999px;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  margin-top: 12px;
   transition: all 150ms ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .filter-apply-btn:hover {
@@ -1919,8 +1900,7 @@ button.primary:disabled {
 }
 
 .suggested-card:hover,
-.resource-card:hover,
-.filter-apply-btn:hover {
+.resource-card:hover {
   transform: none;
   box-shadow: none;
 }
@@ -1945,13 +1925,6 @@ button.primary:disabled {
 .rating-slider::-moz-range-thumb {
   background: #b11f4b;
   box-shadow: none;
-}
-
-.filter-apply-btn {
-  border-radius: 9999px;
-  text-transform: none;
-  letter-spacing: normal;
-  background: #b11f4b;
 }
 
 .filter-reset-btn:hover,
