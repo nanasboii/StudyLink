@@ -6,7 +6,6 @@
         <div class="resource-detail-header">
           <div>
             <p class="resource-detail-kicker">Learning Resource</p>
-            <h2>{{ resource?.title || 'Resource Detail' }}</h2>
           </div>
           <button @click="goBack" class="chip" type="button">{{ backButtonLabel }}</button>
         </div>
@@ -18,50 +17,12 @@
         <section v-if="resource" class="card resource-detail-card">
           <div class="resource-detail-cover">
             <span class="resource-type-tag">{{ resourceTypeLabel }}</span>
+            <h2 class="resource-cover-title">{{ resource.title || 'Resource Detail' }}</h2>
             <p class="resource-contributor">Uploaded by {{ resource.contributor_name || '-' }}</p>
           </div>
 
           <div class="resource-detail-main">
-            <div class="resource-detail-meta-grid">
-              <div class="resource-meta-box">
-                <span>Course</span>
-                <strong>{{ resource.course_code || 'General' }}</strong>
-              </div>
-              <div class="resource-meta-box">
-                <span>Average Rating</span>
-                <strong>
-                  <span style="color:#f0b300; letter-spacing:1px; margin-right: 4px;">
-                    {{ renderStars(resource.avg_rating) }}
-                  </span>
-                  {{ Number(resource.avg_rating || 0).toFixed(1) }}
-                </strong>
-              </div>
-              <div class="resource-meta-box">
-                <span>Total Reviews</span>
-                <strong>{{ resource.review_count || resource.rating_count || 0 }}</strong>
-              </div>
-              <div class="resource-meta-box">
-                <span>Published</span>
-                <strong>{{ formatDateValue(resource.created_at, '-') }}</strong>
-              </div>
-            </div>
-
-            <p v-if="resource.description" class="resource-description">
-              {{ resource.description }}
-            </p>
-
-            <div class="resource-source-row">
-              <p class="resource-source-line">Source: {{ sourceLabel }}</p>
-              <button
-                v-if="resource.file_url && resource.file_url.startsWith('http')"
-                class="chip"
-                type="button"
-                @click="copyLink"
-                aria-label="Copy resource link"
-              >Copy Link</button>
-            </div>
-
-            <div class="resource-action-row">
+            <div class="resource-action-bar">
               <button 
                 @click="openResource" 
                 :disabled="!canOpenResource" 
@@ -78,9 +39,41 @@
                 class="chip" 
                 type="button"
               >
-                Download
+                ↓ Download
+              </button>
+              <button
+                v-if="resource.file_url"
+                class="chip"
+                type="button"
+                @click="copyLink"
+                aria-label="Copy resource link"
+              >
+                Copy Link
               </button>
             </div>
+
+            <div class="resource-detail-meta-grid">
+              <div class="resource-meta-box">
+                <span>Course</span>
+                <strong>{{ resource.course_code || 'General' }}</strong>
+              </div>
+              <div class="resource-meta-box">
+                <span>Published</span>
+                <strong>{{ formatDateValue(resource.created_at, '-') }}</strong>
+              </div>
+            </div>
+
+            <div class="resource-file-chip" v-if="!fileMissing && resource.file_url">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="none" stroke="currentColor" stroke-width="2"/>
+                <polyline points="14,2 14,8 20,8" fill="none" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              <span>{{ resource.metadata?.originalName || resource.metadata?.fileName || resource.file_url.split('/').pop() || 'View file' }}</span>
+            </div>
+
+            <p v-if="resource.description" class="resource-description">
+              {{ resource.description }}
+            </p>
             
             <p v-if="fileMissing" class="message message-error" role="alert">
               This resource file is missing from server storage and cannot be opened.
@@ -98,7 +91,7 @@
 
         <template v-if="resource">
           <section class="card resource-rating-card">
-            <h3>Rate This Resource</h3>
+            <h3>Leave a Review</h3>
             <form @submit.prevent="submitReview" class="stack">
               <div class="detail-star-rating-wrap">
                 <p class="detail-rating-label">Your rating</p>
@@ -123,8 +116,11 @@
                 <p class="meta">{{ ratingHint }}</p>
               </div>
               
-              <label>Comment (optional)
-                <textarea v-model="comment" rows="3" placeholder="Share what was useful about this resource"></textarea>
+              <label>Your thoughts (optional)
+                <textarea v-model="comment" rows="3" maxlength="500" placeholder="What was helpful? Would you recommend it?"></textarea>
+                <span class="meta" style="text-align:right;display:block;">
+                  {{ comment.length }}/500
+                </span>
               </label>
               
               <button class="primary" type="submit" :disabled="isSubmittingReview">
@@ -146,6 +142,14 @@
               </h3>
               <button @click="loadComments" class="chip" type="button">Refresh</button>
             </div>
+
+            <div class="rating-summary" v-if="resource.review_count || resource.rating_count">
+              <span class="rating-big">{{ Number(resource.avg_rating || 0).toFixed(1) }}</span>
+              <div>
+                <span style="color:#f0b300; font-size:1.1rem;">{{ renderStars(resource.avg_rating) }}</span>
+                <p class="meta" style="margin:0;">{{ resource.review_count || resource.rating_count || 0 }} review{{ (resource.review_count || resource.rating_count) !== 1 ? 's' : '' }}</p>
+              </div>
+            </div>
             
             <div class="resource-comments-list">
               <div v-if="isLoadingComments" class="resource-empty">Loading comments...</div>
@@ -153,10 +157,15 @@
               
               <article v-else v-for="review in reviews" :key="review.id" class="resource-comment">
                 <div class="resource-comment-head">
-                  <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="reviewer-avatar">{{ (review.reviewer_name || 'U')[0].toUpperCase() }}</div>
+                    <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
+                  </div>
                   <p class="resource-comment-date">{{ formatDateValue(review.created_at, '-') }}</p>
                 </div>
-                <p class="resource-comment-rating">{{ renderStars(review.rating) }} ({{ Number(review.rating || 0).toFixed(1) }})</p>
+                <p class="resource-comment-rating" style="color:#f0b300; margin: 4px 0;">
+                  {{ renderStars(review.rating) }}
+                </p>
                 <p class="resource-comment-body">{{ review.comment || 'No comment provided.' }}</p>
               </article>
             </div>
@@ -197,8 +206,8 @@ const comment = ref('');
 const resourceDetailMessage = ref('');
 const resourceReviewMessage = ref('');
 const isLoadingComments = ref(true);
-const isLoadingResource = ref(true); // Added missing state
-const isSubmittingReview = ref(false); // Added for double-submission guard
+const isLoadingResource = ref(true);
+const isSubmittingReview = ref(false);
 
 // Computed Properties for UI
 const ratingHint = computed(() => {
@@ -344,7 +353,6 @@ const loadResource = async () => {
     }
     resource.value = data.resource;
     
-    // IMPROVEMENT 4: Update document title
     document.title = `${data.resource.title} — StudyLink`;
     resourceDetailMessage.value = '';
   } catch (error) {
@@ -369,7 +377,6 @@ const loadComments = async () => {
   } catch (error) {
     reviews.value = [];
     if (error?.message && !String(error.message).toLowerCase().includes('not found')) {
-      // Ensure we don't clobber the primary resource error if it exists
       if (!resourceDetailMessage.value) {
         resourceDetailMessage.value = error.message;
       }
@@ -380,7 +387,7 @@ const loadComments = async () => {
 };
 
 const submitReview = async () => {
-  if (isSubmittingReview.value) return; // Guard against double-clicks
+  if (isSubmittingReview.value) return;
   
   const rating = Number(selectedRating.value || 0);
   const commentText = String(comment.value || '').trim();
@@ -405,15 +412,12 @@ const submitReview = async () => {
     resourceReviewMessage.value = 'Rating submitted successfully.';
     if(typeof showToast === 'function') showToast('Thanks for your feedback.', true);
     
-    // Reset Form
     selectedRating.value = 0;
     previewRating.value = 0;
     comment.value = '';
     
-    // Refresh Data
     await Promise.all([loadResource(), loadComments()]);
     
-    // Clear message after a bit
     setTimeout(() => { resourceReviewMessage.value = ''; }, 3000);
     
   } catch (error) {
@@ -436,7 +440,6 @@ const openResource = () => {
     return;
   }
 
-  // BUG 3 Fix: Check file_url instead of id so it catches missing URLs properly
   if (!resource.value.file_url) {
     resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
     return;
@@ -512,16 +515,13 @@ const goBack = () => {
   router.replace(backPath.value);
 };
 
-// Lifecycle
 onMounted(() => {
   requireSession();
   
-  // IMPROVEMENT 8: Scroll to top of view on mount
   const viewEl = document.querySelector('.view');
   if (viewEl) viewEl.scrollTop = 0;
 
   if (resourceId.value) {
-    // BUG 7 Fix: Added empty catch to handle uncaught Promise rejections safely
     Promise.all([loadResource(), loadComments()]).catch(() => {});
   } else {
     resourceDetailMessage.value = 'No resource ID provided in the URL.';
@@ -530,7 +530,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // IMPROVEMENT 4 Cleanup: Reset document title when leaving
   document.title = 'StudyLink';
 });
 </script>
@@ -568,6 +567,62 @@ onUnmounted(() => {
   color: #fff;
   display: grid;
   gap: 8px;
+}
+
+.resource-cover-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.resource-action-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 12px;
+}
+
+.resource-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-soft-alt);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.rating-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.rating-big {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.reviewer-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-soft-strong);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .resource-type-tag {
@@ -633,25 +688,6 @@ onUnmounted(() => {
   background: var(--surface-soft-alt);
   border-radius: 8px;
   border-left: 3px solid var(--primary-soft-strong);
-}
-
-.resource-source-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.resource-source-line {
-  margin: 0;
-  color: var(--ink-soft);
-  overflow-wrap: anywhere;
-}
-
-.resource-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .detail-star-rating-wrap {
@@ -739,8 +775,7 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.resource-comment-date,
-.resource-comment-rating {
+.resource-comment-date {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.86rem;
@@ -765,7 +800,7 @@ onUnmounted(() => {
     align-items: center;
   }
 
-  .resource-action-row .chip {
+  .resource-action-bar .chip {
     width: 100%;
   }
 }
