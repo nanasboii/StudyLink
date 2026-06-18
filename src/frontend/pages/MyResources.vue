@@ -680,6 +680,8 @@ onBeforeUnmount(() => {
 .resource-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  /* Standard property for compatibility */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   white-space: normal;

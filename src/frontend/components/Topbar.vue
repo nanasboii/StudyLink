@@ -1,7 +1,7 @@
 ﻿<template>
   <header class="topbar">
     <div class="topbar-left">
-      <router-link to="/resources" class="brand-link">
+      <router-link :to="homeRoute" class="brand-link">
         <span class="brand-title">StudyLink</span>
         <span class="brand-role-suffix">{{ brandRoleLabel }}</span>
       </router-link>
@@ -119,8 +119,16 @@
   <div v-if="isUserMenuOpen" class="modal-overlay" @click="isUserMenuOpen = false">
     <div class="user-menu" @click.stop>
       <div class="user-menu-header">
-        <h3>{{ currentUser?.fullName }}</h3>
-        <p class="user-role">{{ currentUser?.role }}</p>
+        <div class="user-menu-identity">
+          <div class="user-menu-avatar">
+            <img v-if="topbarProfilePicture" :src="topbarProfilePicture" :alt="currentUser?.fullName" />
+            <span v-else>{{ (currentUser?.fullName || 'U')[0].toUpperCase() }}</span>
+          </div>
+          <div>
+            <h3>{{ currentUser?.fullName }}</h3>
+            <p class="user-role">{{ currentUser?.role }}</p>
+          </div>
+        </div>
       </div>
       <div class="user-menu-divider"></div>
       <router-link to="/profile" class="menu-item" @click="isUserMenuOpen = false">
@@ -156,21 +164,6 @@
       <router-link v-if="currentUser?.role === 'tutor' || currentUser?.role === 'admin'" to="/verification" class="menu-item" @click="isUserMenuOpen = false">
         Verification
       </router-link>
-      <template v-if="isAdmin">
-        <div class="user-menu-divider"></div>
-        <router-link to="/resources" class="menu-item" @click="isUserMenuOpen = false">
-          Resources
-        </router-link>
-        <router-link to="/my-resources" class="menu-item" @click="isUserMenuOpen = false">
-          My Uploads
-        </router-link>
-        <router-link to="/tutors" class="menu-item" @click="isUserMenuOpen = false">
-          Tutors
-        </router-link>
-        <router-link to="/session" class="menu-item" @click="isUserMenuOpen = false">
-          Sessions
-        </router-link>
-      </template>
       <div class="user-menu-divider"></div>
       <button @click="logout" class="menu-item logout-item">
         Logout
@@ -337,8 +330,8 @@ export default {
     }
 
     const goHome = async () => {
-      if (router.currentRoute.value.path !== homeRoute) {
-        await router.push(homeRoute)
+      if (router.currentRoute.value.path !== homeRoute.value) {
+        await router.push(homeRoute.value)
       }
     }
 
@@ -390,7 +383,6 @@ export default {
     }
 
     const showStreakModalAuto = async () => {
-      // Auto-show on login
       await showStreakModal()
     }
 
@@ -428,7 +420,7 @@ export default {
       try {
         const resp = await api('/notifications?filter=unread')
         const notifications = Array.isArray(resp.notifications) ? resp.notifications : []
-        unreadCount.value = notifications.filter((item) => !Boolean(item.is_read ?? item.isRead)).length
+        unreadCount.value = notifications.filter((item) => !(item.is_read ?? item.isRead)).length
       } catch (err) {
         console.debug('Failed to load notifications (this is normal if endpoint not yet available):', err.message)
       }
@@ -478,10 +470,26 @@ export default {
     }
 
     const logout = () => {
+      stopNotificationPolling()
       clearSession()
       sessionStorage.removeItem('hasSeenStreakModal')
       router.push('/login')
     }
+
+    const handleGlobalKeydown = (e) => {
+      if (e.key === 'Escape') {
+        isStreakModalOpen.value = false
+        isUserMenuOpen.value = false
+      }
+    }
+
+    watch(
+      () => router.currentRoute.value.path,
+      () => {
+        isUserMenuOpen.value = false
+        isStreakModalOpen.value = false
+      }
+    )
 
     onMounted(async () => {
       window.addEventListener('studylink-session-changed', syncCurrentUser)
@@ -489,11 +497,11 @@ export default {
       window.addEventListener('storage', syncCurrentUser)
       window.addEventListener('studylink-notifications-changed', loadUnreadNotifications)
       window.addEventListener('focus', refreshNotificationsOnFocus)
+      window.addEventListener('keydown', handleGlobalKeydown)
 
       if (currentUser.value) {
         streakCount.value = currentUser.value.login_streak || 0
 
-        // Auto-open the streak modal once after a fresh login.
         if (sessionStorage.getItem('studylinkShowStreakAfterLogin') === '1') {
           sessionStorage.removeItem('studylinkShowStreakAfterLogin')
           await showStreakModal()
@@ -524,12 +532,14 @@ export default {
       window.removeEventListener('storage', syncCurrentUser)
       window.removeEventListener('studylink-notifications-changed', loadUnreadNotifications)
       window.removeEventListener('focus', refreshNotificationsOnFocus)
+      window.removeEventListener('keydown', handleGlobalKeydown)
       stopNotificationPolling()
     })
 
     return {
       currentUser,
       isAdmin,
+      homeRoute,
       streakCount,
       unreadCount,
       messageUnreadCount,
@@ -649,7 +659,7 @@ export default {
 .nav-link.router-link-active::after {
   content: '';
   position: absolute;
-  bottom: -10px;
+  bottom: -4px;
   left: 0;
   right: 0;
   height: 1px;
@@ -727,8 +737,8 @@ export default {
 }
 
 .profile-btn {
-  border: 0;
-  background: transparent;
+  border: 1px solid #e0e0e0;
+  background: #f5f5f7;
   width: 34px;
   height: 34px;
   padding: 0;
@@ -751,8 +761,8 @@ export default {
   border-radius: 9999px;
   background: #f5f5f7;
   color: #6e6e73;
-  border: 1px solid #e0e0e0;
-  padding: 6px;
+  border: none;
+  padding: 5px;
 }
 
 .streak-btn:hover svg,
@@ -1039,6 +1049,34 @@ export default {
 .user-menu-header {
   padding: 12px 16px;
   border-bottom: 1px solid #f5f5f5;
+}
+
+.user-menu-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-menu-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f5f5f7;
+  border: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #b11f4b;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.user-menu-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-menu-header h3 {
