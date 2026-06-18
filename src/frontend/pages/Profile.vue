@@ -85,10 +85,27 @@
           <label class="field-label">Major</label>
           <input v-model="profileData.major" :disabled="!isEditing" />
         </div>
+        
         <div class="profile-field">
           <label class="field-label">Bio</label>
           <textarea v-model="profileData.bio" :disabled="!isEditing" rows="4"></textarea>
         </div>
+
+        <div class="profile-field">
+          <label class="field-label">Year of Study</label>
+          <input v-model.number="profileData.yearOfStudy" type="number" min="1" max="7" :disabled="!isEditing" />
+        </div>
+
+        <div class="profile-field" v-if="profileData.role === 'tutee'">
+          <label class="field-label">Target Subjects <span class="field-hint">(comma-separated, e.g. Database, Java)</span></label>
+          <input v-model="profileData.targetSubjects" :disabled="!isEditing" placeholder="e.g. Database, Algorithms" />
+        </div>
+
+        <div class="profile-field" v-if="profileData.role === 'tutor'">
+          <label class="field-label">Expertise <span class="field-hint">(comma-separated, e.g. Java, SQL)</span></label>
+          <input v-model="expertiseInput" :disabled="!isEditing" placeholder="e.g. Java, SQL, Computer Graphics" />
+        </div>
+
         <div v-if="isEditing" class="edit-actions">
           <button class="primary" type="submit">Save Changes</button>
         </div>
@@ -130,6 +147,13 @@ const clearPendingAvatarPreview = () => {
   pendingAvatarPreview.value = ''
   pendingAvatarServerUrl.value = ''
 }
+
+const expertiseInput = computed({
+  get: () => (profileData.value.expertise || []).join(', '),
+  set: (val) => {
+    profileData.value.expertise = val.split(',').map(s => s.trim()).filter(Boolean)
+  }
+})
 
 const waitForImageAvailability = async (rawUrl, attempts = 12, delayMs = 250) => {
   const src = normalizeAssetUrl(rawUrl)
@@ -201,6 +225,9 @@ const saveProfile = async () => {
       fullName: profileData.value.fullName,
       phoneNumber: profileData.value.phoneNumber,
       major: profileData.value.major,
+      yearOfStudy: profileData.value.yearOfStudy || null,
+      targetSubjects: profileData.value.targetSubjects || null,
+      expertise: Array.isArray(profileData.value.expertise) ? profileData.value.expertise : [],
       bio: profileData.value.bio,
     }
     const resp = await api('/me/profile', 'PUT', payload)
@@ -212,6 +239,7 @@ const saveProfile = async () => {
     if (token && resp.user) setSession(token, resp.user)
     message.value = 'Profile updated!'
     isEditing.value = false
+    window.dispatchEvent(new Event('studylink-profile-updated'))
   } catch (err) {
     message.value = `Error: ${err.message}`
   }

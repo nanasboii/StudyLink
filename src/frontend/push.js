@@ -35,11 +35,24 @@ export async function subscribeToPush() {
 
   const reg = await navigator.serviceWorker.ready
 
+  // Clear any stale subscription first (VAPID keys may have changed on server restart)
+  const existingSub = await reg.pushManager.getSubscription()
+  if (existingSub) {
+    await existingSub.unsubscribe().catch(() => {})
+  }
+
   const { publicKey } = await api('/push/vapid-public-key')
-  const subscription = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  })
+  
+  let subscription
+  try {
+    subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    })
+  } catch (err) {
+    // If subscribe still fails (e.g. browser permission state issue), give a clear message
+    throw new Error('Could not register with push service. Try refreshing and enabling notifications again.')
+  }
 
   await api('/push/subscribe', 'POST', subscription.toJSON())
   localStorage.setItem('pushSubscribed', '1')

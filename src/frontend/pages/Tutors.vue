@@ -544,12 +544,13 @@ onMounted(() => {
       const resp = await api('/tutors/recommended')
       recommendedTutors.value = resp.tutors || []
       matchedSubjectTokens.value = resp.matchedOn || []
-      hasTargetSubjects.value = resp.matchedOn?.length > 0
+      hasTargetSubjects.value = (resp.matchedOn?.length ?? 0) > 0
     } catch {
-      // Non-critical — fail silently
       recommendedTutors.value = []
+      hasTargetSubjects.value = false
     }
   }
+  loadRecommended()
 })
 
 onUnmounted(() => {
