@@ -705,7 +705,9 @@ async function getUserPointStats(client, userId) {
   const availablePoints = Number(row.total_points || 0);
   const earnedPointsFromLog = Number(row.earned_points || 0);
   const spentPoints = Number(row.spent_points || 0);
-  const lifetimePoints = Math.max(earnedPointsFromLog, availablePoints + spentPoints, availablePoints);
+  const lifetimePoints = earnedPointsFromLog > 0
+    ? earnedPointsFromLog
+    : Math.max(availablePoints + spentPoints, availablePoints);
 
   return {
     availablePoints,
@@ -844,6 +846,7 @@ async function awardPoints(client, userId, points, reason) {
     if (text.includes('uploaded resource')) return 'resource_upload';
     if (text.includes('verification')) return 'tutor_verification';
     if (text.includes('rated a resource')) return 'resource_review';
+    if (text.includes('session review') || text.includes('tutoring session review')) return 'booking_review';
     if (text.includes('leaderboard')) return 'leaderboard_rank';
     if (text.includes('booking') || text.includes('session')) return 'booking_progress';
     if (text.includes('login') || text.includes('streak')) return 'login_streak';
@@ -2660,10 +2663,11 @@ app.post('/bookings/:id/complete', requireAuth, requireRole('tutor'), async (req
     const booking = rows[0];
 
     await awardPoints(client, req.auth.user.id, 20, 'Completed tutoring session');
+    await awardPoints(client, booking.tutee_id, 10, 'Attended a tutoring session');
     await createNotification(
       client,
       booking.tutee_id,
-      `Tutoring session #${booking.id} is marked complete. Please leave a review.`
+      `Tutoring session #${booking.id} is marked complete. You earned 10 points! Please leave a review.`
     );
 
     await client.query('COMMIT');
