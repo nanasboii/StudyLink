@@ -2934,7 +2934,10 @@ app.post(
         const userId = req.auth?.user?.id || 'unknown';
         const extension = path.extname(req.file.originalname || '').toLowerCase();
         const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-        const fileName = `resource-${userId}-${unique}${extension}`;
+        const safeName = `resource-${userId}-${unique}${extension}`
+          .replace(/[^a-zA-Z0-9._-]/g, '-')  // sanitize any bad characters
+          .replace(/-+/g, '-');               // collapse multiple dashes
+        const fileName = safeName;
 
         const { error: uploadError } = await supabase.storage
           .from('resources')
