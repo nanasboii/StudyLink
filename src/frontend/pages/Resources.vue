@@ -37,10 +37,18 @@
                 <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
               </svg>
             </button>
-            <button class="icon-chip" type="button" aria-label="Open filters" @click="showFilters = !showFilters" title="Toggle filters">
+            <button 
+              class="icon-chip" 
+              type="button" 
+              aria-label="Open filters" 
+              @click="showFilters = !showFilters" 
+              title="Toggle filters"
+              :style="hasActiveFilters ? 'color:#b11f4b; position:relative' : ''"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
               </svg>
+              <span v-if="hasActiveFilters" style="position:absolute;top:2px;right:2px;width:7px;height:7px;background:#b11f4b;border-radius:50%;border:1.5px solid #fff"></span>
             </button>
           </div>
           <div class="action-row">
@@ -48,12 +56,9 @@
           </div>
         </div>
 
-        <!-- Filter Panel Backdrop -->
         <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
 
-        <!-- Filter Panel (Shopee Style) -->
         <div v-if="showFilters" class="filter-panel">
-          <!-- Star Rating Slider -->
           <div class="filter-section">
             <div class="filter-header">
               <h4>Star Rating</h4>
@@ -99,7 +104,6 @@
             </div>
           </div>
 
-          <!-- Resource Type Checkbox -->
           <div class="filter-section">
             <div class="filter-header">
               <h4>Resource Type</h4>
@@ -119,7 +123,6 @@
             </div>
           </div>
 
-          <!-- Course Code -->
           <div class="filter-section">
             <div class="filter-header">
               <h4>Course Code</h4>
@@ -135,7 +138,6 @@
             </div>
           </div>
 
-          <!-- Access Type -->
           <div class="filter-section">
             <div class="filter-header">
               <h4>Access Type</h4>
@@ -152,7 +154,6 @@
             </div>
           </div>
 
-          <!-- Sort -->
           <div class="filter-section">
             <div class="filter-header">
               <h4>Sort By</h4>
@@ -170,14 +171,12 @@
             </div>
           </div>
 
-          <!-- Apply Button -->
           <div class="filter-action-row">
             <button class="filter-reset-btn" type="button" @click="resetFilters">Reset</button>
             <button class="filter-apply-btn" type="button" @click="applyFilters">Apply</button>
           </div>
         </div>
 
-        <!-- Resource Type Chips (Quick Filter) -->
         <div class="chip-row" id="typeChips">
           <button 
             v-for="resourceType in quickFilterTypes" 
@@ -190,7 +189,6 @@
           </button>
         </div>
 
-        <!-- Suggested Resources -->
         <section class="suggested-section">
           <div class="search-row compact">
             <h3>Suggested for You</h3>
@@ -223,7 +221,6 @@
           </div>
         </section>
 
-        <!-- Main Resources List -->
         <section class="resources-section">
           <div class="search-row compact">
             <h3>Newly Uploaded</h3>
@@ -232,8 +229,12 @@
             </p>
           </div>
           <div id="resourceList" class="resources-list">
+            <div v-if="loadError" class="empty-state" style="color:#b11f4b;">
+              {{ loadError }}
+              <button class="chip" style="margin-top:10px" @click="loadResources">Retry</button>
+            </div>
             <div v-if="isLoading" class="loading">Loading resources...</div>
-            <div v-else-if="filteredResources.length === 0" class="empty-state">
+            <div v-else-if="filteredResources.length === 0 && !loadError" class="empty-state">
               No resources found. Try another filter, or upload your first resource.
             </div>
             <button 
@@ -265,8 +266,7 @@
           </button>
         </section>
 
-        <!-- Upload Modal -->
-        <div v-if="showUploadModal" class="modal-backdrop" @click="showUploadModal = false">
+        <div v-if="showUploadModal" class="modal-backdrop" @click="!isUploading && (showUploadModal = false)">
           <div class="modal-content" @click.stop>
             <button class="modal-close" @click="showUploadModal = false">x</button>
             <h3>Upload Resource</h3>
@@ -294,13 +294,19 @@
                 Description
                 <textarea v-model="uploadForm.description" rows="3" placeholder="What's this resource about?"></textarea>
               </label>
-              <label>
-                Upload File (optional)
+              <label v-if="uploadForm.resourceType !== 'link'">
+                Upload File <span v-if="uploadForm.resourceType !== 'link'">(required if no link)</span>
                 <input ref="fileInputRef" type="file" @change="onUploadFileChange" />
               </label>
+
               <label>
-                Resource Link (optional)
-                <input v-model="uploadForm.resourceLink" placeholder="https://example.com/resource" />
+                Resource Link
+                <span v-if="uploadForm.resourceType === 'link'" class="field-required">*</span>
+                <span v-else class="field-optional">(optional)</span>
+                <input
+                  v-model="uploadForm.resourceLink"
+                  :placeholder="uploadForm.resourceType === 'link' ? 'https://example.com/resource' : 'https://example.com (optional)'"
+                />
               </label>
               <button class="primary" type="submit" :disabled="isUploading">
                 {{ isUploading ? 'Uploading...' : 'Upload' }}
@@ -325,6 +331,7 @@ const currentUser = getUser()
 
 const resources = ref([])
 const isLoading = ref(true)
+const loadError = ref('')
 const searchQuery = ref('')
 const selectedTypes = ref([])
 const selectedCourseCode = ref('')
@@ -451,10 +458,30 @@ const firstName = computed(() => {
   return name.split(/\s+/)[0] || 'there'
 })
 
-const suggestedResources = computed(() => resources.value.slice(0, 5))
+const suggestedResources = computed(() => {
+  return [...resources.value]
+    .sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0))
+    .slice(0, 8)
+})
+
 const totalResources = computed(() => resources.value.length)
 const topPickCount = computed(() => resources.value.filter(r => r.avg_rating >= 4).length)
-const latestCount = computed(() => resources.value.slice(0, 5).length)
+
+const latestCount = computed(() => {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+  return resources.value.filter(r => new Date(r.created_at).getTime() > cutoff).length
+})
+
+const hasActiveFilters = computed(() =>
+  selectedTypes.value.length > 0 ||
+  selectedCourseCode.value !== '' ||
+  selectedAccessType.value !== 'all' ||
+  selectedSort.value !== 'newest' ||
+  filterMinRating.value !== 0 ||
+  filterMaxRating.value !== 5 ||
+  searchQuery.value.trim() !== ''
+)
+
 const ratingRangeLabel = computed(() => {
   if (filterMinRating.value === 0 && filterMaxRating.value === 5) {
     return 'Any rating from unrated to 5 stars'
@@ -544,11 +571,13 @@ const debouncedSearch = (() => {
 const loadResources = async () => {
   try {
     isLoading.value = true
+    loadError.value = ''
     const data = await api('/resources')
     resources.value = data.resources || []
     await nextTick()
     startSuggestedCarousel()
   } catch (error) {
+    loadError.value = error?.message || 'Failed to load resources.'
     console.error('Failed to load resources:', error)
   } finally {
     isLoading.value = false
@@ -633,6 +662,7 @@ const resetFilters = () => {
   selectedSort.value = 'newest'
   filterMinRating.value = 0
   filterMaxRating.value = 5
+  searchQuery.value = ''
   visibleCount.value = pageSize
 }
 
@@ -653,13 +683,24 @@ const handleUpload = async () => {
   }
 
   const trimmedLink = String(uploadForm.value.resourceLink || '').trim()
-  if (!selectedUploadFile.value && !trimmedLink) {
-    uploadMessage.value = 'Upload a file or paste a resource link'
+
+  if (uploadForm.value.resourceType === 'link') {
+    if (!trimmedLink) {
+      uploadMessage.value = 'Please paste a link for link-type resources.'
+      uploadMessageType.value = 'error'
+      return
+    }
+    try {
+      const url = new URL(trimmedLink)
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error()
+    } catch {
+      uploadMessage.value = 'Please enter a valid URL starting with http:// or https://'
+      uploadMessageType.value = 'error'
+      return
+    }
+  } else if (!selectedUploadFile.value && !trimmedLink) {
+    uploadMessage.value = 'Upload a file or paste a resource link.'
     uploadMessageType.value = 'error'
-    console.warn('[HANDLEUPLOAD] Validation failed: no file and no link', { 
-      selectedUploadFile: Boolean(selectedUploadFile.value),
-      trimmedLink: Boolean(trimmedLink)
-    })
     return
   }
 
@@ -804,10 +845,7 @@ const startSuggestedCarousel = () => {
 
 onMounted(() => {
   const viewEl = document.querySelector('.view')
-  const topbar = document.querySelector('.topbar')
-  if (viewEl) {
-    viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
-  }
+  if (viewEl) viewEl.scrollTop = 0
   loadResources()
 })
 
