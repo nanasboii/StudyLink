@@ -1,9 +1,9 @@
 <template>
-  <main class="view page active admin-resources-page">
+  <main class="page-bg">
     <section class="phone-shell">
-      <div class="admin-resources-content">
+      <div class="view page active admin-resources-page">
 
-        <div class="card page-header">
+        <div class="page-header">
           <div>
             <p class="page-kicker">Admin · Content</p>
             <h2>Resource Management</h2>
@@ -14,26 +14,26 @@
           </button>
         </div>
 
-        <div class="card summary-bar" v-if="!isLoading && allResources.length">
-          <div class="summary-stat">
+        <div class="summary-bar" v-if="!isLoading && allResources.length">
+          <div class="summary-stat card">
             <span class="summary-value">{{ allResources.length }}</span>
             <span class="summary-label">Total</span>
           </div>
-          <div class="summary-stat">
+          <div class="summary-stat card">
             <span class="summary-value">{{ uniqueUploaders }}</span>
             <span class="summary-label">Uploaders</span>
           </div>
-          <div class="summary-stat">
+          <div class="summary-stat card">
             <span class="summary-value">{{ uniqueCourses }}</span>
             <span class="summary-label">Courses</span>
           </div>
-          <div class="summary-stat">
+          <div class="summary-stat card">
             <span class="summary-value">{{ todayCount }}</span>
             <span class="summary-label">Today</span>
           </div>
         </div>
 
-        <div class="card toolbar-row">
+        <div class="toolbar-row">
           <div class="search-wrap">
             <span class="search-icon">🔍</span>
             <input
@@ -54,7 +54,7 @@
             <option value="miscellaneous">Miscellaneous</option>
           </select>
           <span class="result-count" v-if="!isLoading">
-            {{ filteredResources.length }} of {{ allResources.length }}
+            {{ filteredResources.length }} of {{ allResources.length }} resource{{ allResources.length !== 1 ? 's' : '' }}
           </span>
         </div>
 
@@ -75,7 +75,7 @@
             </div>
           </template>
 
-          <div v-else-if="filteredResources.length === 0" class="card empty-state">
+          <div v-else-if="filteredResources.length === 0" class="empty-state card">
             <p class="empty-icon">📁</p>
             <p>No resources found.</p>
           </div>
@@ -121,6 +121,7 @@
                 class="chip chip-danger" 
                 type="button" 
                 @click="confirmDelete(resource)" 
+                style="margin-left: auto;"
               >
                 Delete 🗑️
               </button>
@@ -211,7 +212,7 @@ const adminMessage = ref('')
 const messageType = ref('success')
 const isLoading = ref(true)
 
-let messageTimer = null
+let messageTimer = null 
 
 const titleInputRef = ref(null)
 
@@ -403,37 +404,26 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.admin-resources-page {
-  max-width: 1024px;
-  margin: 0 auto;
-  padding: 20px;
-}
+.admin-resources-page { padding-bottom: 3rem; }
 
-.admin-resources-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* Glass Card 🪟 */
+/* ── Global Card Style ── */
 .card {
   border: 2px solid #021A54;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 32px rgba(2, 26, 84, 0.05);
-  padding: 20px;
 }
 
 /* ── Header ── */
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 1rem;
+  padding: 2rem 2rem 1.25rem;
   flex-wrap: wrap;
 }
-
 .page-kicker {
   font-size: 0.8rem;
   font-weight: 800;
@@ -442,21 +432,19 @@ onBeforeUnmount(() => {
   color: #FF85BB;
   margin: 0 0 4px;
 }
-
-.page-header h2 {
-  font-size: clamp(1.6rem, 2.5vw, 2.2rem);
-  margin: 0 0 4px;
-  color: #021A54;
+.page-header h2 { 
+  font-size: clamp(1.6rem, 2.5vw, 2.2rem); 
+  margin: 0 0 4px; 
+  color: #021A54; 
+}
+.page-subtext { 
+  font-size: 0.95rem; 
+  color: rgba(2, 26, 84, 0.7); 
+  font-weight: 600; 
+  margin: 0; 
 }
 
-.page-subtext {
-  font-size: 0.95rem;
-  color: rgba(2, 26, 84, 0.7);
-  font-weight: 600;
-  margin: 0;
-}
-
-/* Chips / Buttons */
+/* ── Buttons / Chips ── */
 .chip {
   text-decoration: none;
   font-size: 0.85rem;
@@ -470,19 +458,16 @@ onBeforeUnmount(() => {
   justify-content: center;
   transition: transform 100ms, box-shadow 150ms;
 }
-
 .chip:active { transform: scale(0.96); }
 
 .chip-strong {
   background: #FF85BB;
   color: #021A54;
 }
-
 .chip-soft {
   background: #F5F5F5;
   color: #021A54;
 }
-
 .chip-danger {
   background: #FFCEE3 !important;
   color: #021A54 !important;
@@ -491,34 +476,36 @@ onBeforeUnmount(() => {
 /* ── Summary Bar ── */
 .summary-bar {
   display: flex;
-  gap: 24px;
+  gap: 1rem;
   flex-wrap: wrap;
+  padding: 0 2rem 1.25rem;
 }
-
 .summary-stat {
+  flex: 1 1 80px;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  padding: 0.75rem 1rem;
 }
-
-.summary-value {
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: #021A54;
-  line-height: 1.2;
+.summary-value { 
+  font-size: 1.6rem; 
+  font-weight: 800; 
+  color: #021A54; 
+  line-height: 1.2; 
 }
-
-.summary-label {
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #FF85BB;
+.summary-label { 
+  font-size: 0.75rem; 
+  font-weight: 800; 
+  text-transform: uppercase; 
+  color: #FF85BB; 
 }
 
 /* ── Toolbar ── */
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
+  padding: 0 2rem 1.25rem;
   flex-wrap: wrap;
 }
 
@@ -528,7 +515,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   border: 2px solid #021A54;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #F5F5F5;
   padding: 0 14px;
 }
@@ -542,13 +529,13 @@ onBeforeUnmount(() => {
   width: 100%;
   color: #021A54;
   font-weight: 600;
+  outline: none;
 }
-.search-input:focus { outline: none; }
 
 .filter-select {
   padding: 10px 14px;
   border: 2px solid #021A54;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #F5F5F5;
   color: #021A54;
   font-weight: 700;
@@ -565,7 +552,7 @@ onBeforeUnmount(() => {
 
 /* ── Feedback ── */
 .feedback-msg {
-  margin: 0;
+  margin: 0 2rem 1rem;
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 0.95rem;
@@ -584,10 +571,11 @@ onBeforeUnmount(() => {
 /* ── Empty state ── */
 .empty-state {
   text-align: center;
-  padding: 32px;
+  padding: 3rem 2rem;
   color: #021A54;
   font-weight: 800;
   font-size: 1.1rem;
+  margin: 0 2rem 2rem;
 }
 .empty-icon { font-size: 2.5rem; margin: 0 0 10px; }
 
@@ -595,15 +583,22 @@ onBeforeUnmount(() => {
 .resource-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0.75rem;
+  padding: 0 2rem 2rem;
 }
 
 .resource-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  transition: transform 150ms ease, box-shadow 150ms ease;
   flex-wrap: wrap;
+}
+.resource-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(2, 26, 84, 0.1);
 }
 
 .resource-card-main { flex: 1; min-width: 0; }
@@ -612,8 +607,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
 }
 
 .type-pill {
@@ -667,7 +662,7 @@ onBeforeUnmount(() => {
 .resource-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   flex-wrap: wrap;
   flex-shrink: 0;
 }
@@ -780,20 +775,39 @@ onBeforeUnmount(() => {
 }
 
 /* ── Responsive ── */
-@media (max-width: 640px) {
-  .page-header { flex-direction: column; align-items: flex-start; }
-  .resource-card { flex-direction: column; align-items: stretch; }
-  .resource-card-actions { justify-content: flex-end; }
+@media (max-width: 600px) {
+  .page-header, .toolbar-row, .resource-list, .summary-bar { padding-left: 1rem; padding-right: 1rem; }
+  .feedback-msg { margin-left: 1rem; margin-right: 1rem; }
+  .resource-card { flex-direction: column; }
+  .resource-card-actions { width: 100%; justify-content: flex-end; }
+  .date-text { margin-left: 0; }
+
+  .search-wrap {
+    min-width: 0;
+    width: 100%;
+  }
   
-  .search-wrap { min-width: 100%; }
-  .filter-select { width: 100%; }
+  .filter-select {
+    width: 100%;
+  }
+
+  .result-count {
+    width: 100%;
+  }
+
+  .modal-card {
+    padding: 1.2rem;
+  }
 }
 
 @media (max-width: 420px) {
-  .resource-card-actions { justify-content: stretch; }
-  .resource-card-actions .chip { flex: 1 1 100%; justify-content: center; }
-  
-  .modal-actions { flex-direction: column; }
-  .modal-actions .chip { width: 100%; justify-content: center; }
+  .resource-card-actions {
+    justify-content: stretch;
+  }
+
+  .resource-card-actions .chip {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 </style>
