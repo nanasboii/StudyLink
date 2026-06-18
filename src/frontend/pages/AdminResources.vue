@@ -1,20 +1,20 @@
 <template>
-  <main class="page-bg">
+  <main class="view page active admin-resources-page">
     <section class="phone-shell">
-      <div class="view page active admin-resources-page">
+      <div class="admin-resources-content">
 
-        <div class="page-header">
+        <div class="card page-header">
           <div>
             <p class="page-kicker">Admin · Content</p>
             <h2>Resource Management</h2>
             <p class="page-subtext">View, edit and remove uploaded resources.</p>
           </div>
-          <button @click="loadResources" class="chip" type="button" :disabled="isLoading">
-            {{ isLoading ? 'Loading…' : 'Refresh' }}
+          <button @click="loadResources" class="chip chip-strong" type="button" :disabled="isLoading">
+            {{ isLoading ? 'Loading…' : 'Refresh 🔄' }}
           </button>
         </div>
 
-        <div class="summary-bar" v-if="!isLoading && allResources.length">
+        <div class="card summary-bar" v-if="!isLoading && allResources.length">
           <div class="summary-stat">
             <span class="summary-value">{{ allResources.length }}</span>
             <span class="summary-label">Total</span>
@@ -33,12 +33,16 @@
           </div>
         </div>
 
-        <div class="toolbar-row">
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Search by title, uploader or course…"
-          />
+        <div class="card toolbar-row">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="Search by title, uploader or course…"
+              class="search-input"
+            />
+          </div>
           <select v-model="filterType" class="filter-select" aria-label="Filter by type">
             <option value="">All types</option>
             <option value="pdf">PDF</option>
@@ -50,7 +54,7 @@
             <option value="miscellaneous">Miscellaneous</option>
           </select>
           <span class="result-count" v-if="!isLoading">
-            {{ filteredResources.length }} of {{ allResources.length }} resource{{ allResources.length !== 1 ? 's' : '' }}
+            {{ filteredResources.length }} of {{ allResources.length }}
           </span>
         </div>
 
@@ -59,7 +63,7 @@
         <div class="resource-list">
           
           <template v-if="isLoading">
-            <div v-for="n in 6" :key="n" class="resource-card skeleton-card">
+            <div v-for="n in 6" :key="n" class="resource-card card skeleton-card">
               <div class="resource-card-main">
                 <div class="skeleton-meta-row">
                   <div class="skeleton-pill"></div>
@@ -71,14 +75,17 @@
             </div>
           </template>
 
-          <div v-else-if="filteredResources.length === 0" class="empty-state">No resources found.</div>
+          <div v-else-if="filteredResources.length === 0" class="card empty-state">
+            <p class="empty-icon">📁</p>
+            <p>No resources found.</p>
+          </div>
 
           <article
             v-else
             v-for="resource in filteredResources"
             :key="resource.id"
             :id="`resource-card-${resource.id}`"
-            class="resource-card"
+            class="resource-card card"
           >
             <div class="resource-card-main">
               <div class="resource-meta-row">
@@ -90,7 +97,7 @@
               <h3 class="resource-title">{{ resource.title || 'Untitled Resource' }}</h3>
 
               <p class="uploader-line">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5z"/></svg>
+                <span class="uploader-icon">👤</span>
                 {{ resource.uploader_name || 'Unknown' }}
                 <span v-if="resource.uploader_email" class="uploader-email">({{ resource.uploader_email }})</span>
               </p>
@@ -100,32 +107,31 @@
               <router-link
                 :to="{ path: `/resources/${resource.id}`, query: { from: 'admin-resources' } }"
                 class="chip chip-soft"
-              >View</router-link>
+              >View 👀</router-link>
               <a
                 v-if="resource.link_url"
                 :href="resource.link_url"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="chip chip-soft"
-              >Link</a>
-              <button class="chip" type="button" @click="openEdit(resource)">Edit</button>
+              >Link 🔗</a>
+              <button class="chip chip-soft" type="button" @click="openEdit(resource)">Edit ✏️</button>
               
               <button 
                 class="chip chip-danger" 
                 type="button" 
                 @click="confirmDelete(resource)" 
-                style="margin-left: auto;"
               >
-                Delete
+                Delete 🗑️
               </button>
             </div>
           </article>
         </div>
 
         <div v-if="editTarget" class="modal-overlay" @click.self="closeEdit">
-          <div class="modal-card" role="dialog" aria-modal="true">
+          <div class="modal-card card" role="dialog" aria-modal="true">
             <div class="modal-header">
-              <h3>Edit Resource</h3>
+              <h3>Edit Resource ✏️</h3>
               <button class="close-btn" type="button" @click="closeEdit">&times;</button>
             </div>
             <form @submit.prevent="saveEdit" class="edit-form">
@@ -151,9 +157,9 @@
               </div>
               <p v-if="editMessage" class="feedback-msg error">{{ editMessage }}</p>
               <div class="modal-actions">
-                <button type="button" class="chip" @click="closeEdit">Cancel</button>
+                <button type="button" class="chip chip-soft" @click="closeEdit">Cancel</button>
                 <button type="submit" class="chip chip-strong" :disabled="isSaving">
-                  {{ isSaving ? 'Saving…' : 'Save Changes' }}
+                  {{ isSaving ? 'Saving…' : 'Save Changes ✅' }}
                 </button>
               </div>
             </form>
@@ -161,9 +167,9 @@
         </div>
 
         <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
-          <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-label="Delete resource">
+          <div class="modal-card card modal-card-sm" role="dialog" aria-modal="true" aria-label="Delete resource">
             <div class="modal-header">
-              <h3>Delete Resource</h3>
+              <h3>Delete Resource 🗑️</h3>
               <button class="close-btn" type="button" aria-label="Close" @click="cancelDelete">&times;</button>
             </div>
             <div class="delete-warning">
@@ -176,7 +182,7 @@
               </div>
             </div>
             <div class="modal-actions">
-              <button type="button" class="chip" @click="cancelDelete">Cancel</button>
+              <button type="button" class="chip chip-soft" @click="cancelDelete">Cancel</button>
               <button type="button" class="chip chip-danger" :disabled="isDeleting" @click="doDelete">
                 {{ isDeleting ? 'Deleting…' : 'Delete Resource' }}
               </button>
@@ -205,22 +211,19 @@ const adminMessage = ref('')
 const messageType = ref('success')
 const isLoading = ref(true)
 
-let messageTimer = null // BUG 6: Timer for auto-clearing messages
+let messageTimer = null
 
 const titleInputRef = ref(null)
 
-// Edit state
 const editTarget = ref(null)
 const editForm = ref({ title: '', resourceType: '', courseCode: '' })
 const editMessage = ref('')
 const isSaving = ref(false)
 
-// Delete state
 const deleteTarget = ref(null)
 const isDeleting = ref(false)
 const deepLinkHandled = ref(false)
 
-// IMPROVEMENT 1: Summary Bar Computed Props
 const uniqueUploaders = computed(() => new Set(allResources.value.map(r => r.uploader_email).filter(Boolean)).size)
 const uniqueCourses = computed(() => new Set(allResources.value.map(r => r.course_code).filter(Boolean)).size)
 const todayCount = computed(() => {
@@ -228,10 +231,8 @@ const todayCount = computed(() => {
   return allResources.value.filter(r => new Date(r.created_at).toDateString() === today).length
 })
 
-// BUG 4: Modal state tracker for keyboard shortcuts and scroll lock
 const anyModalOpen = computed(() => Boolean(editTarget.value || deleteTarget.value))
 
-// IMPROVEMENT 4: Human-readable type mapping
 const RESOURCE_TYPE_LABELS = {
   'past-year': 'Past Year Paper',
   'lecture-note': 'Lecture Note',
@@ -248,7 +249,6 @@ const resourceTypeLabel = (value) => {
   return RESOURCE_TYPE_LABELS[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Unknown')
 }
 
-// BUG 6 Fix: Auto-clearing messages
 const setAdminMessage = (text, type = 'success') => {
   adminMessage.value = text
   messageType.value = type
@@ -256,7 +256,6 @@ const setAdminMessage = (text, type = 'success') => {
   messageTimer = setTimeout(() => { adminMessage.value = '' }, 4000)
 }
 
-// BUG 7 Fix & IMPROVEMENT 2: Search now includes resource_type and filterType
 const filteredResources = computed(() => {
   let list = allResources.value
   if (filterType.value) {
@@ -295,7 +294,6 @@ const openEdit = (resource) => {
     courseCode: resource.course_code || '',
   }
   editMessage.value = ''
-  // BUG 5 Fix: Auto-focus the title input when modal opens
   nextTick(() => titleInputRef.value?.focus())
 }
 
@@ -304,7 +302,6 @@ const closeEdit = () => { editTarget.value = null }
 const saveEdit = async () => {
   const trimmedTitle = editForm.value.title.trim()
   
-  // BUG 2 Fix: Client-side guard against empty whitespace titles
   if (!trimmedTitle) {
     editMessage.value = 'Title cannot be empty.'
     return
@@ -319,7 +316,6 @@ const saveEdit = async () => {
       courseCode: editForm.value.courseCode.trim() || null,
     })
     
-    // Update local state instead of full reload
     const idx = allResources.value.findIndex(r => r.id === editTarget.value.id)
     if (idx !== -1) {
       allResources.value[idx] = {
@@ -330,7 +326,7 @@ const saveEdit = async () => {
       }
     }
     closeEdit()
-    setAdminMessage('Resource updated.', 'success')
+    setAdminMessage('Resource updated. ✅', 'success')
   } catch (err) {
     editMessage.value = `Error: ${err.message}`
   } finally {
@@ -349,11 +345,10 @@ const doDelete = async () => {
     const targetId = deleteTarget.value.id
     await api(`/resources/${targetId}`, 'DELETE')
     
-    // BUG 3 Fix: Local array removal prevents a full API reload and flashing
     allResources.value = allResources.value.filter(r => r.id !== targetId)
     
     cancelDelete()
-    setAdminMessage('Resource deleted.', 'success')
+    setAdminMessage('Resource deleted. 🗑️', 'success')
   } catch (error) {
     cancelDelete()
     setAdminMessage(error.message || 'Failed to delete resource.', 'error')
@@ -384,14 +379,12 @@ const handleDeepLinkedEdit = async () => {
   router.replace({ path: '/admin/resources' })
 }
 
-// BUG 4 Fix: Global Keydown handler for Escape to close modals
 const handleKeydown = (e) => {
   if (e.key !== 'Escape') return
   if (deleteTarget.value) cancelDelete()
   else if (editTarget.value) closeEdit()
 }
 
-// BUG 4 Fix: Body scroll lock to prevent scrolling background while modal is open
 watch(anyModalOpen, (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
 })
@@ -410,348 +403,397 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.admin-resources-page { padding-bottom: 3rem; }
+.admin-resources-page {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.admin-resources-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Glass Card 🪟 */
+.card {
+  border: 2px solid #021A54;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(2, 26, 84, 0.05);
+  padding: 20px;
+}
 
 /* ── Header ── */
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 2rem 2rem 1.25rem;
+  gap: 16px;
   flex-wrap: wrap;
 }
+
 .page-kicker {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 0.25rem;
+  color: #FF85BB;
+  margin: 0 0 4px;
 }
-.page-header h2 { font-size: clamp(1.4rem, 2.5vw, 2rem); margin: 0 0 0.25rem; }
-.page-subtext { font-size: 0.85rem; color: var(--glass-pink-muted); margin: 0; }
+
+.page-header h2 {
+  font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+  margin: 0 0 4px;
+  color: #021A54;
+}
+
+.page-subtext {
+  font-size: 0.95rem;
+  color: rgba(2, 26, 84, 0.7);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Chips / Buttons */
+.chip {
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 2px solid #021A54;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 100ms, box-shadow 150ms;
+}
+
+.chip:active { transform: scale(0.96); }
+
+.chip-strong {
+  background: #FF85BB;
+  color: #021A54;
+}
+
+.chip-soft {
+  background: #F5F5F5;
+  color: #021A54;
+}
+
+.chip-danger {
+  background: #FFCEE3 !important;
+  color: #021A54 !important;
+}
 
 /* ── Summary Bar ── */
 .summary-bar {
   display: flex;
-  gap: 1rem;
+  gap: 24px;
   flex-wrap: wrap;
-  padding: 0 2rem 1.25rem;
 }
+
 .summary-stat {
-  flex: 1 1 80px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0.75rem 1rem;
-  border-radius: 14px;
-  background: var(--glass-pink-surface-strong);
-  border: 1px solid var(--glass-pink-border);
 }
-.summary-value { font-size: 1.4rem; font-weight: 700; color: var(--ink); line-height: 1; }
-.summary-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--glass-pink-muted); }
+
+.summary-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #021A54;
+  line-height: 1.2;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #FF85BB;
+}
 
 /* ── Toolbar ── */
 .toolbar-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0 2rem 1.25rem;
+  gap: 12px;
   flex-wrap: wrap;
 }
-.toolbar-row input {
+
+.search-wrap {
   flex: 1;
   min-width: 200px;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--glass-pink-border);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.8);
-  font-size: 0.9rem;
-  color: var(--ink);
-  outline: none;
-  transition: border-color 150ms;
+  display: flex;
+  align-items: center;
+  border: 2px solid #021A54;
+  border-radius: 999px;
+  background: #F5F5F5;
+  padding: 0 14px;
 }
-.toolbar-row input:focus { border-color: var(--accent); }
+
+.search-icon { font-size: 1rem; }
+
+.search-input {
+  border: none;
+  background: transparent;
+  padding: 10px;
+  width: 100%;
+  color: #021A54;
+  font-weight: 600;
+}
+.search-input:focus { outline: none; }
 
 .filter-select {
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--glass-pink-border);
-  border-radius: 12px;
-  background: rgba(255,255,255,0.8);
-  font-size: 0.9rem;
-  color: var(--ink);
+  padding: 10px 14px;
+  border: 2px solid #021A54;
+  border-radius: 999px;
+  background: #F5F5F5;
+  color: #021A54;
+  font-weight: 700;
   outline: none;
-  min-width: 140px;
+  min-width: 150px;
 }
-.filter-select:focus { border-color: var(--accent); }
 
 .result-count {
-  font-size: 0.8rem;
-  color: var(--glass-pink-muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #021A54;
   white-space: nowrap;
 }
 
 /* ── Feedback ── */
 .feedback-msg {
-  margin: 0 2rem 1rem;
-  padding: 0.7rem 1rem;
-  border-radius: 10px;
-  font-size: 0.875rem;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  border: 2px solid #021A54;
 }
 .feedback-msg.success {
-  background: rgba(34,134,82,0.1);
-  border: 1px solid rgba(34,134,82,0.22);
-  color: #1b7a4a;
+  background: #FF85BB;
+  color: #021A54;
 }
 .feedback-msg.error {
-  background: rgba(191,47,69,0.08);
-  border: 1px solid rgba(191,47,69,0.2);
-  color: var(--danger);
+  background: #FFCEE3;
+  color: #021A54;
 }
 
 /* ── Empty state ── */
 .empty-state {
   text-align: center;
-  padding: 3rem 2rem;
-  color: var(--glass-pink-muted);
-  font-size: 0.9rem;
+  padding: 32px;
+  color: #021A54;
+  font-weight: 800;
+  font-size: 1.1rem;
 }
+.empty-icon { font-size: 2.5rem; margin: 0 0 10px; }
 
 /* ── Resource list ── */
 .resource-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0 2rem 2rem;
+  gap: 16px;
 }
+
 .resource-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem;
-  border-radius: 16px;
-  background: var(--glass-pink-surface-strong);
-  border: 1px solid var(--glass-pink-border);
-  box-shadow: 0 2px 12px rgba(74,20,41,0.06);
-  transition: box-shadow 150ms ease, transform 150ms ease;
+  gap: 16px;
   flex-wrap: wrap;
 }
-.resource-card:hover {
-  box-shadow: 0 6px 20px rgba(74,20,41,0.11);
-  transform: translateY(-1px);
+
+.resource-card-main { flex: 1; min-width: 0; }
+
+.resource-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.type-pill {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #FF85BB;
+  color: #021A54;
+  border: 2px solid #021A54;
+}
+
+.course-pill {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #F5F5F5;
+  color: #021A54;
+  border: 2px solid #021A54;
+}
+
+.date-text {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: rgba(2, 26, 84, 0.7);
+  margin-left: auto;
+}
+
+.resource-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: #021A54;
+  overflow-wrap: anywhere;
+}
+
+.uploader-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(2, 26, 84, 0.8);
+  margin: 0;
+}
+
+.uploader-email { opacity: 0.8; font-weight: 600; }
+
+.resource-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 /* Skeleton Loaders */
 .skeleton-card { pointer-events: none; }
 .skeleton-meta-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .skeleton-pill {
-  height: 20px; width: 60px; border-radius: 999px;
-  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  height: 24px; width: 70px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.4) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
-.skeleton-pill.narrow { width: 40px; }
+.skeleton-pill.narrow { width: 50px; }
 .skeleton-line {
-  height: 13px; border-radius: 6px; margin-bottom: 8px;
-  background: linear-gradient(90deg, #f0e6ea 25%, #e8d8de 50%, #f0e6ea 75%);
+  height: 16px; border-radius: 6px; margin-bottom: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.4) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
-.skeleton-line.title { width: 70%; height: 18px; }
-.skeleton-line.short { width: 40%; }
+.skeleton-line.title { width: 60%; height: 22px; }
+.skeleton-line.short { width: 35%; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-
-.resource-card-main { flex: 1; min-width: 0; }
-.resource-meta-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.4rem;
-}
-.type-pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(177,31,75,0.1);
-  color: var(--accent);
-}
-.course-pill {
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(74,20,41,0.07);
-  color: var(--glass-pink-muted);
-}
-.date-text {
-  font-size: 0.75rem;
-  color: var(--glass-pink-muted);
-  margin-left: auto;
-}
-.resource-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.45rem;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.uploader-line {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.82rem;
-  color: var(--glass-pink-muted);
-  margin: 0;
-}
-.uploader-line svg {
-  width: 13px; height: 13px;
-  fill: currentColor;
-  flex-shrink: 0;
-}
-.uploader-email { opacity: 0.75; }
-
-.resource-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-
-/* ── Danger chip ── */
-.chip-danger {
-  background: linear-gradient(180deg, rgba(255,255,255,0.74), rgba(255,255,255,0.3)),
-              linear-gradient(165deg, rgba(255,235,235,0.78), rgba(255,210,210,0.72)) !important;
-  color: var(--danger) !important;
-  border-color: rgba(191,47,69,0.25) !important;
-}
-.chip-danger:hover { border-color: rgba(191,47,69,0.5) !important; }
 
 /* ── Modals ── */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(47,35,44,0.45);
+  background: rgba(2, 26, 84, 0.3);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 1rem;
+  z-index: 1000;
+  padding: 16px;
 }
+
 .modal-card {
-  background: var(--glass-pink-surface-strong);
-  border: 1px solid var(--glass-pink-border);
-  border-radius: 20px;
-  box-shadow: var(--glass-shadow);
   width: 100%;
-  max-width: 480px;
-  padding: 1.75rem;
-  backdrop-filter: blur(20px);
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 24px;
 }
-.modal-card-sm { max-width: 360px; }
+.modal-card-sm { max-width: 400px; }
+
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  margin-bottom: 20px;
 }
-.modal-header h3 { margin: 0; font-size: 1.15rem; }
+.modal-header h3 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #021A54; }
+
 .close-btn {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  font-size: 1.5rem;
-  line-height: 1;
+  background: #F5F5F5 !important;
+  border: 2px solid #021A54 !important;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 800;
   cursor: pointer;
-  color: var(--glass-pink-muted);
-  padding: 0 4px;
+  color: #021A54;
+  padding: 4px 10px;
+  line-height: 1;
 }
-.close-btn:hover { color: var(--ink); transform: none !important; }
 
-.edit-form { display: flex; flex-direction: column; gap: 1rem; }
-.field { display: flex; flex-direction: column; gap: 0.35rem; }
+.edit-form { display: flex; flex-direction: column; gap: 16px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
 .field label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.85rem;
+  font-weight: 800;
   text-transform: uppercase;
-  color: var(--glass-pink-muted);
+  color: #FF85BB;
 }
-.field .optional { font-weight: 400; text-transform: none; font-size: 0.75rem; }
-.field input, .field select {
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--glass-pink-border);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.7);
-  font-size: 0.9rem;
-  color: var(--ink);
-  outline: none;
-  transition: border-color 150ms ease;
-}
-.field input:focus, .field select:focus { border-color: var(--accent); }
+.field .optional { font-weight: 600; text-transform: none; font-size: 0.75rem; color: rgba(2, 26, 84, 0.6); }
 
-/* Delete Warning Modal specific */
+.field input, .field select {
+  padding: 10px 14px;
+  border: 2px solid #021A54;
+  border-radius: 10px;
+  background: #F5F5F5;
+  font-size: 0.95rem;
+  color: #021A54;
+  font-weight: 600;
+  outline: none;
+}
+.field input:focus, .field select:focus {
+  background: #FFFFFF;
+}
+
 .delete-warning {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
-  padding: 12px;
-  background: rgba(191,47,69,0.08); /* var(--danger-bg) equivalent */
-  border-radius: 10px;
-  margin-bottom: 16px;
+  padding: 16px;
+  background: #FFCEE3;
+  border: 2px solid #021A54;
+  border-radius: 12px;
+  margin-bottom: 20px;
 }
-.delete-warning-icon { font-size: 1.4rem; flex-shrink: 0; }
-.confirm-text { font-size: 0.9rem; margin: 0 0 4px; font-weight: 600; color: var(--ink); }
-.confirm-subtext { margin: 0; font-size: 0.82rem; color: var(--danger); /* var(--danger-ink) equivalent */ }
+.delete-warning-icon { font-size: 1.6rem; }
+.confirm-text { font-size: 1rem; margin: 0 0 6px; font-weight: 800; color: #021A54; }
+.confirm-subtext { margin: 0; font-size: 0.85rem; font-weight: 600; color: rgba(2, 26, 84, 0.8); }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: 10px;
+  margin-top: 10px;
 }
 
-@media (max-width: 600px) {
-  .page-header, .toolbar-row, .resource-list, .summary-bar { padding-left: 1rem; padding-right: 1rem; }
-  .feedback-msg { margin-left: 1rem; margin-right: 1rem; }
-  .resource-card { flex-direction: column; }
-  .resource-card-actions { width: 100%; justify-content: flex-end; }
-  .date-text { margin-left: 0; }
-
-  .toolbar-row input {
-    min-width: 0;
-    width: 100%;
-  }
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .resource-card { flex-direction: column; align-items: stretch; }
+  .resource-card-actions { justify-content: flex-end; }
   
-  .filter-select {
-    width: 100%;
-  }
-
-  .result-count {
-    width: 100%;
-  }
-
-  .modal-card {
-    padding: 1.2rem;
-  }
+  .search-wrap { min-width: 100%; }
+  .filter-select { width: 100%; }
 }
 
 @media (max-width: 420px) {
-  .resource-card-actions {
-    justify-content: stretch;
-  }
-
-  .resource-card-actions .chip {
-    flex: 1 1 100%;
-    justify-content: center;
-  }
+  .resource-card-actions { justify-content: stretch; }
+  .resource-card-actions .chip { flex: 1 1 100%; justify-content: center; }
+  
+  .modal-actions { flex-direction: column; }
+  .modal-actions .chip { width: 100%; justify-content: center; }
 }
 </style>
