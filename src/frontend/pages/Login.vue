@@ -1,7 +1,8 @@
 ﻿<template>
   <div class="login-page-wrapper">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width:0; height:0;" aria-hidden="true" focusable="false">
+
+    <!-- SVG filter for background posterize effect -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;" aria-hidden="true" focusable="false">
       <filter id="posterize">
         <feColorMatrix type="saturate" values="1.12" />
         <feComponentTransfer>
@@ -14,23 +15,9 @@
     </svg>
 
     <main class="login-scene">
-      <div class="login-scene-art" aria-hidden="true">
-        <span class="scene-cloud scene-cloud-left"></span>
-        <span class="scene-cloud scene-cloud-right"></span>
-        <span class="scene-sun"></span>
-        <span class="scene-lake"></span>
-        <span class="scene-lake-glow"></span>
-        <span class="scene-hill scene-hill-left"></span>
-        <span class="scene-hill scene-hill-right"></span>
-        <span class="scene-campus scene-campus-left"></span>
-        <span class="scene-campus scene-campus-center"></span>
-        <span class="scene-tower"></span>
-        <span class="scene-bridge"></span>
-        <span class="scene-tree scene-tree-left"></span>
-        <span class="scene-tree scene-tree-right"></span>
-      </div>
 
-      <section class="login-brand" aria-label="UNIMAS sign in branding">
+      <!-- Brand -->
+      <section class="login-brand" aria-label="StudyLink sign in">
         <svg class="unimas-logo" viewBox="0 0 640 240" aria-hidden="true" role="img">
           <defs>
             <linearGradient id="unimasBlue" x1="0" y1="0" x2="0" y2="1">
@@ -42,7 +29,6 @@
               <stop offset="100%" stop-color="#f2a81f" />
             </linearGradient>
           </defs>
-
           <g transform="translate(8 18)">
             <path d="M133 26 98 0 63 26v14h70Z" fill="url(#unimasBlue)" />
             <path d="M98 10c-19 0-35 16-35 35 0 12 6 22 15 28l20 14 20-14c9-6 15-16 15-28 0-19-16-35-35-35Z" fill="#d92f3a" />
@@ -52,31 +38,48 @@
             <circle cx="142" cy="58" r="24" fill="none" stroke="#173d7a" stroke-width="1.5" opacity="0.8" />
             <circle cx="142" cy="58" r="32" fill="none" stroke="#173d7a" stroke-width="1.2" opacity="0.55" />
           </g>
-
-          <text x="18" y="160" fill="#214c8f" font-family="Josefin Sans, Trebuchet MS, sans-serif" font-size="86" font-weight="700" letter-spacing="0.5">UNIMAS</text>
-          <text x="20" y="198" fill="#214c8f" font-family="DM Sans, Segoe UI, sans-serif" font-size="28" font-weight="500" letter-spacing="0.9">UNIVERSITI MALAYSIA SARAWAK</text>
+          <text x="18" y="160" fill="#021A54" font-family="Josefin Sans, Trebuchet MS, sans-serif" font-size="86" font-weight="700" letter-spacing="0.5">UNIMAS</text>
+          <text x="20" y="198" fill="#021A54" font-family="DM Sans, Segoe UI, sans-serif" font-size="28" font-weight="500" letter-spacing="0.9">UNIVERSITI MALAYSIA SARAWAK</text>
         </svg>
         <span class="studylink-brand">StudyLink</span>
       </section>
 
+      <!-- Login Card -->
       <section class="login-card" aria-labelledby="loginTitle">
         <h2 id="loginTitle">Sign in to your account</h2>
-        
+
+        <!-- FIX: authMessage moved ABOVE form. User sees error before retrying. -->
+        <p v-if="authMessage" class="message" role="alert" aria-live="assertive">
+          {{ authMessage }}
+        </p>
+
         <form class="login-form" @submit.prevent="handleLogin" novalidate>
+
           <label class="field">
-            <span>Email *</span>
-            <input type="email" v-model="email" @blur="email = email.trim()" autocomplete="username" required />
+            <span>Email</span>
+            <!-- FIX: @blur trims whitespace (bypass attempt fix) -->
+            <input
+              type="email"
+              v-model="email"
+              @blur="email = email.trim()"
+              autocomplete="username"
+              required
+              :disabled="isLoading"
+            />
           </label>
 
           <label class="field">
-            <span>Password *</span>
+            <span>Password</span>
             <div class="password-row">
-              <input 
-                :type="isPasswordHidden ? 'password' : 'text'" 
-                v-model="password" 
-                :class="{ 'input-weak': password.length > 0 && password.length < 8 }"
-                autocomplete="current-password" 
-                required 
+              <!-- FIX: input-weak only shows after blur, not live typing -->
+              <input
+                :type="isPasswordHidden ? 'password' : 'text'"
+                v-model="password"
+                :class="{ 'input-weak': passwordTouched && password.length > 0 && password.length < 8 }"
+                @blur="passwordTouched = true"
+                autocomplete="current-password"
+                required
+                :disabled="isLoading"
               />
               <button
                 class="password-toggle"
@@ -97,11 +100,18 @@
           </label>
 
           <label class="remember-row">
-            <input type="checkbox" v-model="rememberMe" />
+            <input type="checkbox" v-model="rememberMe" :disabled="isLoading" />
             <span>Remember me</span>
           </label>
 
-          <button class="primary login-submit" type="submit" :disabled="isLoading">
+          <!-- FIX: aria-busy for screen readers during load -->
+          <button
+            class="login-submit"
+            type="submit"
+            :disabled="isLoading"
+            :aria-busy="isLoading"
+          >
+            <span v-if="isLoading" class="spinner" aria-hidden="true"></span>
             {{ isLoading ? 'Signing in…' : 'Sign In' }}
           </button>
         </form>
@@ -110,174 +120,113 @@
           <router-link class="alt-link" to="/register">No account? Register here!</router-link>
           <span class="alt-link muted">Forgot password? Contact your administrator.</span>
         </div>
-        
-        <p v-if="authMessage" class="message" role="alert" aria-live="polite">
-          {{ authMessage }}
-        </p>
       </section>
+
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { api, getToken, getUser, setSession } from '@/api.js'; 
-import { PAGES } from '@/routes.js';
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { api, getToken, getUser, setSession } from '@/api.js'
+import { PAGES } from '@/routes.js'
 
-const router = useRouter();
+const router = useRouter()
 
-// Form state
-const email = ref('');
-const password = ref('');
-const rememberMe = ref(true);
-const isPasswordHidden = ref(true);
-const authMessage = ref('');
-const isLoading = ref(false); // BUG 1: Explicitly tracked here
+// — Form state —
+const email           = ref('')
+const password        = ref('')
+const rememberMe      = ref(true)
+const isPasswordHidden = ref(true)
+const authMessage     = ref('')
+const isLoading       = ref(false)
+// FIX: track blur so input-weak doesn't fire immediately on focus
+const passwordTouched = ref(false)
 
-// Calendar state
-const currentMonth = ref(new Date());
-const loggedInDates = ref(new Set());
-const streakCount = ref(0);
+// — Constants —
+const REMEMBERED_EMAIL_KEY = 'studylinkRememberedEmail'
 
-// Constants
-const LOGIN_STREAK_STORAGE_KEY = 'studylinkLoginStreak';
-const REMEMBERED_EMAIL_KEY = 'studylinkRememberedEmail';
-
-// Initial Load
+// — Mount —
 onMounted(() => {
-  loadLoginStreak();
-  
-  if (getToken() && getUser()) {
-    const user = getUser()
-    router.push(user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources);
-  }
-
-  const rememberedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
-  if (rememberedEmail) {
-    email.value = rememberedEmail;
-    rememberMe.value = true;
-  }
-});
-
-// UI Logic
-const togglePassword = () => {
-  isPasswordHidden.value = !isPasswordHidden.value;
-};
-
-// Calendar logic
-const monthYear = computed(() => {
-  const options = { year: 'numeric', month: 'long' };
-  return currentMonth.value.toLocaleDateString('en-US', options);
-});
-
-const calendarDays = computed(() => {
-  const year = currentMonth.value.getFullYear();
-  const month = currentMonth.value.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startingDayOfWeek = firstDay.getDay();
-
-  const days = [];
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i);
-  }
-  return days;
-});
-
-const isLoggedInDay = (day) => {
-  if (!day) return false;
-  const year = currentMonth.value.getFullYear();
-  const month = currentMonth.value.getMonth();
-  const dateStr = `${year}-${month + 1}-${day}`;
-  return loggedInDates.value.has(dateStr);
-};
-
-const isToday = (day) => {
-  if (!day) return false;
-  const today = new Date();
-  return day === today.getDate() && 
-         currentMonth.value.getMonth() === today.getMonth() &&
-         currentMonth.value.getFullYear() === today.getFullYear();
-};
-
-const prevMonth = () => {
-  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1);
-};
-
-const nextMonth = () => {
-  currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1);
-};
-
-const loadLoginStreak = () => {
-  const streakData = sessionStorage.getItem(LOGIN_STREAK_STORAGE_KEY);
-  if (streakData) {
-    try {
-      const streak = JSON.parse(streakData);
-      streakCount.value = streak.count || 0;
-      if (streak.dates && Array.isArray(streak.dates)) {
-        loggedInDates.value = new Set(streak.dates);
-      }
-    } catch (err) {
-      console.error('Error parsing login streak:', err);
+  // FIX: guard against corrupt/missing token before redirecting
+  try {
+    if (getToken() && getUser()) {
+      const user = getUser()
+      router.push(user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources)
+      return
     }
+  } catch {
+    // bad stored session → stay on login
   }
-};
 
-// Submission Logic
+  const remembered = localStorage.getItem(REMEMBERED_EMAIL_KEY)
+  if (remembered) {
+    email.value = remembered
+    rememberMe.value = true
+  }
+})
+
+// — UI —
+const togglePassword = () => {
+  isPasswordHidden.value = !isPasswordHidden.value
+}
+
+// — Submit —
 const handleLogin = async () => {
-  if (isLoading.value) return; // BUG 1: Guard to prevent double click
-  
-  authMessage.value = '';
-  
-  const currentEmail = email.value.trim();
-  const currentPassword = password.value;
+  // FIX: double-submit guard
+  if (isLoading.value) return
 
-  // BUG 2: Strict client-side checks to save an API call
+  authMessage.value = ''
+
+  const currentEmail    = email.value.trim()
+  const currentPassword = password.value
+
+  // FIX: validate before any state mutation
   if (!currentEmail) {
-    authMessage.value = 'Please enter your email address.';
-    return;
+    authMessage.value = 'Please enter your email address.'
+    return
   }
   if (!currentPassword) {
-    authMessage.value = 'Please enter your password.';
-    return;
+    authMessage.value = 'Please enter your password.'
+    return
   }
 
-  isLoading.value = true;
+  isLoading.value = true
 
-  if (rememberMe.value && currentEmail) {
-    localStorage.setItem(REMEMBERED_EMAIL_KEY, currentEmail);
+  // FIX: persist remember-me BEFORE await (avoids race on slow network)
+  if (rememberMe.value) {
+    localStorage.setItem(REMEMBERED_EMAIL_KEY, currentEmail)
   } else {
-    localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+    localStorage.removeItem(REMEMBERED_EMAIL_KEY)
   }
 
   try {
     const result = await api('/auth/login', 'POST', {
       email: currentEmail,
       password: currentPassword
-    });
+    })
 
-    setSession(result.token, result.user);
+    // FIX: guard missing token/user in response
+    if (!result?.token || !result?.user) {
+      throw new Error('Invalid response from server. Please try again.')
+    }
 
-    // Flag so the Topbar opens the streak/login modal on the next page
-    sessionStorage.setItem('studylinkShowStreakAfterLogin', '1');
+    setSession(result.token, result.user)
+    sessionStorage.setItem('studylinkShowStreakAfterLogin', '1')
 
-    // Redirect on success
-    router.push(result.user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources);
+    router.push(result.user?.role === 'admin' ? PAGES.adminAnalytics : PAGES.resources)
   } catch (error) {
-    authMessage.value = error.message || 'An error occurred during login.';
+    authMessage.value = error?.message || 'An error occurred during login.'
   } finally {
-    // BUG 1: Guarantee the button loading state resets
-    isLoading.value = false;
+    // FIX: always reset loading — even on nav (router guards may abort)
+    isLoading.value = false
   }
-};
+}
 </script>
 
 <style scoped>
+/* ─── Wrapper & Background ──────────────────────────────────── */
 .login-page-wrapper {
   min-height: 100vh;
   width: 100vw;
@@ -285,7 +234,8 @@ const handleLogin = async () => {
   overflow: hidden;
   isolation: isolate;
   --login-bg-image: url('/assets/login-bg.jpg');
-  background: linear-gradient(180deg, #ffeef6 0%, #ffd6e8 38%, #ffc4de 100%);
+  /* FIX: use brand palette blush-to-primary gradient */
+  background: linear-gradient(180deg, #fff0f7 0%, #FFCEE3 42%, #ffb3d5 100%);
 }
 
 .login-page-wrapper::before,
@@ -300,7 +250,7 @@ const handleLogin = async () => {
 .login-page-wrapper::before {
   background-image:
     var(--login-bg-image),
-    linear-gradient(180deg, #ffeef6 0%, #ffd6e8 38%, #ffc4de 100%);
+    linear-gradient(180deg, #fff0f7 0%, #FFCEE3 42%, #ffb3d5 100%);
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
@@ -309,25 +259,14 @@ const handleLogin = async () => {
 
 .login-page-wrapper::after {
   background:
-    radial-gradient(110% 46% at 50% 2%, rgba(255, 214, 234, 0.42) 0%, rgba(255, 214, 234, 0.18) 40%, transparent 78%),
-    radial-gradient(130% 70% at 22% 12%, rgba(255, 236, 245, 0.3) 0%, transparent 62%),
-    radial-gradient(130% 70% at 82% 16%, rgba(255, 225, 239, 0.28) 0%, transparent 64%),
-    linear-gradient(180deg, rgba(255, 197, 224, 0.2) 0%, rgba(255, 190, 220, 0.12) 34%, rgba(255, 179, 209, 0.08) 58%, rgba(255, 170, 200, 0.05) 100%);
+    radial-gradient(110% 46% at 50% 2%, rgba(255, 206, 227, 0.45) 0%, rgba(255, 133, 187, 0.1) 50%, transparent 80%),
+    radial-gradient(130% 70% at 22% 12%, rgba(255, 240, 247, 0.3) 0%, transparent 60%),
+    radial-gradient(130% 70% at 82% 16%, rgba(255, 206, 227, 0.25) 0%, transparent 65%);
   mix-blend-mode: soft-light;
-  opacity: 0.84;
+  opacity: 0.9;
 }
 
-.login-page-wrapper .page-bg {
-  width: min(100%, 500px);
-  margin-top: 8px;
-  padding: 24px 28px 22px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(238, 244, 244, 0.68);
-  box-shadow: 0 22px 42px rgba(31, 50, 67, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.68);
-  backdrop-filter: blur(20px) saturate(1.05);
-}
-
+/* ─── Scene layout ──────────────────────────────────────────── */
 .login-scene {
   position: relative;
   width: 100vw;
@@ -337,266 +276,18 @@ const handleLogin = async () => {
   place-items: center;
   justify-items: center;
   align-content: center;
-  gap: clamp(10px, 2vh, 18px);
+  gap: clamp(10px, 2vh, 20px);
   overflow: hidden;
-  padding: clamp(18px, 4vh, 32px) 16px;
+  padding: clamp(18px, 4vh, 36px) 16px;
 }
 
-.login-scene-art {
-  display: none;
-}
-
-.login-scene-art::before,
-.login-scene-art::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.login-scene-art::before {
-  inset: auto 0 0;
-  height: 48%;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(246, 248, 255, 0.15) 18%, rgba(237, 246, 226, 0.42) 58%, rgba(140, 184, 148, 0.4) 100%),
-    radial-gradient(circle at 50% 92%, rgba(255, 255, 255, 0.38) 0 12%, transparent 13%),
-    linear-gradient(180deg, rgba(96, 124, 104, 0) 0 48%, rgba(90, 128, 98, 0.46) 48% 54%, rgba(53, 88, 73, 0.48) 54% 100%);
-  clip-path: polygon(0 56%, 6% 50%, 12% 53%, 18% 47%, 25% 50%, 32% 44%, 40% 48%, 48% 42%, 57% 47%, 65% 41%, 74% 46%, 81% 39%, 89% 44%, 100% 38%, 100% 100%, 0 100%);
-  opacity: 0.95;
-}
-
-.login-scene-art::after {
-  inset: auto 0 0;
-  height: 26%;
-  background:
-    radial-gradient(circle at 23% 66%, rgba(255, 255, 255, 0.4) 0 1.8%, transparent 1.9%),
-    radial-gradient(circle at 78% 64%, rgba(255, 255, 255, 0.34) 0 1.8%, transparent 1.9%),
-    linear-gradient(180deg, rgba(188, 225, 239, 0) 0%, rgba(185, 223, 233, 0.42) 24%, rgba(156, 203, 221, 0.7) 100%);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
-  filter: blur(2px);
-}
-
-.scene-cloud::before,
-.scene-cloud::after {
-  content: '';
-  position: absolute;
-  background: inherit;
-  border-radius: 50%;
-}
-
-.scene-cloud::before {
-  width: 56px;
-  height: 56px;
-  left: 18px;
-  top: -22px;
-}
-
-.scene-cloud::after {
-  width: 70px;
-  height: 70px;
-  right: 12px;
-  top: -28px;
-}
-
-.scene-cloud-left {
-  top: 96px;
-  left: 110px;
-  opacity: 0.68;
-}
-
-.scene-cloud-right {
-  top: 84px;
-  right: 260px;
-  width: 108px;
-  opacity: 0.52;
-}
-
-.scene-lake {
-  inset: auto 0 0;
-  height: 34%;
-  background:
-    linear-gradient(180deg, rgba(210, 235, 242, 0.68) 0%, rgba(164, 209, 228, 0.65) 28%, rgba(134, 187, 212, 0.75) 65%, rgba(121, 182, 210, 0.9) 100%);
-  opacity: 0.85;
-}
-
-.scene-lake::before,
-.scene-lake::after {
-  content: '';
-  position: absolute;
-  inset: 8% 0 auto;
-  height: 18px;
-  background: linear-gradient(90deg, transparent 0 16%, rgba(255, 255, 255, 0.24) 18%, transparent 20% 36%, rgba(255, 255, 255, 0.2) 39%, transparent 42% 60%, rgba(255, 255, 255, 0.18) 62%, transparent 64% 100%);
-  filter: blur(3px);
-}
-
-.scene-lake::after {
-  inset: 18% 0 auto;
-  opacity: 0.65;
-}
-
-.scene-lake-glow {
-  left: 50%;
-  bottom: 22%;
-  width: 420px;
-  height: 150px;
-  transform: translateX(-50%);
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.06) 42%, transparent 72%);
-  filter: blur(12px);
-}
-
-.scene-hill {
-  bottom: 23%;
-  width: 38%;
-  height: 16%;
-  background: linear-gradient(180deg, rgba(120, 162, 137, 0.38), rgba(73, 115, 88, 0.74));
-  clip-path: polygon(0 100%, 8% 82%, 20% 88%, 30% 76%, 44% 82%, 56% 68%, 70% 74%, 82% 60%, 100% 72%, 100% 100%);
-}
-
-.scene-hill-left {
-  left: -1%;
-  opacity: 0.72;
-}
-
-.scene-hill-right {
-  right: -1%;
-  width: 42%;
-  opacity: 0.68;
-  clip-path: polygon(0 72%, 14% 62%, 28% 72%, 40% 55%, 55% 65%, 70% 50%, 84% 57%, 100% 43%, 100% 100%, 0 100%);
-}
-
-.scene-campus {
-  bottom: 20%;
-  background: linear-gradient(180deg, #bed0d0 0%, #879fac 45%, #5d7586 100%);
-  box-shadow: 0 12px 30px rgba(48, 72, 78, 0.14);
-}
-
-.scene-campus::before,
-.scene-campus::after {
-  content: '';
-  position: absolute;
-  inset: auto 12% 10%;
-  height: 72%;
-  border-radius: 0 0 12px 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0 16%, rgba(255, 255, 255, 0.1) 16% 100%);
-}
-
-.scene-campus-left {
-  left: 14%;
-  width: 170px;
-  height: 138px;
-  clip-path: polygon(0 100%, 0 28%, 52% 18%, 100% 30%, 100% 100%);
-}
-
-.scene-campus-center {
-  left: 37%;
-  width: 198px;
-  height: 118px;
-  clip-path: polygon(0 100%, 0 34%, 50% 24%, 100% 36%, 100% 100%);
-}
-
-.scene-campus-center::before,
-.scene-campus-center::after,
-.scene-campus-left::before,
-.scene-campus-left::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0 12%, rgba(255, 255, 255, 0.12) 12% 100%);
-  opacity: 0.55;
-}
-
-.scene-tower {
-  left: 23%;
-  bottom: 31%;
-  width: 95px;
-  height: 150px;
-  background: linear-gradient(180deg, #d8d4c6 0%, #b0b1a7 45%, #77838b 100%);
-  clip-path: polygon(35% 0, 65% 0, 78% 18%, 78% 40%, 68% 56%, 82% 100%, 18% 100%, 32% 56%, 22% 40%, 22% 18%);
-  box-shadow: inset 0 0 0 8px rgba(255, 245, 209, 0.26);
-}
-
-.scene-tower::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -24px;
-  height: 48px;
-  background: linear-gradient(180deg, rgba(210, 177, 87, 0.95) 0%, rgba(242, 207, 136, 0.95) 52%, rgba(170, 139, 59, 0.85) 100%);
-  clip-path: polygon(0 100%, 20% 12%, 38% 0, 50% 10%, 62% 0, 80% 12%, 100% 100%);
-}
-
-.scene-bridge {
-  right: 10%;
-  bottom: 27%;
-  width: 240px;
-  height: 176px;
-  border-left: 4px solid rgba(116, 137, 157, 0.62);
-  border-right: 4px solid rgba(116, 137, 157, 0.62);
-  border-top: 4px solid transparent;
-}
-
-.scene-bridge::before,
-.scene-bridge::after {
-  content: '';
-  position: absolute;
-  top: -90px;
-  width: 6px;
-  height: 200px;
-  background: linear-gradient(180deg, rgba(110, 125, 143, 0.88), rgba(139, 152, 167, 0.4));
-  border-radius: 999px;
-}
-
-.scene-bridge::before {
-  left: 40%;
-}
-
-.scene-bridge::after {
-  left: 52%;
-}
-
-.scene-bridge {
-  background:
-    linear-gradient(180deg, transparent 0 42%, rgba(105, 133, 150, 0.55) 42% 44%, transparent 44% 100%),
-    radial-gradient(circle at 30% 44%, transparent 0 4px, rgba(113, 129, 146, 0.72) 4px 5px, transparent 5px 100%),
-    radial-gradient(circle at 48% 44%, transparent 0 4px, rgba(113, 129, 146, 0.72) 4px 5px, transparent 5px 100%);
-}
-
-.scene-tree {
-  bottom: 24%;
-  width: 34px;
-  height: 56px;
-  background: linear-gradient(180deg, #48624d 0%, #2b4c33 100%);
-  clip-path: polygon(44% 0, 56% 0, 58% 72%, 72% 100%, 28% 100%, 42% 72%);
-  filter: drop-shadow(0 6px 8px rgba(30, 58, 42, 0.12));
-}
-
-.scene-tree::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -24px;
-  width: 72px;
-  height: 72px;
-  transform: translateX(-50%);
-  background: radial-gradient(circle at 40% 35%, rgba(96, 148, 79, 0.96) 0 34%, rgba(54, 110, 59, 0.9) 35% 58%, rgba(29, 72, 40, 0.0) 59% 100%);
-  border-radius: 50%;
-}
-
-.scene-tree-left {
-  left: 2%;
-  transform: scale(0.95);
-}
-
-.scene-tree-right {
-  right: 5%;
-  transform: scale(1.15);
-}
-
+/* ─── Brand ─────────────────────────────────────────────────── */
 .login-brand {
   position: relative;
   z-index: 3;
   display: grid;
   justify-items: center;
   gap: 6px;
-  margin: 0;
 }
 
 .unimas-logo {
@@ -606,39 +297,45 @@ const handleLogin = async () => {
 }
 
 .studylink-brand {
-  margin-top: 0;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
   font-size: clamp(24px, 3.2vw, 44px);
   line-height: 1;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #214c8f;
+  /* FIX: brand navy #021A54 */
+  color: #021A54;
 }
 
+/* ─── Card — glass panel ────────────────────────────────────── */
 .login-card {
   position: relative;
   z-index: 2;
   width: min(100%, 470px);
-  margin-top: 0;
-  padding: 24px 28px 22px;
+  padding: 28px 30px 24px;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  background: rgba(237, 245, 245, 0.72);
-  box-shadow: 0 24px 40px rgba(31, 50, 67, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(18px);
+  /* FIX: glass uses brand palette */
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: rgba(255, 245, 250, 0.76);
+  box-shadow:
+    0 24px 48px rgba(2, 26, 84, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(1.1);
+  -webkit-backdrop-filter: blur(20px) saturate(1.1);
 }
 
 .login-card h2 {
-  margin: 0 0 22px;
+  margin: 0 0 20px;
   text-align: center;
   font-family: "DM Sans", "Segoe UI", sans-serif;
-  font-size: clamp(21px, 2.8vw, 27px);
-  line-height: 1.2;
+  font-size: clamp(20px, 2.6vw, 26px);
   font-weight: 700;
-  color: #343434;
+  line-height: 1.2;
+  /* FIX: navy ink */
+  color: #021A54;
 }
 
+/* ─── Form ──────────────────────────────────────────────────── */
 .login-form {
   display: grid;
   gap: 16px;
@@ -647,82 +344,83 @@ const handleLogin = async () => {
 .field {
   display: grid;
   gap: 6px;
-  font-size: 15px;
-  color: #535353;
+  font-size: 14px;
+  color: #021A54;
 }
 
 .field span {
-  font-weight: 500;
-}
-
-.login-form .field:has(> input[required])::after,
-.login-form .field:has(> textarea[required])::after,
-.login-form .field:has(> select[required])::after {
-  content: none;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .field input {
   width: 100%;
-  height: 38px;
-  padding: 0 11px;
-  border: 1px solid rgba(95, 95, 95, 0.26);
-  border-radius: 0;
-  background: rgba(255, 255, 255, 0.9);
-  color: #263238;
+  height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid rgba(2, 26, 84, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #021A54;
   font: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  font-size: 15px;
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .field input:focus-visible {
   outline: none;
-  border-color: #1773cb;
-  box-shadow: 0 0 0 3px rgba(23, 115, 203, 0.18);
+  /* FIX: pink focus ring matches brand primary */
+  border-color: #FF85BB;
+  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.22);
 }
 
-/* CSS rule added for the visual hint */
+.field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* FIX: weak password uses amber, not blue */
 .field input.input-weak {
-  border-color: #f0a500 !important;
+  border-color: #f0a500;
+  box-shadow: 0 0 0 2px rgba(240, 165, 0, 0.14);
 }
 
+/* ─── Password row ──────────────────────────────────────────── */
 .password-row {
   position: relative;
   display: block;
 }
 
 .password-row input {
-  padding-right: 42px;
+  padding-right: 44px;
 }
 
 .password-toggle {
   position: absolute;
-  top: calc(50% + 1px);
-  right: 4px;
+  top: 50%;
+  right: 6px;
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: 0;
   border-radius: 999px;
   padding: 0;
-  line-height: 1;
   background: transparent;
-  color: #274055;
+  /* FIX: navy icon color */
+  color: #021A54;
   cursor: pointer;
-  transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
-  backdrop-filter: none;
+  transition: background 0.15s;
 }
 
 .password-toggle:hover {
-  transform: translateY(-50%);
-  background: rgba(177, 31, 75, 0.08);
+  background: rgba(255, 133, 187, 0.14);
 }
 
 .password-toggle:focus-visible {
   outline: none;
-  border-color: #1773cb;
-  box-shadow: 0 0 0 3px rgba(23, 115, 203, 0.18);
+  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.3);
 }
 
 .password-icon {
@@ -731,84 +429,121 @@ const handleLogin = async () => {
   fill: currentColor;
 }
 
-.password-icon-closed {
-  display: none;
-}
+.password-icon-closed { display: none; }
+.password-toggle.is-visible .password-icon-open  { display: none; }
+.password-toggle.is-visible .password-icon-closed { display: block; }
 
-.password-toggle.is-visible .password-icon-open {
-  display: none;
-}
-
-.password-toggle.is-visible .password-icon-closed {
-  display: block;
-}
-
+/* ─── Remember me ───────────────────────────────────────────── */
 .remember-row {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   width: fit-content;
   font-size: 13px;
-  color: #505050;
+  color: #021A54;
   user-select: none;
+  cursor: pointer;
 }
 
 .remember-row input {
   margin: 0;
-  accent-color: #1773cb;
+  /* FIX: checkbox accent = brand pink */
+  accent-color: #FF85BB;
+  cursor: pointer;
 }
 
+/* ─── Submit button — glass primary ─────────────────────────── */
 .login-submit {
+  position: relative;
   width: 100%;
   height: 46px;
-  margin-top: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 133, 187, 0.4);
   border-radius: 2rem;
+  /* FIX: pink-to-navy glass gradient replaces old purple */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.03) 100%),
-    linear-gradient(135deg, rgba(64, 73, 98, 0.52) 0%, rgba(96, 70, 121, 0.5) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 100%),
+    linear-gradient(135deg, #FF85BB 0%, #e0609a 100%);
   color: #ffffff;
+  font: inherit;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  text-align: center;
   cursor: pointer;
-  backdrop-filter: blur(12px) saturate(170%);
-  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow:
-    inset 0 3px 18px rgba(255, 255, 255, 0.18),
-    0 10px 34px rgba(22, 24, 39, 0.22);
-  transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    inset 0 2px 12px rgba(255, 255, 255, 0.2),
+    0 8px 28px rgba(255, 133, 187, 0.35);
+  transition: background 0.25s, transform 0.18s, box-shadow 0.18s;
 }
 
-.login-submit:hover {
-  border-color: rgba(255, 255, 255, 0.32);
+.login-submit:hover:not(:disabled) {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 100%),
-    linear-gradient(135deg, rgba(74, 84, 112, 0.58) 0%, rgba(110, 80, 137, 0.56) 100%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 100%),
+    linear-gradient(135deg, #ff6da9 0%, #c94d82 100%);
   transform: translateY(-2px);
   box-shadow:
-    inset 0 4px 20px rgba(255, 255, 255, 0.22),
-    0 12px 38px rgba(22, 24, 39, 0.26);
+    inset 0 3px 16px rgba(255, 255, 255, 0.22),
+    0 12px 36px rgba(255, 133, 187, 0.45);
+}
+
+.login-submit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.login-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .login-submit:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 4px rgba(255, 183, 197, 0.38),
-    inset 0 4px 20px rgba(255, 255, 255, 0.2),
-    0 10px 34px rgba(22, 24, 39, 0.24);
+    0 0 0 4px rgba(255, 133, 187, 0.4),
+    inset 0 2px 12px rgba(255, 255, 255, 0.2);
+}
+
+/* FIX: spinner for loading state */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Footer links ──────────────────────────────────────────── */
+.login-footer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .alt-link {
   display: inline-block;
-  margin-top: 4px;
-  color: #1b73c9;
+  /* FIX: use brand primary pink for links */
+  color: #FF85BB;
   font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
+  transition: color 0.15s;
 }
 
 .alt-link:hover {
+  color: #e0609a;
   text-decoration: underline;
 }
 
@@ -816,68 +551,45 @@ const handleLogin = async () => {
   color: #6e6e73;
   text-decoration: none;
   cursor: default;
+  font-weight: 400;
 }
 
-.login-footer-links {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.login-footer-links .alt-link {
-  margin-top: 0;
-}
-
+/* ─── Error message ─────────────────────────────────────────── */
+/* FIX: moved above form in template; styles match glass palette */
 .message {
-  min-height: 1.2em;
-  margin: 10px 0 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #fff5f5;
-  border: 1px solid #ffd6d6;
-  color: #bf2f45;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  /* FIX: light pink error bg aligned to brand blush */
+  background: rgba(255, 206, 227, 0.35);
+  border: 1px solid rgba(255, 133, 187, 0.45);
+  color: #a81040;
   font-size: 13px;
+  line-height: 1.4;
 }
 
+/* ─── Responsive ────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .login-page-wrapper .phone-shell {
-    padding: 18px 14px;
-  }
-
   .login-scene {
-    min-height: 100vh;
-  }
-
-  .login-scene-art::before {
-    clip-path: polygon(0 60%, 8% 54%, 15% 58%, 23% 50%, 30% 54%, 39% 48%, 48% 53%, 58% 46%, 67% 51%, 77% 45%, 87% 50%, 100% 42%, 100% 100%, 0 100%);
+    padding: 16px 12px;
   }
 
   .unimas-logo {
-    width: min(100%, 280px);
+    width: min(100%, 260px);
+  }
+
+  .studylink-brand {
+    font-size: clamp(18px, 5vw, 26px);
+    letter-spacing: 0.14em;
   }
 
   .login-card {
-    width: 100%;
     padding: 22px 18px 18px;
     border-radius: 20px;
   }
 
-  .login-brand {
-    gap: 6px;
-  }
-
-  .studylink-brand {
-    font-size: clamp(18px, 2.8vw, 24px);
-    letter-spacing: 0.18em;
-  }
-
   .login-submit {
-    height: 42px;
-  }
-
-  .password-row {
-    display: block;
+    height: 44px;
   }
 }
 </style>
