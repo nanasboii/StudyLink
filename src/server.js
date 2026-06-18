@@ -3081,6 +3081,7 @@ app.get('/resources/:id/file', async (req, res) => {
           ? `${String(resource.title).trim() || 'resource'}${path.extname(fileName)}`
           : fileName;
         res.type(getMimeTypeForFile(fileName));
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(suggestedName)}"`);
         return res.download(absolutePath, suggestedName, (downloadError) => {
           if (downloadError && !res.headersSent) {
             res.status(500).json({ message: downloadError.message });
@@ -3089,6 +3090,7 @@ app.get('/resources/:id/file', async (req, res) => {
       }
 
       res.type(getMimeTypeForFile(fileName));
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(path.basename(fileName))}"`);
       return res.sendFile(absolutePath);
     }
 
