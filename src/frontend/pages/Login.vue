@@ -1,16 +1,16 @@
 ﻿<template>
   <div class="login-page-wrapper">
-    <!-- SVG filter for posterize bg effect -->
-    <svg class="sr-only" aria-hidden="true" focusable="false">
-      <defs>
-        <filter id="posterize">
-          <feComponentTransfer>
-            <feFuncR type="discrete" tableValues="0 0.25 0.5 0.75 1" />
-            <feFuncG type="discrete" tableValues="0 0.25 0.5 0.75 1" />
-            <feFuncB type="discrete" tableValues="0 0.25 0.5 0.75 1" />
-          </feComponentTransfer>
-        </filter>
-      </defs>
+    <!-- SVG filter for background posterize effect -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;" aria-hidden="true" focusable="false">
+      <filter id="posterize">
+        <feColorMatrix type="saturate" values="1.12" />
+        <feComponentTransfer>
+          <feFuncR type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncG type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+          <feFuncB type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+        </feComponentTransfer>
+        <feGaussianBlur stdDeviation="0.4" />
+      </filter>
     </svg>
 
     <main class="login-scene">
