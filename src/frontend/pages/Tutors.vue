@@ -24,6 +24,65 @@
           </div>
         </section>
 
+        <!-- Peer-Matched Suggestions -->
+        <section v-if="currentUserRole === 'tutee' && recommendedTutors.length > 0" class="suggestions-section">
+          <div class="suggestions-header">
+            <div>
+              <h3 class="suggestions-title">✨ Suggested for You</h3>
+              <p class="suggestions-sub">
+                Based on your target subjects:
+                <span v-for="token in matchedSubjectTokens" :key="token" class="match-chip">{{ token }}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="suggestions-grid">
+            <div
+              v-for="tutor in recommendedTutors"
+              :key="'rec-' + tutor.id"
+              class="suggestion-card"
+              @click="openTutorModal(tutor)"
+            >
+              <!-- Avatar -->
+              <div class="suggestion-avatar-wrap">
+                <img
+                  v-if="hasTutorAvatar(tutor) && !tutorAvatarErrors[tutorAvatarKey(tutor)]"
+                  :src="resolveTutorAvatar(tutor.profile_picture_url)"
+                  :alt="tutor.full_name"
+                  class="suggestion-avatar"
+                  @error="markTutorAvatarError(tutor)"
+                />
+                <div v-else class="suggestion-avatar suggestion-avatar-fallback">
+                  {{ (tutor.full_name || '?')[0].toUpperCase() }}
+                </div>
+                <span v-if="tutor.is_verified" class="suggestion-verified" title="Verified">✓</span>
+              </div>
+
+              <!-- Info -->
+              <div class="suggestion-info">
+                <p class="suggestion-name">{{ tutor.full_name }}</p>
+                <p class="suggestion-rating">⭐ {{ Number(tutor.rating || 0).toFixed(1) }}</p>
+                <!-- Highlight matching expertise -->
+                <div class="suggestion-tags">
+                  <span
+                    v-for="skill in (tutor.expertise || []).slice(0, 3)"
+                    :key="skill"
+                    class="suggestion-tag"
+                    :class="{ 'tag-match': matchedSubjectTokens.some(t => skill.toLowerCase().includes(t) || t.includes(skill.toLowerCase())) }"
+                  >{{ skill }}</span>
+                </div>
+                <p class="suggestion-match">{{ tutor.matchScore }} subject match{{ tutor.matchScore !== 1 ? 'es' : '' }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- No target subjects nudge -->
+        <div v-else-if="currentUserRole === 'tutee' && hasTargetSubjects === false && !isLoading" class="suggestions-empty">
+          <p>💡 <strong>Add target subjects</strong> to your profile to get personalised tutor suggestions.</p>
+          <button class="chip" @click="$router.push('/profile')">Update Profile</button>
+        </div>
+
         <div class="search-row tutor-toolbar">
           <div class="tutor-search-shell" role="search">
             <input 
@@ -264,6 +323,10 @@ const selectedTutorData = ref(null)
 const tutorReviews = ref([])
 const tutorAvatarErrors = ref({})
 
+const recommendedTutors = ref([])
+const matchedSubjectTokens = ref([])
+const hasTargetSubjects = ref(false)
+
 const tutorAvatarKey = (tutor) => String(tutor?.id || tutor?.full_name || '')
 
 const resolveTutorAvatar = (rawUrl) => {
@@ -475,6 +538,18 @@ onMounted(() => {
   }
   loadTutors()
   window.addEventListener('studylink-profile-updated', loadTutors)
+
+  const loadRecommended = async () => {
+    try {
+      const resp = await api('/tutors/recommended')
+      recommendedTutors.value = resp.tutors || []
+      matchedSubjectTokens.value = resp.matchedOn || []
+      hasTargetSubjects.value = resp.matchedOn?.length > 0
+    } catch {
+      // Non-critical — fail silently
+      recommendedTutors.value = []
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -982,6 +1057,171 @@ onUnmounted(() => {
 
 .profile-actions button {
   flex: 1;
+}
+
+.suggestions-section {
+  margin-bottom: 18px;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.suggestions-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #4d0f2a;
+  margin: 0 0 4px;
+}
+
+.suggestions-sub {
+  font-size: 0.8rem;
+  color: #7a3050;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.match-chip {
+  background: rgba(164, 24, 71, 0.12);
+  color: #8b1a40;
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.suggestion-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,240,247,0.8));
+  border: 1px solid rgba(164, 24, 71, 0.18);
+  border-radius: 14px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 14px rgba(95, 14, 43, 0.08);
+}
+
+.suggestion-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(95, 14, 43, 0.15);
+}
+
+.suggestion-avatar-wrap {
+  position: relative;
+}
+
+.suggestion-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(164, 24, 71, 0.25);
+}
+
+.suggestion-avatar-fallback {
+  background: linear-gradient(135deg, #a41847, #d4547a);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.suggestion-verified {
+  position: absolute;
+  bottom: 0;
+  right: -2px;
+  background: #2ecc71;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #fff;
+}
+
+.suggestion-info {
+  text-align: center;
+  width: 100%;
+}
+
+.suggestion-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #3a0a1e;
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-rating {
+  font-size: 0.75rem;
+  color: #7a3050;
+  margin: 0 0 5px;
+}
+
+.suggestion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.suggestion-tag {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(164, 24, 71, 0.08);
+  color: #7a2040;
+}
+
+.suggestion-tag.tag-match {
+  background: rgba(164, 24, 71, 0.22);
+  color: #a41847;
+  font-weight: 700;
+}
+
+.suggestion-match {
+  font-size: 0.68rem;
+  color: #a41847;
+  font-weight: 600;
+  margin: 0;
+}
+
+.suggestions-empty {
+  background: rgba(255, 248, 251, 0.85);
+  border: 1px dashed rgba(164, 24, 71, 0.25);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: #6c2942;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 640px) {

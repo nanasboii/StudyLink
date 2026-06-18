@@ -2360,6 +2360,90 @@ app.get('/availability/me', requireAuth, requireRole('tutor'), async (req, res) 
   }
 });
 
+app.get('/tutors/recommended', requireAuth, requireRole('tutee'), async (req, res) => {
+  try {
+    // Fetch the tutee's target subjects
+    const { rows: userRows } = await pool.query(
+      `SELECT target_subjects FROM users WHERE id = $1`,
+      [req.auth.user.id]
+    );
+
+    const rawTargets = String(userRows[0]?.target_subjects || '').trim();
+    if (!rawTargets) {
+      return res.json({ tutors: [], matchedOn: [] });
+    }
+
+    // Tokenise: split on commas/semicolons, normalise to lowercase
+    const targetTokens = rawTargets
+      .split(/[,;]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!targetTokens.length) {
+      return res.json({ tutors: [], matchedOn: [] });
+    }
+
+    const { rows } = await pool.query(
+      `WITH availability_agg AS (
+         SELECT ta.tutor_id,
+                json_agg(
+                  json_build_object(
+                    'courseCode', ta.course_code,
+                    'dayOfWeek', ta.day_of_week,
+                    'startTime', to_char(ta.start_time, 'HH24:MI'),
+                    'endTime', to_char(ta.end_time, 'HH24:MI')
+                  )
+                  ORDER BY ta.day_of_week, ta.start_time
+                ) AS availability
+         FROM tutor_availability ta
+         GROUP BY ta.tutor_id
+       )
+       SELECT u.id,
+              u.full_name,
+              u.role,
+              u.major,
+              u.year_of_study,
+              u.target_subjects,
+              u.expertise,
+              u.bio,
+              u.profile_picture_url,
+              u.rating,
+              u.total_points,
+              u.is_verified,
+              COALESCE(a.availability, '[]'::json) AS availability
+       FROM users u
+       LEFT JOIN availability_agg a ON a.tutor_id = u.id
+       WHERE u.role = 'tutor'
+         AND u.expertise IS NOT NULL
+         AND array_length(u.expertise, 1) > 0`,
+      []
+    );
+
+    // Score each tutor by how many target tokens appear in their expertise
+    const scored = rows
+      .map((tutor) => {
+        const expertiseTokens = (tutor.expertise || []).map((e) =>
+          String(e).toLowerCase()
+        );
+        const matched = targetTokens.filter((token) =>
+          expertiseTokens.some((e) => e.includes(token) || token.includes(e))
+        );
+        return { ...sanitizePublicTutor(tutor), matchScore: matched.length, matchedSubjects: matched };
+      })
+      .filter((t) => t.matchScore > 0)
+      .sort((a, b) => {
+        if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+        if (b.is_verified !== a.is_verified) return b.is_verified ? 1 : -1;
+        return (b.rating || 0) - (a.rating || 0);
+      })
+      .slice(0, 6); // cap at 6 suggestions
+
+    return res.json({ tutors: scored, matchedOn: targetTokens });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('/tutors', requireAuth, async (req, res) => {
   const courseCode = req.query.courseCode
     ? String(req.query.courseCode).trim().toUpperCase()
