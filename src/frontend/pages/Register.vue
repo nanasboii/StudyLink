@@ -7,10 +7,11 @@
       <div class="view auth-view">
         <div class="auth-block">
           <h2>Enter personal info</h2>
+          <p class="required-note"><span class="required">*</span> Required fields</p>
           <form @submit.prevent="handleRegister" class="stack">
             
             <div class="role-selector">
-              <p class="role-label">I am registering as a:</p>
+              <p class="role-label">I am registering as a: <span class="required">*</span></p>
               <div class="role-pill-row">
                 <button type="button" class="role-pill" :class="{ active: form.role === 'tutee' }" @click="form.role = 'tutee'">
                   🎓 Tutee
@@ -23,17 +24,17 @@
 
             <div class="row-2">
               <label>
-                First Name
+                First Name <span class="required">*</span>
                 <input v-model="form.firstName" required />
               </label>
               <label>
-                Last Name
+                Last Name <span class="required">*</span>
                 <input v-model="form.lastName" required />
               </label>
             </div>
 
             <label>
-              Student ID
+              Student ID <span class="required">*</span>
               <input v-model="form.studentId" required />
             </label>
 
@@ -43,7 +44,7 @@
             </label>
 
             <label>
-              Email Address
+              Email Address <span class="required">*</span>
               <input v-model="form.email" type="email" required />
             </label>
 
@@ -58,12 +59,12 @@
             </label>
 
             <label v-if="form.role === 'tutee'">
-              Target Subjects (for tutee)
+              Target Subjects (for tutee) <span class="required">*</span>
               <input v-model="form.targetSubjects" placeholder="e.g. Database, Algorithms" />
             </label>
 
             <label v-if="form.role === 'tutor'">
-              Expertise (for tutor)
+              Expertise (for tutor) <span class="required">*</span>
               <input v-model="form.expertise" placeholder="e.g. Java, SQL, Computer Graphics" />
             </label>
 
@@ -73,7 +74,7 @@
             </label>
 
             <label>
-              Password
+              Password <span class="required">*</span>
               <input v-model="form.password" type="password" required />
               <div class="password-strength" v-if="form.password.length > 0">
                 <div class="strength-bar" :class="passwordStrengthClass"></div>
@@ -82,7 +83,7 @@
             </label>
 
             <label>
-              Verify Password
+              Verify Password <span class="required">*</span>
               <input v-model="form.confirmPassword" type="password" required />
               <span v-if="form.confirmPassword.length > 0" class="match-hint"
                     :class="form.password === form.confirmPassword ? 'match-ok' : 'match-fail'">
@@ -112,7 +113,7 @@ const router = useRouter()
 const isLoading = ref(false)
 const message = ref('')
 const messageType = ref('')
-let messageTimer = null; // BUG 8: Store timer here for cleanup
+let messageTimer = null;
 
 const form = reactive({
   role: '',
@@ -145,7 +146,6 @@ const validateEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// BUG 6: Strict JS enforcement of password security rules
 const validatePassword = (password) => {
   return (
     password.length >= 8 &&
@@ -159,7 +159,6 @@ const validatePhoneNumber = (phone) => {
   return /^[0-9+\-\s()]{7,20}$/.test(phone)
 }
 
-// BUG 8: Ensures the message auto-clear doesn't conflict/leak
 const showMessage = (text, type = 'error') => {
   message.value = text;
   messageType.value = type;
@@ -175,19 +174,16 @@ const handleRegister = async () => {
   message.value = ''
   messageType.value = ''
 
-  // Validation
   if (!form.role) {
     showMessage('Please select a role to register.')
     return
   }
 
-  // BUG 4: Enforce valid strings instead of just blanks
   if (!form.firstName.trim() || !form.lastName.trim()) {
     showMessage('Please enter your first and last name.');
     return;
   }
 
-  // BUG 5: Enforce Student ID string existence
   if (!form.studentId.trim()) {
     showMessage('Please enter your Student ID.');
     return;
@@ -198,7 +194,6 @@ const handleRegister = async () => {
     return
   }
 
-  // BUG 6: Clearer password constraint error
   if (!validatePassword(form.password)) {
     showMessage('Password must be at least 8 characters with a letter and a number.')
     return
@@ -214,7 +209,6 @@ const handleRegister = async () => {
     return
   }
 
-  // BUG 7: JS guard ensures manual input doesn't bypass html max/min limits
   if (form.yearOfStudy && (form.yearOfStudy < 1 || form.yearOfStudy > 7)) {
     showMessage('Year of study must be between 1 and 7.');
     return;
@@ -255,7 +249,6 @@ const handleRegister = async () => {
   }
 }
 
-// BUG 8: Unmount cleanup
 onUnmounted(() => {
   if (messageTimer) clearTimeout(messageTimer);
 });
@@ -330,7 +323,17 @@ onUnmounted(() => {
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
 }
 
-/* UI 4: Visual Role Selector styles */
+.required {
+  color: #b11f4b;
+  margin-left: 2px;
+}
+
+.required-note {
+  font-size: 12px;
+  color: #6e6e73;
+  margin: -12px 0 8px;
+}
+
 .role-selector {
   margin-bottom: 8px;
 }
@@ -414,7 +417,6 @@ textarea {
   resize: vertical;
 }
 
-/* UI 5: Password Strength indicator styles */
 .password-strength {
   display: flex;
   align-items: center;
@@ -438,7 +440,6 @@ textarea {
   min-width: 50px;
 }
 
-/* UI 6: Password Match Hint styles */
 .match-hint {
   font-size: 12px;
   font-weight: 600;
