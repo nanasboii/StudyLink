@@ -3,7 +3,6 @@
     <section class="phone-shell">
       <div class="view page active my-resources-page">
 
-        <!-- ── Header ── -->
         <div class="page-header">
           <div>
             <p class="page-kicker">Your contributions</p>
@@ -18,7 +17,6 @@
           </button>
         </div>
 
-        <!-- ── Summary Bar ── -->
         <div v-if="resources.length" class="summary-bar" aria-label="Upload summary">
           <div class="summary-stat">
             <span class="summary-value">{{ resources.length }}</span>
@@ -40,7 +38,6 @@
           </div>
         </div>
 
-        <!-- ── Feedback Message ── -->
         <transition name="fade">
           <p
             v-if="message"
@@ -51,7 +48,6 @@
           >{{ message }}</p>
         </transition>
 
-        <!-- ── Toolbar ── -->
         <div v-if="resources.length" class="toolbar-row">
           <div class="search-field">
             <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -80,12 +76,10 @@
           </select>
         </div>
 
-        <!-- ── Result Count ── -->
         <p v-if="resources.length && searchQuery" class="result-hint" aria-live="polite">
           {{ filteredResources.length }} of {{ resources.length }} upload{{ resources.length !== 1 ? 's' : '' }}
         </p>
 
-        <!-- ── Empty: No Uploads ── -->
         <div v-if="!isLoading && resources.length === 0" class="empty-uploads">
           <span class="empty-icon" aria-hidden="true">📂</span>
           <p class="empty-title">No uploads yet</p>
@@ -93,7 +87,6 @@
           <router-link to="/resources" class="chip chip-strong">Upload on Resources →</router-link>
         </div>
 
-        <!-- ── Skeleton Loading ── -->
         <div v-else-if="isLoading && resources.length === 0" class="resource-list" aria-hidden="true">
           <div v-for="n in 3" :key="n" class="resource-card skeleton-card">
             <div class="resource-card-main">
@@ -104,14 +97,12 @@
           </div>
         </div>
 
-        <!-- ── Empty Search Result ── -->
         <div v-else-if="filteredResources.length === 0 && searchQuery" class="empty-block">
           <span class="empty-icon" aria-hidden="true">🔍</span>
           <p>No uploads match <strong>"{{ searchQuery }}"</strong></p>
           <button class="chip chip-strong" type="button" @click="searchQuery = ''">Clear search</button>
         </div>
 
-        <!-- ── Resource List ── -->
         <div v-else class="resource-list" :class="{ 'is-refreshing': isLoading && resources.length > 0 }">
           <article
             v-for="resource in filteredResources"
@@ -163,7 +154,6 @@
           </article>
         </div>
 
-        <!-- ── Edit Modal ── -->
         <transition name="modal">
           <div
             v-if="editTarget"
@@ -237,7 +227,6 @@
           </div>
         </transition>
 
-        <!-- ── Delete Confirm Modal ── -->
         <transition name="modal">
           <div
             v-if="deleteTarget"
@@ -316,14 +305,12 @@ const RESOURCE_TYPE_LABELS = {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
-// FIX -> null/undefined safe type label
 const resourceTypeLabel = (value) => {
   if (!value) return 'Resource'
   const key = String(value).trim().toLowerCase()
   return RESOURCE_TYPE_LABELS[key] || (key.charAt(0).toUpperCase() + key.slice(1))
 }
 
-// FIX -> guard against invalid dates
 const formatDate = (raw) => {
   if (!raw) return ''
   try {
@@ -335,7 +322,6 @@ const formatDate = (raw) => {
   }
 }
 
-// FIX -> auto-dismiss, clear old timer
 const setMessage = (text, type = 'success') => {
   if (messageTimer) clearTimeout(messageTimer)
   message.value = text
@@ -350,7 +336,6 @@ const totalReviews = computed(() =>
   resources.value.reduce((sum, r) => sum + (Number(r.review_count) || 0), 0)
 )
 
-// FIX -> weighted average, avoids divide-by-zero
 const overallRating = computed(() => {
   const rated = resources.value.filter(r => Number(r.review_count) > 0)
   if (!rated.length) return '—'
@@ -359,12 +344,10 @@ const overallRating = computed(() => {
   return totalWeight > 0 ? (weightedSum / totalWeight).toFixed(1) : '—'
 })
 
-// NEW -> unique course count
 const uniqueCourses = computed(() =>
   new Set(resources.value.map(r => r.course_code).filter(Boolean)).size
 )
 
-// FIX -> search by title + course + type, all lower
 const filteredResources = computed(() => {
   let list = [...resources.value]
 
@@ -377,7 +360,6 @@ const filteredResources = computed(() => {
     )
   }
 
-  // FIX -> sort handles missing/null dates safely
   switch (sortBy.value) {
     case 'oldest':
       list.sort((a, b) => {
@@ -410,8 +392,9 @@ const filteredResources = computed(() => {
 const loadResources = async () => {
   isLoading.value = true
   try {
-    const resp = await api('/resources/my-uploads', 'GET')
-    // FIX -> safe array extraction from various response shapes
+    // FIX 1: Change to hit `/resources/mine` to align with the server backend properly
+    const resp = await api('/resources/mine', 'GET')
+    
     if (Array.isArray(resp)) {
       resources.value = resp
     } else if (resp && Array.isArray(resp.resources)) {
@@ -422,6 +405,7 @@ const loadResources = async () => {
       resources.value = []
     }
   } catch (err) {
+    // FIX 2: Do not echo raw API errors here—prevents double messages with api.js's global toast
     setMessage('Couldn\'t load your uploads. Please try again.', 'error')
   } finally {
     isLoading.value = false
@@ -449,7 +433,6 @@ const saveEdit = async () => {
   if (!editTarget.value?.id) return
 
   const trimmedTitle = editForm.value.title.trim()
-  // FIX -> whitespace-only bypass prevented by trim check
   if (!trimmedTitle) {
     editMessage.value = 'Title cannot be empty.'
     editMessageType.value = 'error'
@@ -517,7 +500,6 @@ const handleKeydown = (e) => {
   else if (editTarget.value) closeEdit()
 }
 
-// FIX -> scroll lock on modal open
 watch(anyModalOpen, (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
 })
