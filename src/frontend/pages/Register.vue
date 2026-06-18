@@ -6,8 +6,12 @@
       </header>
       <div class="view auth-view">
         <div class="auth-block">
-          <h2>Enter personal info</h2>
-          <p class="required-note"><span class="required">*</span> Required fields</p>
+          
+          <div class="auth-header">
+            <h2>Enter personal info</h2>
+            <p class="required-note"><span class="required">*</span> Required fields</p>
+          </div>
+          
           <form @submit.prevent="handleRegister" class="stack">
             
             <div class="role-selector">
@@ -315,8 +319,16 @@ onUnmounted(() => {
   max-width: 500px;
 }
 
+/* Header container that aligns the H2 and the Required note */
+.auth-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+}
+
 .auth-block h2 {
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: #1d1d1f;
@@ -331,7 +343,7 @@ onUnmounted(() => {
 .required-note {
   font-size: 12px;
   color: #6e6e73;
-  margin: -12px 0 8px;
+  margin: 0;
 }
 
 .role-selector {
