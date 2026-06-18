@@ -67,7 +67,9 @@
       <div class="streak-stats-grid">
         <div class="stat-box">
           <span class="stat-label">CURRENT RUN</span>
-          <span class="stat-value">{{ streakCount }} day<span v-if="streakCount !== 1">s</span></span>
+          <span class="stat-value">
+            🔥 {{ streakCount }} day<span v-if="streakCount !== 1">s</span>
+          </span>
         </div>
         <div class="stat-box">
           <span class="stat-label">LAST CHECK-IN</span>
@@ -92,12 +94,25 @@
       </div>
 
       <div class="calendar-grid">
-        <div v-for="(day, index) in calendarDays" :key="index" class="calendar-day" :class="{ 'other-month': day.otherMonth, 'checked-in': day.checkedIn }">
+        <div 
+          v-for="(day, index) in calendarDays" 
+          :key="index" 
+          class="calendar-day" 
+          :class="{ 
+            'other-month': day.otherMonth, 
+            'checked-in': day.checkedIn,
+            'today': day.isToday && !day.checkedIn
+          }"
+        >
           <span v-if="day.date">{{ day.date }}</span>
         </div>
       </div>
 
-      <p class="calendar-footer">Check in daily to maintain your run.</p>
+      <p class="calendar-footer">
+        <template v-if="streakCount === 0">Start your streak — log in daily!</template>
+        <template v-else-if="streakCount < 7">{{ streakCount }} day{{ streakCount !== 1 ? 's' : '' }} in — keep it going!</template>
+        <template v-else>🔥 {{ streakCount }}-day streak! You're on a roll.</template>
+      </p>
     </div>
   </div>
 
@@ -295,13 +310,15 @@ export default {
         const date = new Date(startDate)
         date.setDate(date.getDate() + i)
         const isCurrentMonth = date.getMonth() === month
-        const dateString = isCurrentMonth ? date.getDate() : null
+        const dateString = isCurrentMonth ? String(date.getDate()) : String(date.getDate())
         const dateKey = toDateKey(date)
         
         days.push({
           date: dateString,
           otherMonth: !isCurrentMonth,
-          checkedIn: isCurrentMonth && loginDateKeys.value.has(dateKey)
+          checkedIn: isCurrentMonth && loginDateKeys.value.has(dateKey),
+          isToday: isCurrentMonth && dateKey === todayKey,
+          dateKey: dateKey
         })
       }
       calendarDays.value = days
@@ -900,17 +917,25 @@ export default {
 }
 
 .calendar-nav {
-  background: none;
-  border: none;
-  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f5f5f7;
+  border: 1px solid #e0e0e0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1d1f;
   cursor: pointer;
-  color: #6e6e73;
-  padding: 4px 8px;
-  transition: color 150ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease, border-color 150ms ease;
 }
 
 .calendar-nav:hover {
-  color: #1d1d1f;
+  background: rgba(177, 31, 75, 0.08);
+  border-color: #b11f4b;
+  color: #b11f4b;
 }
 
 /* Calendar Weekdays */
@@ -952,10 +977,17 @@ export default {
   cursor: default;
 }
 
+.calendar-day.today {
+  border: 2px solid #b11f4b;
+  color: #b11f4b;
+  font-weight: 700;
+  background: rgba(177, 31, 75, 0.05);
+}
+
 .calendar-day.other-month {
-  background: #f9f9f9;
-  color: #ccc;
-  border-color: #efefef;
+  visibility: hidden;
+  border-color: transparent;
+  background: transparent;
 }
 
 .calendar-day.checked-in {
@@ -963,6 +995,20 @@ export default {
   color: white;
   border-color: #b11f4b;
   font-weight: 600;
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-day.checked-in + .calendar-day.checked-in::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 60%;
+  background: #b11f4b;
+  z-index: -1;
 }
 
 .calendar-footer {
