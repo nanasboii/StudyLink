@@ -28,57 +28,57 @@
 
             <div class="row-2">
               <label>
-                First Name <span class="required">*</span>
+                <span>First Name <span class="required">*</span></span>
                 <input v-model="form.firstName" required />
               </label>
               <label>
-                Last Name <span class="required">*</span>
+                <span>Last Name <span class="required">*</span></span>
                 <input v-model="form.lastName" required />
               </label>
             </div>
 
             <label>
-              Student ID <span class="required">*</span>
+              <span>Student ID <span class="required">*</span></span>
               <input v-model="form.studentId" required />
             </label>
 
             <label>
-              Phone Number
+              <span>Phone Number</span>
               <input v-model="form.phoneNumber" type="tel" />
             </label>
 
             <label>
-              Email Address <span class="required">*</span>
+              <span>Email Address <span class="required">*</span></span>
               <input v-model="form.email" type="email" required />
             </label>
 
             <label>
-              Major
+              <span>Major</span>
               <input v-model="form.major" />
             </label>
 
             <label>
-              Year of Study
+              <span>Year of Study</span>
               <input v-model.number="form.yearOfStudy" type="number" min="1" max="7" />
             </label>
 
             <label v-if="form.role === 'tutee'">
-              Target Subjects (for tutee) <span class="required">*</span>
+              <span>Target Subjects (for tutee) <span class="required">*</span></span>
               <input v-model="form.targetSubjects" placeholder="e.g. Database, Algorithms" />
             </label>
 
             <label v-if="form.role === 'tutor'">
-              Expertise (for tutor) <span class="required">*</span>
+              <span>Expertise (for tutor) <span class="required">*</span></span>
               <input v-model="form.expertise" placeholder="e.g. Java, SQL, Computer Graphics" />
             </label>
 
             <label>
-              Bio
+              <span>Bio</span>
               <textarea v-model="form.bio" rows="3" placeholder="Short intro"></textarea>
             </label>
 
             <label>
-              Password <span class="required">*</span>
+              <span>Password <span class="required">*</span></span>
               <input v-model="form.password" type="password" required />
               <div class="password-strength" v-if="form.password.length > 0">
                 <div class="strength-bar" :class="passwordStrengthClass"></div>
@@ -87,7 +87,7 @@
             </label>
 
             <label>
-              Verify Password <span class="required">*</span>
+              <span>Verify Password <span class="required">*</span></span>
               <input v-model="form.confirmPassword" type="password" required />
               <span v-if="form.confirmPassword.length > 0" class="match-hint"
                     :class="form.password === form.confirmPassword ? 'match-ok' : 'match-fail'">
