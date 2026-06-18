@@ -875,6 +875,10 @@ function requireAuth(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
 
   if (!token) {
+    const acceptsHtml = (req.headers.accept || '').includes('text/html');
+  if (acceptsHtml) {
+    return sendClientApp(res);
+  }
     return res.status(401).json({ message: 'Missing bearer token.' });
   }
 
@@ -5023,13 +5027,13 @@ app.get('/quizzes/:id/leaderboard', requireAuth, async (req, res) => {
   }
 });
 
-app.get('*', (req, res, next) => {
-  if (req.method !== 'GET') return next();
-  const accept = String(req.get('Accept') || '');
-  if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) {
+// Catch-all: serve the SPA for any unmatched GET that accepts HTML
+app.get('*', (req, res) => {
+  const acceptsHtml = (req.headers.accept || '').includes('text/html');
+  if (acceptsHtml) {
     return sendClientApp(res);
   }
-  return next();
+  return res.status(404).json({ message: 'Not found.' });
 });
 
 if (skipDbInit) {

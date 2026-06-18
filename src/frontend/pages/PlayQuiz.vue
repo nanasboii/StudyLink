@@ -154,7 +154,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { api, getUser } from '@/api.js'
+import { api, getUser, getToken, setSession } from '@/api.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -346,6 +346,18 @@ const submitAttempt = async () => {
       timeTakenSeconds: totalTimeTaken.value
     })
     earnedLP.value = resp.earnedPoints || 0
+
+    const token = getToken()
+    if (token) {
+      try {
+        const meResp = await api('/me')
+        if (meResp?.user) {
+          setSession(token, meResp.user)
+        }
+      } catch (refreshError) {
+        console.warn('Failed to refresh user session after quiz attempt:', refreshError)
+      }
+    }
 
     // Refresh leaderboard
     const lbResp = await api(`/quizzes/${quizId}/leaderboard`)
