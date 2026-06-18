@@ -226,9 +226,15 @@ const sourceLabel = computed(() => {
   if (resource.value.uploaded_file_missing) {
     return 'Uploaded file is missing from server storage.';
   }
-  return String(resource.value.file_url || '').startsWith('http')
-    ? `External link: ${resource.value.file_url}`
-    : `File: ${resource.value.metadata?.originalName || resource.value.file_url || '-'}`;
+  const url = String(resource.value.file_url || '');
+  const isSupabaseUpload = url.includes('supabase.co/storage/');
+  const isLocalUpload = url.startsWith('/uploads/resources/');
+  if (isSupabaseUpload || isLocalUpload) {
+    return `File: ${resource.value.metadata?.originalName || resource.value.metadata?.fileName || url.split('/').pop() || '-'}`;
+  }
+  return url.startsWith('http')
+    ? `External link: ${url}`
+    : `File: ${resource.value.metadata?.originalName || url || '-'}`;
 });
 
 const fileMissing = computed(() => Boolean(resource.value?.uploaded_file_missing));
@@ -236,7 +242,9 @@ const fileMissing = computed(() => Boolean(resource.value?.uploaded_file_missing
 const canDownloadResource = computed(() => {
   if (!resource.value) return false;
   if (resource.value.uploaded_file_missing) return false;
-  return !String(resource.value.file_url || '').startsWith('http');
+  const url = String(resource.value.file_url || '');
+  // Allow download for Supabase uploads and local uploads
+  return url.includes('supabase.co/storage/') || url.startsWith('/uploads/resources/');
 });
 
 const canOpenResource = computed(() => {
@@ -484,13 +492,17 @@ const openDownload = () => {
     resourceDetailMessage.value = 'This resource cannot be downloaded directly.';
     return;
   }
-
   resourceDetailMessage.value = '';
-  
-  // BUG 6 Fix: Actually use the smart filename generator
+  const url = String(resource.value.file_url || '');
   const anchor = document.createElement('a');
-  anchor.href = getResourceFileUrl(true);
+  if (url.includes('supabase.co/storage/')) {
+    anchor.href = url;
+  } else {
+    anchor.href = getResourceFileUrl(true);
+  }
   anchor.download = getResourceDownloadFilename();
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
