@@ -1,131 +1,101 @@
 <template>
-  <main class="page-bg">
-    <section class="phone-shell">
-      <div class="view page active">
+  <main class="view page active admin-activity-page">
+    
+    <section class="card header-card">
+      <div>
+        <p class="page-kicker">Admin Panel</p>
+        <h2>Activity Logs</h2>
+        <p class="page-subtext">All admin actions recorded.</p>
+      </div>
+      <button @click="loadActivity" class="chip chip-strong" type="button" :disabled="isLoading">
+        {{ isLoading ? 'Loading…' : 'Refresh 🔄' }}
+      </button>
+    </section>
 
-        <!-- Header -->
-        <div class="page-header">
-          <div>
-            <p class="page-kicker">ADMIN PANEL</p>
-            <h2>Activity Logs</h2>
-            <p class="page-subtext">All admin actions recorded on StudyLink.</p>
-          </div>
-          <button @click="loadActivity" class="chip" type="button" :disabled="isLoading">
-            {{ isLoading ? 'Loading…' : 'Refresh' }}
-          </button>
-        </div>
-
-        <!-- Summary bar -->
-        <div class="summary-bar" v-if="!isLoading && activityLogs.length">
-          <div class="summary-stat">
-            <span class="summary-value">{{ activityLogs.length }}</span>
-            <span class="summary-label">Total Actions</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-value">{{ uniqueAdmins }}</span>
-            <span class="summary-label">Admins Active</span>
-          </div>
-          <div class="summary-stat">
-            <span class="summary-value">{{ todayCount }}</span>
-            <span class="summary-label">Today</span>
-          </div>
-        </div>
-
-        <!-- Toolbar -->
-        <div class="toolbar">
-          <div class="search-wrap">
-            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-                    stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-            </svg>
-            <input
-              v-model="searchQuery"
-              type="search"
-              placeholder="Filter by action, admin, target type…"
-              class="search-input"
-              aria-label="Filter activity logs"
-            />
-            <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''" aria-label="Clear search">
-              ×
-            </button>
-          </div>
-          <select v-model="selectedAction" class="filter-select" aria-label="Filter by action type">
-            <option value="">All actions</option>
-            <option v-for="action in uniqueActions" :key="action" :value="action">
-              {{ formatActionLabel(action) }}
-            </option>
-          </select>
-        </div>
-
-        <p v-if="message" class="message" role="alert">{{ message }}</p>
-
-        <!-- Result count -->
-        <p v-if="searchQuery || selectedAction" class="result-count">
-          Showing {{ filteredActivity.length }} of {{ activityLogs.length }} logs
-        </p>
-
-        <!-- Loading skeleton -->
-        <div v-if="isLoading" class="log-list">
-          <div v-for="n in 6" :key="n" class="log-card skeleton">
-            <div class="skeleton-line wide"></div>
-            <div class="skeleton-line narrow"></div>
-          </div>
-        </div>
-
-        <!-- Empty state -->
-        <div v-else-if="filteredActivity.length === 0" class="empty-state">
-          <p style="font-size:2rem; margin:0;">📋</p>
-          <p style="font-weight:600; margin:8px 0 4px;">
-            {{ searchQuery || selectedAction ? 'No matching logs' : 'No activity yet' }}
-          </p>
-          <p style="color:var(--ink-soft); font-size:0.9rem; margin:0 0 12px;">
-            {{ searchQuery || selectedAction ? 'Try a different search or filter.' : 'Admin actions will appear here.' }}
-          </p>
-          <button v-if="searchQuery || selectedAction" class="chip" @click="searchQuery = ''; selectedAction = ''">
-            Clear filters
-          </button>
-        </div>
-
-        <!-- Log list -->
-        <div v-else class="log-list" role="list">
-          <article
-            v-for="log in filteredActivity"
-            :key="log.id"
-            class="log-card"
-            role="listitem"
-          >
-            <div class="log-card-head">
-              <div class="log-action-wrap">
-                <span class="log-action-badge" :class="actionBadgeClass(log.action)">
-                  {{ formatActionLabel(log.action) }}
-                </span>
-                <span class="log-target-type" v-if="log.targetType">
-                  on {{ log.targetType }}
-                </span>
-              </div>
-              <time class="log-time" :datetime="log.rawTimestamp">{{ log.timestamp }}</time>
-            </div>
-
-            <div class="log-card-body">
-              <div class="log-admin">
-                <div class="log-admin-avatar">{{ (log.adminName || 'A')[0].toUpperCase() }}</div>
-                <span>{{ log.adminName }}</span>
-                <span class="log-admin-email" v-if="log.adminEmail">· {{ log.adminEmail }}</span>
-              </div>
-              <div class="log-target" v-if="log.targetId">
-                Target ID: <code class="log-id">{{ log.targetId }}</code>
-              </div>
-            </div>
-
-            <details v-if="log.details" class="log-details">
-              <summary>View details</summary>
-              <pre class="log-details-body">{{ JSON.stringify(log.details, null, 2) }}</pre>
-            </details>
-          </article>
-        </div>
-
+    <section class="summary-bar card" v-if="!isLoading && activityLogs.length">
+      <div class="summary-stat">
+        <span class="summary-value">{{ activityLogs.length }}</span>
+        <span class="summary-label">Total Actions</span>
+      </div>
+      <div class="summary-stat">
+        <span class="summary-value">{{ uniqueAdmins }}</span>
+        <span class="summary-label">Admins Active</span>
+      </div>
+      <div class="summary-stat">
+        <span class="summary-value">{{ todayCount }}</span>
+        <span class="summary-label">Today</span>
       </div>
     </section>
+
+    <section class="toolbar card">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="Search logs..."
+          class="search-input"
+        />
+        <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">×</button>
+      </div>
+      <select v-model="selectedAction" class="filter-select">
+        <option value="">All actions</option>
+        <option v-for="action in uniqueActions" :key="action" :value="action">
+          {{ formatActionLabel(action) }}
+        </option>
+      </select>
+    </section>
+
+    <p v-if="message" class="message message-error" role="alert">{{ message }}</p>
+
+    <p v-if="searchQuery || selectedAction" class="result-count">
+      Showing {{ filteredActivity.length }} of {{ activityLogs.length }} logs
+    </p>
+
+    <div v-if="isLoading" class="log-list">
+      <div v-for="n in 6" :key="n" class="log-card card skeleton"></div>
+    </div>
+
+    <div v-else-if="filteredActivity.length === 0" class="card empty-state">
+      <p class="empty-icon">📋</p>
+      <p class="empty-text">No matching logs.</p>
+      <button v-if="searchQuery || selectedAction" class="chip chip-strong" @click="searchQuery = ''; selectedAction = ''">
+        Clear filters ❌
+      </button>
+    </div>
+
+    <div v-else class="log-list">
+      <article v-for="log in filteredActivity" :key="log.id" class="log-card card">
+        <div class="log-card-head">
+          <div class="log-action-wrap">
+            <span class="log-action-badge" :class="actionBadgeClass(log.action)">
+              {{ formatActionLabel(log.action) }}
+            </span>
+            <span class="log-target-type" v-if="log.targetType">
+              on {{ log.targetType }}
+            </span>
+          </div>
+          <time class="log-time">{{ log.timestamp }}</time>
+        </div>
+
+        <div class="log-card-body">
+          <div class="log-admin">
+            <div class="log-admin-avatar">{{ (log.adminName || 'A')[0].toUpperCase() }}</div>
+            <span>{{ log.adminName }}</span>
+            <span class="log-admin-email" v-if="log.adminEmail">· {{ log.adminEmail }}</span>
+          </div>
+          <div class="log-target" v-if="log.targetId">
+            Target ID: <code class="log-id">{{ log.targetId }}</code>
+          </div>
+        </div>
+
+        <details v-if="log.details" class="log-details">
+          <summary>View details ⬇️</summary>
+          <pre class="log-details-body">{{ JSON.stringify(log.details, null, 2) }}</pre>
+        </details>
+      </article>
+    </div>
+
   </main>
 </template>
 
@@ -140,7 +110,6 @@ const selectedAction = ref('')
 const message = ref('')
 const isLoading = ref(false)
 
-// — Computed stats —
 const uniqueAdmins = computed(() => new Set(activityLogs.value.map(l => l.adminName)).size)
 const todayCount = computed(() => {
   const today = new Date().toDateString()
@@ -148,7 +117,6 @@ const todayCount = computed(() => {
 })
 const uniqueActions = computed(() => [...new Set(activityLogs.value.map(l => l.action).filter(Boolean))])
 
-// — Filtering —
 const filteredActivity = computed(() => {
   let logs = activityLogs.value
   if (selectedAction.value) {
@@ -168,7 +136,6 @@ const filteredActivity = computed(() => {
   return logs
 })
 
-// — Helpers —
 const formatActionLabel = (action) => {
   if (!action) return 'Unknown'
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -199,7 +166,7 @@ const loadActivity = async () => {
       timestamp: formatDateTimeValue(log.created_at, 'Unknown time')
     }))
   } catch (err) {
-    message.value = `Failed to load activity logs: ${err.message}`
+    message.value = `Failed load logs: ${err.message}`
   } finally {
     isLoading.value = false
   }
@@ -212,200 +179,309 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-bg {
-  min-height: 100vh;
-  padding: 20px;
-  background: linear-gradient(180deg, var(--canvas), var(--canvas-parchment));
-}
-.phone-shell {
-  width: min(960px, 100%);
+.admin-activity-page {
+  max-width: 960px;
   margin: 0 auto;
-  padding-inline: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-.page-header {
+
+/* Glass Card 🪟 */
+.card {
+  border: 2px solid #021A54;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(2, 26, 84, 0.05);
+  padding: 16px;
+}
+
+/* Header */
+.header-card {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 20px;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
+
 .page-kicker {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.1em;
-  color: var(--ink-soft);
+  color: #FF85BB;
   margin: 0 0 4px;
   text-transform: uppercase;
 }
-.page-header h2 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
-.page-subtext { margin: 4px 0 0; color: var(--ink-soft); font-size: 0.9rem; }
 
-/* Summary bar */
+.header-card h2 {
+  margin: 0;
+  font-size: 28px;
+  color: #021A54;
+}
+
+.page-subtext {
+  margin: 4px 0 0;
+  color: rgba(2, 26, 84, 0.7);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.chip-strong {
+  background: #FF85BB;
+  color: #021A54;
+  border: 2px solid #021A54;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* Summary Bar */
 .summary-bar {
   display: flex;
-  gap: 1.5rem;
+  gap: 24px;
   flex-wrap: wrap;
-  padding: 12px 16px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  margin-bottom: 16px;
 }
-.summary-stat { display: flex; flex-direction: column; gap: 2px; }
-.summary-value { font-size: 1.4rem; font-weight: 700; color: var(--ink); line-height: 1; }
-.summary-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #021A54;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #FF85BB;
+}
 
 /* Toolbar */
 .toolbar {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
 }
+
 .search-wrap {
-  flex: 1 1 240px;
-  position: relative;
+  flex: 1;
   display: flex;
   align-items: center;
+  border: 2px solid #021A54;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #F5F5F5;
+  position: relative;
 }
+
 .search-icon {
-  position: absolute;
-  left: 10px;
-  width: 16px;
-  height: 16px;
-  color: var(--ink-soft);
-  pointer-events: none;
+  font-size: 16px;
 }
+
 .search-input {
+  border: none;
+  background: transparent;
+  padding: 10px;
   width: 100%;
-  padding: 8px 32px 8px 34px;
-  border: 1px solid var(--hairline);
-  border-radius: 9999px;
-  font-size: 14px;
-  background: var(--surface);
-  color: var(--ink);
+  color: #021A54;
+  font-weight: 600;
 }
-.search-input:focus { outline: none; border-color: var(--primary); }
+
+.search-input:focus {
+  outline: none;
+}
+
 .clear-btn {
-  position: absolute;
-  right: 10px;
   background: none;
   border: none;
-  font-size: 18px;
-  color: var(--ink-soft);
+  font-size: 20px;
   cursor: pointer;
-  line-height: 1;
-  padding: 0;
+  color: #021A54;
 }
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 9999px;
-  font-size: 14px;
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-}
-.result-count { font-size: 13px; color: var(--ink-soft); margin: 0 0 10px; }
 
-/* Log list */
-.log-list { display: flex; flex-direction: column; gap: 10px; }
+.filter-select {
+  border: 2px solid #021A54;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: #F5F5F5;
+  color: #021A54;
+  font-weight: 700;
+}
+
+.result-count {
+  font-size: 14px;
+  color: #021A54;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Log List */
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 
 .log-card {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  padding: 14px 16px;
-  transition: border-color 150ms ease;
+  padding: 16px 20px;
 }
-.log-card:hover { border-color: var(--primary); }
 
 .log-card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  gap: 8px;
 }
-.log-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.log-action-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .log-action-badge {
   font-size: 12px;
-  font-weight: 700;
-  padding: 3px 10px;
+  font-weight: 800;
+  padding: 4px 12px;
   border-radius: 999px;
+  border: 2px solid #021A54;
 }
-.badge-danger  { background: var(--danger-bg);  color: var(--danger-ink); }
-.badge-success { background: var(--success-bg); color: var(--success-ink); }
-.badge-warning { background: var(--warning-bg); color: var(--warning-ink); }
-.badge-neutral { background: var(--surface-soft-alt); color: var(--ink-soft); }
 
-.log-target-type { font-size: 13px; color: var(--ink-soft); }
-.log-time { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+.badge-danger { background: #FFCEE3; color: #021A54; }
+.badge-success { background: #FF85BB; color: #021A54; }
+.badge-warning { background: #F5F5F5; color: #021A54; }
+.badge-neutral { background: transparent; color: #021A54; }
 
-.log-card-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.log-admin { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); }
-.log-admin-avatar {
-  width: 24px; height: 24px; border-radius: 50%;
-  background: var(--primary-soft-strong); color: #fff;
-  font-size: 11px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+.log-target-type {
+  font-size: 13px;
+  color: #021A54;
+  font-weight: 700;
 }
-.log-admin-email { color: var(--ink-soft); font-size: 12px; }
-.log-target { font-size: 13px; color: var(--ink-soft); }
-.log-id {
-  font-family: monospace;
-  background: var(--surface-soft-alt);
-  padding: 1px 6px;
-  border-radius: 4px;
+
+.log-time {
   font-size: 12px;
-  color: var(--ink);
+  color: #021A54;
+  font-weight: 800;
 }
 
-/* Details accordion */
-.log-details { margin-top: 10px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.log-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.log-admin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #021A54;
+}
+
+.log-admin-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #FF85BB;
+  color: #021A54;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #021A54;
+}
+
+.log-admin-email {
+  color: rgba(2, 26, 84, 0.8);
+  font-size: 12px;
+}
+
+.log-target {
+  font-size: 13px;
+  color: #021A54;
+  font-weight: 600;
+}
+
+.log-id {
+  background: #FFCEE3;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 2px solid #021A54;
+  font-family: monospace;
+  font-weight: 800;
+}
+
+/* Details Accordion */
+.log-details {
+  margin-top: 14px;
+  border-top: 2px dashed #021A54;
+  padding-top: 12px;
+}
+
 .log-details summary {
-  font-size: 12px; font-weight: 600; color: var(--primary);
-  cursor: pointer; user-select: none;
-}
-.log-details-body {
-  font-size: 12px; font-family: monospace;
-  background: var(--surface-soft-alt);
-  padding: 10px; border-radius: 8px;
-  overflow-x: auto; white-space: pre-wrap;
-  margin-top: 8px; color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 800;
+  color: #FF85BB;
+  cursor: pointer;
+  outline: none;
 }
 
-/* Empty state */
-.empty-state {
-  text-align: center; padding: 2.5rem 1rem;
-  border: 1px dashed var(--hairline);
-  border-radius: 16px; margin-top: 8px;
+.log-details-body {
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid #021A54;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 13px;
+  color: #021A54;
+  font-weight: 600;
+  overflow-x: auto;
+  margin-top: 10px;
 }
 
 /* Skeleton */
-.skeleton { pointer-events: none; }
-.skeleton-line {
-  height: 14px; border-radius: 7px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+.skeleton {
+  height: 100px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.4) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
-  margin-bottom: 8px;
 }
-.skeleton-line.wide { width: 60%; }
-.skeleton-line.narrow { width: 35%; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
-/* Message */
-.message {
-  padding: 10px 12px; border-radius: 8px;
-  background: var(--danger-bg); border: 1px solid var(--danger-border, #ffd6d6);
-  color: var(--danger-ink); font-size: 13px; margin-bottom: 12px;
+/* Empty / Error */
+.empty-state {
+  text-align: center;
+  padding: 36px;
+}
+.empty-icon { font-size: 2.5rem; margin: 0 0 10px; }
+.empty-text { font-weight: 800; color: #021A54; margin: 0 0 14px; }
+
+.message-error {
+  background: #FFCEE3;
+  border: 2px solid #FF85BB;
+  color: #021A54;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 800;
 }
 
 @media (max-width: 640px) {
-  .page-header { flex-direction: column; }
+  .header-card { flex-direction: column; align-items: flex-start; }
   .log-card-head { flex-direction: column; align-items: flex-start; }
   .toolbar { flex-direction: column; }
   .filter-select { width: 100%; }
