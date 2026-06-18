@@ -648,11 +648,11 @@ export default {
 }
 
 .nav-link:hover {
-  color: #b11f4b;
+  color: #FF85BB;
 }
 
 .nav-link.router-link-active {
-  color: #1d1d1f;
+  color: #021A54;
   font-weight: 500;
 }
 
@@ -663,7 +663,7 @@ export default {
   left: 0;
   right: 0;
   height: 1px;
-  background: #b11f4b;
+  background: #FF85BB;
   border-radius: 1px;
 }
 
@@ -676,9 +676,9 @@ export default {
 }
 
 .icon-btn {
-  border: 1px solid #e0e0e0;
+  border: 1px solid #FFCEE3;
   border-radius: 9999px;
-  background: #f5f5f7;
+  background: #F5F5F5;
   font-size: 12px;
   padding: 0;
   cursor: pointer;
@@ -698,11 +698,11 @@ export default {
 }
 
 .icon-btn:hover svg {
-  color: #b11f4b;
+  color: #FF85BB;
 }
 
 .icon-btn:hover {
-  border-color: #c7c7cc;
+  border-color: #ffb5d6;
   background: #ffffff;
 }
 

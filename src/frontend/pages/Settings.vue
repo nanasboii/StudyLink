@@ -433,7 +433,7 @@ onMounted(async () => {
 
 .field input:focus {
   outline: none;
-  border-color: #b11f4b;
+  border-color: #FF85BB;
   box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.1);
 }
 
@@ -465,12 +465,12 @@ onMounted(async () => {
 }
 
 .primary {
-  background: #b11f4b;
+  background: #FF85BB;
   color: white;
 }
 
 .primary:hover {
-  background: #b01830;
+  background: #ff6dab;
 }
 
 .secondary {
