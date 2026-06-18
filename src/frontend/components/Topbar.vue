@@ -298,21 +298,21 @@ export default {
     const generateCalendar = () => {
       const year = currentDate.value.getFullYear()
       const month = currentDate.value.getMonth()
-      
-      // Get first day of month and last day of month
+      const todayKey = toDateKey(new Date())
+
       const firstDay = new Date(year, month, 1)
       const lastDay = new Date(year, month + 1, 0)
       const startDate = new Date(firstDay)
       startDate.setDate(startDate.getDate() - firstDay.getDay())
-      
+
       const days = []
       for (let i = 0; i < 42; i++) {
         const date = new Date(startDate)
         date.setDate(date.getDate() + i)
         const isCurrentMonth = date.getMonth() === month
-        const dateString = isCurrentMonth ? String(date.getDate()) : String(date.getDate())
+        const dateString = String(date.getDate())
         const dateKey = toDateKey(date)
-        
+
         days.push({
           date: dateString,
           otherMonth: !isCurrentMonth,
@@ -384,6 +384,7 @@ export default {
     const showStreakModal = async () => {
       isStreakModalOpen.value = true
       currentDate.value = new Date()
+      generateCalendar()
       await loadLoginHistory()
       generateCalendar()
     }
