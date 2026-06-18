@@ -15,43 +15,101 @@
           </button>
         </div>
 
-        <p v-if="message" class="feedback-msg" :class="messageType">{{ message }}</p>
+        <!-- Summary stats (only once the user has uploads) -->
+        <div v-if="resources.length" class="summary-bar" aria-label="Upload summary">
+          <div class="summary-stat">
+            <span class="summary-value">{{ resources.length }}</span>
+            <span class="summary-label">Upload{{ resources.length !== 1 ? 's' : '' }}</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ totalReviews }}</span>
+            <span class="summary-label">Review{{ totalReviews !== 1 ? 's' : '' }}</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ overallRating }}</span>
+            <span class="summary-label">Avg rating</span>
+          </div>
+        </div>
 
-        <!-- Empty state -->
+        <p
+          v-if="message"
+          class="feedback-msg"
+          :class="messageType"
+          role="status"
+          aria-live="polite"
+        >{{ message }}</p>
+
+        <!-- Toolbar: search + sort (only when there is something to search) -->
+        <div v-if="resources.length" class="toolbar-row">
+          <div class="search-field">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"/></svg>
+            <input
+              v-model.trim="searchQuery"
+              type="search"
+              placeholder="Search your uploads by title, course or type…"
+              aria-label="Search your uploads"
+            />
+          </div>
+          <select v-model="sortBy" class="sort-select" aria-label="Sort uploads">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="rating">Highest rated</option>
+            <option value="reviews">Most reviewed</option>
+            <option value="title">Title (A–Z)</option>
+          </select>
+        </div>
+
+        <!-- Empty state: no uploads at all -->
         <div v-if="!isLoading && resources.length === 0" class="empty-block">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 4h6v6h6v10H6V4z"/></svg>
           <p>You haven't uploaded any resources yet.</p>
           <router-link to="/resources" class="chip chip-strong">Go to Resources</router-link>
         </div>
 
-        <div v-if="isLoading && resources.length === 0" class="empty-block">
-          <p>Loading your uploads…</p>
+        <!-- Initial loading skeleton -->
+        <div v-else-if="isLoading && resources.length === 0" class="resource-list" aria-hidden="true">
+          <div v-for="n in 3" :key="n" class="resource-card skeleton-card">
+            <div class="resource-card-main">
+              <div class="skeleton-line skeleton-pill"></div>
+              <div class="skeleton-line skeleton-title"></div>
+              <div class="skeleton-line skeleton-short"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No matches for the current search -->
+        <div v-else-if="filteredResources.length === 0" class="empty-block">
+          <p>No uploads match “{{ searchQuery }}”.</p>
+          <button class="chip chip-strong" type="button" @click="searchQuery = ''">Clear search</button>
         </div>
 
         <!-- Resource list -->
-        <div class="resource-list">
+        <div v-else class="resource-list" :class="{ 'is-refreshing': isLoading }">
           <article
-            v-for="resource in resources"
+            v-for="resource in filteredResources"
             :key="resource.id"
             class="resource-card"
           >
             <div class="resource-card-main">
               <div class="resource-meta-row">
-                <span class="type-pill">{{ resource.resource_type || 'misc' }}</span>
+                <span class="type-pill">{{ resourceTypeLabel(resource.resource_type) }}</span>
                 <span class="course-pill" v-if="resource.course_code">{{ resource.course_code }}</span>
                 <span class="date-text">{{ formatDate(resource.created_at) }}</span>
               </div>
 
-              <h3 class="resource-title">{{ resource.title || 'Untitled Resource' }}</h3>
+              <h3 class="resource-title" :title="resource.title || 'Untitled Resource'">
+                {{ resource.title || 'Untitled Resource' }}
+              </h3>
 
               <div class="resource-stats">
-                <span class="stat-chip">
+                <span class="stat-chip" v-if="Number(resource.review_count) > 0">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                   {{ Number(resource.avg_rating || 0).toFixed(1) }}
                 </span>
+                <span class="stat-chip stat-chip-muted" v-else>No ratings yet</span>
                 <span class="stat-chip">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-                  {{ resource.review_count || 0 }} review{{ resource.review_count !== 1 ? 's' : '' }}
+                  {{ resource.review_count || 0 }} review{{ Number(resource.review_count) !== 1 ? 's' : '' }}
                 </span>
               </div>
             </div>
@@ -72,18 +130,18 @@
           <div class="modal-card" role="dialog" aria-modal="true" aria-label="Edit resource">
             <div class="modal-header">
               <h3>Edit Resource</h3>
-              <button class="close-btn" type="button" @click="closeEdit">&times;</button>
+              <button class="close-btn" type="button" aria-label="Close" @click="closeEdit">&times;</button>
             </div>
 
             <form @submit.prevent="saveEdit" class="edit-form">
               <div class="field">
-                <label>Title</label>
-                <input v-model="editForm.title" type="text" required maxlength="200" />
+                <label for="edit-title">Title</label>
+                <input id="edit-title" ref="titleInput" v-model="editForm.title" type="text" required maxlength="200" />
               </div>
 
               <div class="field">
-                <label>Resource Type</label>
-                <select v-model="editForm.resourceType">
+                <label for="edit-type">Resource Type</label>
+                <select id="edit-type" v-model="editForm.resourceType">
                   <option value="past-year">Past Year Paper</option>
                   <option value="lecture-note">Lecture Note</option>
                   <option value="slide">Slides</option>
@@ -94,8 +152,8 @@
               </div>
 
               <div class="field">
-                <label>Course Code <span class="optional">(optional)</span></label>
-                <input v-model="editForm.courseCode" type="text" maxlength="20" placeholder="e.g. CS101" />
+                <label for="edit-course">Course Code <span class="optional">(optional)</span></label>
+                <input id="edit-course" v-model="editForm.courseCode" type="text" maxlength="20" placeholder="e.g. CS101" />
               </div>
 
               <p v-if="editMessage" class="feedback-msg" :class="editMessageType">{{ editMessage }}</p>
@@ -112,12 +170,12 @@
 
         <!-- Delete Confirm Modal -->
         <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
-          <div class="modal-card modal-card-sm" role="dialog" aria-modal="true">
+          <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-label="Delete resource">
             <div class="modal-header">
               <h3>Delete Resource</h3>
-              <button class="close-btn" type="button" @click="cancelDelete">&times;</button>
+              <button class="close-btn" type="button" aria-label="Close" @click="cancelDelete">&times;</button>
             </div>
-            <p class="confirm-text">Are you sure you want to delete <strong>{{ deleteTarget.title }}</strong>? This cannot be undone.</p>
+            <p class="confirm-text">Are you sure you want to delete <strong>{{ deleteTarget.title || 'this resource' }}</strong>? This cannot be undone.</p>
             <div class="modal-actions">
               <button type="button" class="chip" @click="cancelDelete">Cancel</button>
               <button type="button" class="chip chip-danger" :disabled="isDeleting" @click="doDelete">
@@ -133,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { api } from '@/api.js'
 
 const resources = ref([])
@@ -141,36 +199,118 @@ const isLoading = ref(false)
 const message = ref('')
 const messageType = ref('success')
 
+// Search + sort
+const searchQuery = ref('')
+const sortBy = ref('newest')
+
 // Edit state
 const editTarget = ref(null)
 const editForm = ref({ title: '', resourceType: '', courseCode: '' })
 const editMessage = ref('')
 const editMessageType = ref('success')
 const isSaving = ref(false)
+const titleInput = ref(null)
 
 // Delete state
 const deleteTarget = ref(null)
 const isDeleting = ref(false)
 
+let messageTimer = null
+
+const RESOURCE_TYPE_LABELS = {
+  'past-year': 'Past Year Paper',
+  'lecture-note': 'Lecture Note',
+  slide: 'Slides',
+  assignment: 'Assignment',
+  link: 'External Link',
+  miscellaneous: 'Miscellaneous',
+}
+
+const resourceTypeLabel = (value) => {
+  const key = String(value || '').trim().toLowerCase()
+  return RESOURCE_TYPE_LABELS[key] || (key ? key.replace(/[-_]/g, ' ') : 'Misc')
+}
+
 const formatDate = (val) => {
   if (!val) return '—'
-  return new Date(val).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  const d = new Date(val)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
+
+// Auto-dismissing feedback so stale toasts don't linger
+const setMessage = (text, type = 'success') => {
+  message.value = text
+  messageType.value = type
+  if (messageTimer) clearTimeout(messageTimer)
+  if (text && type === 'success') {
+    messageTimer = setTimeout(() => { message.value = '' }, 4000)
+  }
+}
+
+// ── Summary stats ──
+const totalReviews = computed(() =>
+  resources.value.reduce((sum, r) => sum + (Number(r.review_count) || 0), 0)
+)
+
+const overallRating = computed(() => {
+  const rated = resources.value.filter((r) => Number(r.review_count) > 0)
+  if (!rated.length) return '—'
+  const weighted = rated.reduce(
+    (sum, r) => sum + (Number(r.avg_rating) || 0) * (Number(r.review_count) || 0),
+    0
+  )
+  const totalCount = rated.reduce((sum, r) => sum + (Number(r.review_count) || 0), 0)
+  if (!totalCount) return '—'
+  return (weighted / totalCount).toFixed(1)
+})
+
+// ── Search + sort ──
+const filteredResources = computed(() => {
+  const q = searchQuery.value.toLowerCase().trim()
+  let list = resources.value
+  if (q) {
+    list = list.filter((r) =>
+      (r.title || '').toLowerCase().includes(q) ||
+      (r.course_code || '').toLowerCase().includes(q) ||
+      resourceTypeLabel(r.resource_type).toLowerCase().includes(q)
+    )
+  }
+
+  const sorted = [...list]
+  switch (sortBy.value) {
+    case 'oldest':
+      sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      break
+    case 'rating':
+      sorted.sort((a, b) => (Number(b.avg_rating) || 0) - (Number(a.avg_rating) || 0))
+      break
+    case 'reviews':
+      sorted.sort((a, b) => (Number(b.review_count) || 0) - (Number(a.review_count) || 0))
+      break
+    case 'title':
+      sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+      break
+    case 'newest':
+    default:
+      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }
+  return sorted
+})
 
 const loadResources = async () => {
   isLoading.value = true
-  message.value = ''
   try {
     const resp = await api('/resources/mine')
-    resources.value = resp.resources || []
+    resources.value = Array.isArray(resp?.resources) ? resp.resources : []
   } catch (err) {
-    message.value = `Error loading resources: ${err.message}`
-    messageType.value = 'error'
+    setMessage(`Couldn't load your uploads: ${err.message}`, 'error')
   } finally {
     isLoading.value = false
   }
 }
 
+// ── Edit ──
 const openEdit = (resource) => {
   editTarget.value = resource
   editForm.value = {
@@ -179,6 +319,7 @@ const openEdit = (resource) => {
     courseCode: resource.course_code || '',
   }
   editMessage.value = ''
+  nextTick(() => titleInput.value?.focus())
 }
 
 const closeEdit = () => {
@@ -187,27 +328,36 @@ const closeEdit = () => {
 }
 
 const saveEdit = async () => {
+  if (!editTarget.value?.id) return
+
+  const trimmedTitle = editForm.value.title.trim()
+  if (!trimmedTitle) {
+    editMessage.value = 'Title cannot be empty.'
+    editMessageType.value = 'error'
+    return
+  }
+
   isSaving.value = true
   editMessage.value = ''
   try {
     const resp = await api(`/resources/${editTarget.value.id}`, 'PUT', {
-      title: editForm.value.title.trim(),
+      title: trimmedTitle,
       resourceType: editForm.value.resourceType,
       courseCode: editForm.value.courseCode.trim() || null,
     })
-    // Patch local list
-    const idx = resources.value.findIndex(r => r.id === editTarget.value.id)
+
+    const updated = resp?.resource || {}
+    const idx = resources.value.findIndex((r) => r.id === editTarget.value.id)
     if (idx !== -1) {
       resources.value[idx] = {
         ...resources.value[idx],
-        title: resp.resource.title,
-        resource_type: resp.resource.resource_type,
-        course_code: resp.resource.course_code,
+        title: updated.title ?? trimmedTitle,
+        resource_type: updated.resource_type ?? editForm.value.resourceType,
+        course_code: updated.course_code ?? (editForm.value.courseCode.trim() || null),
       }
     }
     closeEdit()
-    message.value = 'Resource updated successfully.'
-    messageType.value = 'success'
+    setMessage('Resource updated.', 'success')
   } catch (err) {
     editMessage.value = `Error: ${err.message}`
     editMessageType.value = 'error'
@@ -216,6 +366,7 @@ const saveEdit = async () => {
   }
 }
 
+// ── Delete ──
 const confirmDelete = (resource) => {
   deleteTarget.value = resource
 }
@@ -225,24 +376,45 @@ const cancelDelete = () => {
 }
 
 const doDelete = async () => {
+  if (!deleteTarget.value?.id) return
+
   isDeleting.value = true
   try {
-    await api(`/resources/${deleteTarget.value.id}`, 'DELETE')
-    resources.value = resources.value.filter(r => r.id !== deleteTarget.value.id)
+    const targetId = deleteTarget.value.id
+    await api(`/resources/${targetId}`, 'DELETE')
+    resources.value = resources.value.filter((r) => r.id !== targetId)
     cancelDelete()
-    message.value = 'Resource deleted.'
-    messageType.value = 'success'
+    setMessage('Resource deleted.', 'success')
   } catch (err) {
     cancelDelete()
-    message.value = `Error: ${err.message}`
-    messageType.value = 'error'
+    setMessage(`Couldn't delete resource: ${err.message}`, 'error')
   } finally {
     isDeleting.value = false
   }
 }
 
+// ── Modal accessibility: Esc to close + body scroll lock ──
+const anyModalOpen = computed(() => Boolean(editTarget.value || deleteTarget.value))
+
+const handleKeydown = (event) => {
+  if (event.key !== 'Escape') return
+  if (deleteTarget.value) cancelDelete()
+  else if (editTarget.value) closeEdit()
+}
+
+watch(anyModalOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
 onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
   loadResources()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+  document.body.style.overflow = ''
+  if (messageTimer) clearTimeout(messageTimer)
 })
 </script>
 
@@ -279,6 +451,99 @@ onMounted(() => {
   font-size: 0.85rem;
   color: var(--glass-pink-muted);
   margin: 0;
+}
+
+/* ── Summary bar ── */
+.summary-bar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0 2rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.summary-stat {
+  flex: 1 1 0;
+  min-width: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: var(--glass-pink-surface-strong);
+  border: 1px solid var(--glass-pink-border);
+}
+
+.summary-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--glass-pink-muted);
+}
+
+/* ── Toolbar ── */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 2rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-field .search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  fill: var(--glass-pink-muted);
+  pointer-events: none;
+}
+
+.search-field input {
+  width: 100%;
+  padding: 0.6rem 1rem 0.6rem 2.4rem;
+  border: 1px solid var(--glass-pink-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.search-field input:focus {
+  border-color: var(--accent);
+}
+
+.sort-select {
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--glass-pink-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  color: var(--ink);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.sort-select:focus {
+  border-color: var(--accent);
 }
 
 /* ── Feedback messages ── */
@@ -325,6 +590,11 @@ onMounted(() => {
   flex-direction: column;
   gap: 0.75rem;
   padding: 0 2rem;
+  transition: opacity 150ms ease;
+}
+
+.resource-list.is-refreshing {
+  opacity: 0.55;
 }
 
 .resource-card {
@@ -415,12 +685,42 @@ onMounted(() => {
   fill: currentColor;
 }
 
+.stat-chip-muted {
+  opacity: 0.8;
+  font-style: italic;
+}
+
 .resource-card-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+/* ── Skeleton loading ── */
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-line {
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(74, 20, 41, 0.06) 25%, rgba(74, 20, 41, 0.12) 37%, rgba(74, 20, 41, 0.06) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+.skeleton-pill { width: 80px; height: 14px; margin-bottom: 0.6rem; }
+.skeleton-title { width: 70%; height: 18px; margin-bottom: 0.6rem; }
+.skeleton-short { width: 40%; height: 14px; }
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line { animation: none; }
 }
 
 /* ── Danger chip ── */
@@ -553,7 +853,9 @@ onMounted(() => {
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .page-header,
-  .resource-list {
+  .resource-list,
+  .summary-bar,
+  .toolbar-row {
     padding-left: 1rem;
     padding-right: 1rem;
   }
@@ -561,6 +863,15 @@ onMounted(() => {
   .feedback-msg {
     margin-left: 1rem;
     margin-right: 1rem;
+  }
+
+  .toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sort-select {
+    width: 100%;
   }
 
   .resource-card {
