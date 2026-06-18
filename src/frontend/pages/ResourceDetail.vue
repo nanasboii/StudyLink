@@ -11,6 +11,10 @@
           <button @click="goBack" class="chip" type="button">{{ backButtonLabel }}</button>
         </div>
 
+        <p v-if="resourceDetailMessage" class="message" role="alert" aria-live="polite">
+          {{ resourceDetailMessage }}
+        </p>
+
         <section v-if="resource" class="card resource-detail-card">
           <div class="resource-detail-cover">
             <span class="resource-type-tag">{{ resourceTypeLabel }}</span>
@@ -25,7 +29,12 @@
               </div>
               <div class="resource-meta-box">
                 <span>Average Rating</span>
-                <strong>{{ Number(resource.avg_rating || 0).toFixed(1) }}</strong>
+                <strong>
+                  <span style="color:#f0b300; letter-spacing:1px; margin-right: 4px;">
+                    {{ renderStars(resource.avg_rating) }}
+                  </span>
+                  {{ Number(resource.avg_rating || 0).toFixed(1) }}
+                </strong>
               </div>
               <div class="resource-meta-box">
                 <span>Total Reviews</span>
@@ -37,84 +46,129 @@
               </div>
             </div>
 
-            <p class="resource-source-line">Source: {{ sourceLabel }}</p>
+            <p v-if="resource.description" class="resource-description">
+              {{ resource.description }}
+            </p>
+
+            <div class="resource-source-row">
+              <p class="resource-source-line">Source: {{ sourceLabel }}</p>
+              <button
+                v-if="resource.file_url && resource.file_url.startsWith('http')"
+                class="chip"
+                type="button"
+                @click="copyLink"
+                aria-label="Copy resource link"
+              >Copy Link</button>
+            </div>
 
             <div class="resource-action-row">
-              <button @click="openResource" :disabled="!canOpenResource" class="chip chip-strong" type="button">Open Resource</button>
-              <button v-if="canDownloadResource" @click="openDownload" :disabled="fileMissing" class="chip" type="button">Download</button>
+              <button 
+                @click="openResource" 
+                :disabled="!canOpenResource" 
+                class="chip chip-strong" 
+                type="button"
+                :title="!canOpenResource ? (fileMissing ? 'File is missing from storage' : 'No file available') : 'Open resource in new tab'"
+              >
+                Open Resource
+              </button>
+              <button 
+                v-if="canDownloadResource" 
+                @click="openDownload" 
+                :disabled="fileMissing" 
+                class="chip" 
+                type="button"
+              >
+                Download
+              </button>
             </div>
-            <p v-if="fileMissing" class="message message-error">This resource file is missing from server storage and cannot be opened.</p>
+            
+            <p v-if="fileMissing" class="message message-error" role="alert">
+              This resource file is missing from server storage and cannot be opened.
+            </p>
           </div>
         </section>
 
-        <section v-else class="card resource-detail-card">
+        <section v-else-if="isLoadingResource" class="card resource-detail-card">
           <p>Loading resource details...</p>
         </section>
 
-        <section class="card resource-rating-card">
-          <h3>Rate This Resource</h3>
-          <form @submit.prevent="submitReview" class="stack">
-            <div class="detail-star-rating-wrap">
-              <p class="detail-rating-label">Your rating</p>
-              
-              <div class="detail-star-rating" role="radiogroup" aria-label="Your rating">
-                <button 
-                  v-for="star in 5" 
-                  :key="star"
-                  type="button" 
-                  @mouseenter="previewRating = star"
-                  @mouseleave="previewRating = 0"
-                  @click="selectedRating = star"
-                  :class="{
-                    'is-active': star <= selectedRating,
-                    'is-previewed': previewRating ? star <= previewRating : false
-                  }"
-                  :aria-label="`Rate ${star} stars`"
-                  :aria-pressed="(star <= selectedRating).toString()"
-                >★</button>
+        <section v-else class="card resource-detail-card">
+          <p>Resource could not be loaded.</p>
+        </section>
+
+        <template v-if="resource">
+          <section class="card resource-rating-card">
+            <h3>Rate This Resource</h3>
+            <form @submit.prevent="submitReview" class="stack">
+              <div class="detail-star-rating-wrap">
+                <p class="detail-rating-label">Your rating</p>
+                
+                <div class="detail-star-rating" role="radiogroup" aria-label="Your rating">
+                  <button 
+                    v-for="star in 5" 
+                    :key="star"
+                    type="button" 
+                    @mouseenter="previewRating = star"
+                    @mouseleave="previewRating = 0"
+                    @click="selectedRating = star"
+                    :class="{
+                      'is-active': star <= selectedRating,
+                      'is-previewed': previewRating ? star <= previewRating : false
+                    }"
+                    :aria-label="`Rate ${star} stars`"
+                    :aria-pressed="(star <= selectedRating).toString()"
+                  >★</button>
+                </div>
+                
+                <p class="meta">{{ ratingHint }}</p>
               </div>
               
-              <p class="meta">{{ ratingHint }}</p>
+              <label>Comment (optional)
+                <textarea v-model="comment" rows="3" placeholder="Share what was useful about this resource"></textarea>
+              </label>
+              
+              <button class="primary" type="submit" :disabled="isSubmittingReview">
+                {{ isSubmittingReview ? 'Submitting...' : 'Submit Rating' }}
+              </button>
+            </form>
+            <p v-if="resourceReviewMessage" class="message" role="status" aria-live="polite">
+              {{ resourceReviewMessage }}
+            </p>
+          </section>
+
+          <section class="card resource-comments-card">
+            <div class="resource-comments-head">
+              <h3>
+                Comments & Ratings
+                <span v-if="reviews.length" style="font-size:0.8rem; font-weight:400; color:var(--ink-soft);">
+                  ({{ reviews.length }})
+                </span>
+              </h3>
+              <button @click="loadComments" class="chip" type="button">Refresh</button>
             </div>
             
-            <label>Comment (optional)
-              <textarea v-model="comment" rows="3" placeholder="Share what was useful about this resource"></textarea>
-            </label>
-            
-            <button class="primary" type="submit">Submit Rating</button>
-          </form>
-          <p v-if="resourceReviewMessage" class="message">{{ resourceReviewMessage }}</p>
-        </section>
-
-        <section class="card resource-comments-card">
-          <div class="resource-comments-head">
-            <h3>Comments & Ratings</h3>
-            <button @click="loadComments" class="chip" type="button">Refresh</button>
-          </div>
-          
-          <div class="resource-comments-list">
-            <div v-if="isLoadingComments" class="resource-empty">Loading comments...</div>
-            <div v-else-if="reviews.length === 0" class="resource-empty">No comments yet. Be the first to rate this resource.</div>
-            
-            <article v-else v-for="review in reviews" :key="review.id || review.created_at" class="resource-comment">
-              <div class="resource-comment-head">
-                <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
-                <p class="resource-comment-date">{{ formatDateValue(review.created_at, '-') }}</p>
-              </div>
-              <p class="resource-comment-rating">{{ renderStars(review.rating) }} ({{ Number(review.rating || 0).toFixed(1) }})</p>
-              <p class="resource-comment-body">{{ review.comment || 'No comment provided.' }}</p>
-            </article>
-          </div>
-        </section>
-
-        <p v-if="resourceDetailMessage" class="message">{{ resourceDetailMessage }}</p>
+            <div class="resource-comments-list">
+              <div v-if="isLoadingComments" class="resource-empty">Loading comments...</div>
+              <div v-else-if="reviews.length === 0" class="resource-empty">No comments yet. Be the first to rate this resource.</div>
+              
+              <article v-else v-for="review in reviews" :key="review.id" class="resource-comment">
+                <div class="resource-comment-head">
+                  <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
+                  <p class="resource-comment-date">{{ formatDateValue(review.created_at, '-') }}</p>
+                </div>
+                <p class="resource-comment-rating">{{ renderStars(review.rating) }} ({{ Number(review.rating || 0).toFixed(1) }})</p>
+                <p class="resource-comment-body">{{ review.comment || 'No comment provided.' }}</p>
+              </article>
+            </div>
+          </section>
+        </template>
       </div>
     </section>
   </main>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api, requireSession, showToast } from '@/api.js';
 import { formatDateValue } from '@/utils/records.js'
@@ -143,6 +197,8 @@ const comment = ref('');
 const resourceDetailMessage = ref('');
 const resourceReviewMessage = ref('');
 const isLoadingComments = ref(true);
+const isLoadingResource = ref(true); // Added missing state
+const isSubmittingReview = ref(false); // Added for double-submission guard
 
 // Computed Properties for UI
 const ratingHint = computed(() => {
@@ -261,14 +317,17 @@ const openInNewTab = (url) => {
 const loadResource = async () => {
   if (!resourceId.value) {
     resourceDetailMessage.value = 'Missing resource id.';
+    isLoadingResource.value = false;
     return;
   }
 
   if (!/^\d+$/.test(resourceId.value)) {
     resourceDetailMessage.value = 'Invalid resource id.';
+    isLoadingResource.value = false;
     return;
   }
 
+  isLoadingResource.value = true;
   try {
     const data = await api(`/resources/${encodeURIComponent(resourceId.value)}`);
     if (!data.resource) {
@@ -276,9 +335,14 @@ const loadResource = async () => {
       return;
     }
     resource.value = data.resource;
+    
+    // IMPROVEMENT 4: Update document title
+    document.title = `${data.resource.title} — StudyLink`;
     resourceDetailMessage.value = '';
   } catch (error) {
     resourceDetailMessage.value = error.message || 'Unable to load this resource.';
+  } finally {
+    isLoadingResource.value = false;
   }
 };
 
@@ -297,7 +361,10 @@ const loadComments = async () => {
   } catch (error) {
     reviews.value = [];
     if (error?.message && !String(error.message).toLowerCase().includes('not found')) {
-      resourceDetailMessage.value = error.message;
+      // Ensure we don't clobber the primary resource error if it exists
+      if (!resourceDetailMessage.value) {
+        resourceDetailMessage.value = error.message;
+      }
     }
   } finally {
     isLoadingComments.value = false;
@@ -305,6 +372,8 @@ const loadComments = async () => {
 };
 
 const submitReview = async () => {
+  if (isSubmittingReview.value) return; // Guard against double-clicks
+  
   const rating = Number(selectedRating.value || 0);
   const commentText = String(comment.value || '').trim();
 
@@ -318,6 +387,7 @@ const submitReview = async () => {
     return;
   }
 
+  isSubmittingReview.value = true;
   try {
     await api(`/resources/${encodeURIComponent(resourceId.value)}/reviews`, 'POST', {
       rating,
@@ -340,6 +410,8 @@ const submitReview = async () => {
     
   } catch (error) {
     resourceReviewMessage.value = error.message;
+  } finally {
+    isSubmittingReview.value = false;
   }
 };
 
@@ -356,13 +428,25 @@ const openResource = () => {
     return;
   }
 
-  if (!resource.value.id) {
+  // BUG 3 Fix: Check file_url instead of id so it catches missing URLs properly
+  if (!resource.value.file_url) {
     resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
     return;
   }
 
   resourceDetailMessage.value = '';
   window.open(getResourceFileUrl(), '_blank', 'noopener,noreferrer');
+};
+
+const copyLink = async () => {
+  if (!resource.value?.file_url) return;
+  try {
+    await navigator.clipboard.writeText(resource.value.file_url);
+    resourceDetailMessage.value = 'Link copied to clipboard.';
+    setTimeout(() => { resourceDetailMessage.value = ''; }, 2000);
+  } catch {
+    resourceDetailMessage.value = 'Could not copy link automatically.';
+  }
 };
 
 const getResourceDownloadExtension = (source) => {
@@ -402,7 +486,14 @@ const openDownload = () => {
   }
 
   resourceDetailMessage.value = '';
-  window.location.href = getResourceFileUrl(true);
+  
+  // BUG 6 Fix: Actually use the smart filename generator
+  const anchor = document.createElement('a');
+  anchor.href = getResourceFileUrl(true);
+  anchor.download = getResourceDownloadFilename();
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 };
 
 const goBack = () => {
@@ -412,11 +503,23 @@ const goBack = () => {
 // Lifecycle
 onMounted(() => {
   requireSession();
+  
+  // IMPROVEMENT 8: Scroll to top of view on mount
+  const viewEl = document.querySelector('.view');
+  if (viewEl) viewEl.scrollTop = 0;
+
   if (resourceId.value) {
-    Promise.all([loadResource(), loadComments()]);
+    // BUG 7 Fix: Added empty catch to handle uncaught Promise rejections safely
+    Promise.all([loadResource(), loadComments()]).catch(() => {});
   } else {
     resourceDetailMessage.value = 'No resource ID provided in the URL.';
+    isLoadingResource.value = false;
   }
+});
+
+onUnmounted(() => {
+  // IMPROVEMENT 4 Cleanup: Reset document title when leaving
+  document.title = 'StudyLink';
 });
 </script>
 
@@ -507,6 +610,24 @@ onMounted(() => {
   margin-top: 3px;
   color: var(--ink);
   font-size: 1rem;
+}
+
+.resource-description {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: var(--surface-soft-alt);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-soft-strong);
+}
+
+.resource-source-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .resource-source-line {
