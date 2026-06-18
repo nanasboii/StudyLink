@@ -470,8 +470,9 @@ onBeforeUnmount(() => {
 }
 
 .summary-bar {
-  border-top: 2px solid var(--glass-pink-border);
-  padding-top: 1rem;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
 }
 
 .summary-stat {
@@ -889,8 +890,8 @@ onBeforeUnmount(() => {
   }
 
   .sort-select {
-    width: 100%;
-    max-width: 200px;
+    width: auto;
+    min-width: 160px;
   }
 
   .resource-card {
