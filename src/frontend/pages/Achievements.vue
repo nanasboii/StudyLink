@@ -344,7 +344,7 @@ onMounted(() => {
 
 /* Glass Card 🪟 */
 .card {
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid #021A54;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
@@ -376,7 +376,7 @@ onMounted(() => {
   min-width: 170px;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid #021A54;
   background: linear-gradient(135deg, #FF85BB, #FFCEE3);
   color: #021A54;
   text-align: center;
@@ -457,7 +457,7 @@ onMounted(() => {
   padding: 10px 14px;
   border-radius: 10px;
   background: rgba(255, 133, 187, 0.2);
-  border: 1px solid #FF85BB;
+  border: 2px solid #FF85BB;
   color: #021A54;
   font-size: 0.9rem;
   font-weight: 600;
@@ -479,7 +479,7 @@ onMounted(() => {
 }
 
 .reason-item {
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid #021A54;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.5);
   padding: 10px 12px;
@@ -523,7 +523,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid #021A54;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.5);
   padding: 10px 12px;
@@ -569,7 +569,7 @@ onMounted(() => {
 }
 
 .badge-item {
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid #021A54;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.4);
   padding: 14px;
@@ -587,7 +587,7 @@ onMounted(() => {
 }
 
 .badge-item.unlocked {
-  border-color: #FF85BB;
+  border: 2px solid #FF85BB;
   background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 10px 22px rgba(2, 26, 84, 0.08);
   opacity: 1;
@@ -695,7 +695,7 @@ onMounted(() => {
   position: relative;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid #021A54;
   border-radius: 20px;
   padding: 32px 28px 24px;
   max-width: 420px;
@@ -837,7 +837,7 @@ onMounted(() => {
   font-size: 0.85rem;
   color: rgba(2, 26, 84, 0.7);
   background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 2px solid #021A54;
   border-radius: 10px;
   padding: 10px 14px;
   width: 100%;
