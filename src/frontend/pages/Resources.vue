@@ -63,18 +63,8 @@
               <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
             </button>
           </div>
-          <div class="action-row" style="align-items: center;">
-            <button
-              v-if="canUpload"
-              class="chip chip-strong"
-              type="button"
-              @click="showUploadModal = true"
-            >
-              Upload Resource
-            </button>
-            <span v-else class="meta" style="font-size:12px;">
-              Only tutors can upload resources.
-            </span>
+          <div class="action-row">
+            <button class="chip chip-strong" type="button" @click="showUploadModal = true">Upload Resource</button>
           </div>
         </div>
 
