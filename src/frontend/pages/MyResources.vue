@@ -422,7 +422,7 @@ const loadResources = async () => {
       resources.value = []
     }
   } catch (err) {
-    setMessage(`Couldn't load uploads: ${err?.message || 'Unknown error'}`, 'error')
+    setMessage('Couldn\'t load your uploads. Please try again.', 'error')
   } finally {
     isLoading.value = false
   }

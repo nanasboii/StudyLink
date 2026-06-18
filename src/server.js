@@ -3098,6 +3098,9 @@ app.get('/resources', requireAuth, async (req, res) => {
 });
 
 app.get('/resources/:id', requireAuth, async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid resource id.' })
+  }
   const resourceId = Number(req.params.id);
   if (!resourceId) {
     return res.status(400).json({ message: 'Invalid resource id.' });
@@ -3294,6 +3297,9 @@ app.post('/resources/:id/reviews', requireAuth, async (req, res) => {
 });
 
 app.put('/resources/:id', requireAuth, async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid resource id.' })
+  }
   const resourceId = Number(req.params.id);
   const { title, resourceType, courseCode, metadata } = req.body;
 
@@ -3343,6 +3349,9 @@ app.put('/resources/:id', requireAuth, async (req, res) => {
 });
 
 app.delete('/resources/:id', requireAuth, async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid resource id.' });
+  }
   const resourceId = Number(req.params.id);
 
   const client = await pool.connect();
