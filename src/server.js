@@ -8,6 +8,12 @@ const nodemailer = require('nodemailer');
 const webpush = require('web-push');
 require('dotenv').config();
 
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
 // ── VAPID setup ──────────────────────────────────────────────────────────────
 // Generate stable keys once and store in env vars (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).
 // On first run without env vars, new keys are generated for this process.
@@ -433,15 +439,7 @@ const allowedResourceMimeTypes = new Set([
 ]);
 
 const resourceUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, resourceUploadDir),
-    filename: (req, file, cb) => {
-      const userId = req.auth?.user?.id || 'unknown';
-      const extension = path.extname(file.originalname || '').toLowerCase();
-      const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-      cb(null, `resource-${userId}-${unique}${extension}`);
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 25 * 1024 * 1024
   }
@@ -2840,9 +2838,42 @@ app.post(
       return res.status(400).json({ message: 'title and resourceType are required.' });
     }
 
-    const resourceUrl = req.file
-      ? `/uploads/resources/${req.file.filename}`
-      : resourceLink;
+    let resourceUrl = resourceLink || null;
+
+    if (req.file) {
+      if (supabase) {
+        const userId = req.auth?.user?.id || 'unknown';
+        const extension = path.extname(req.file.originalname || '').toLowerCase();
+        const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        const fileName = `resource-${userId}-${unique}${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('resources')
+          .upload(fileName, req.file.buffer, {
+            contentType: req.file.mimetype,
+            upsert: false
+          });
+
+        if (uploadError) {
+          return res.status(500).json({ message: `Storage upload failed: ${uploadError.message}` });
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('resources')
+          .getPublicUrl(fileName);
+
+        resourceUrl = publicUrlData.publicUrl;
+      } else {
+        // Fallback: save to local disk if Supabase is not configured
+        const userId = req.auth?.user?.id || 'unknown';
+        const extension = path.extname(req.file.originalname || '').toLowerCase();
+        const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        const fileName = `resource-${userId}-${unique}${extension}`;
+        const destPath = path.join(resourceUploadDir, fileName);
+        await fs.promises.writeFile(destPath, req.file.buffer);
+        resourceUrl = `/uploads/resources/${fileName}`;
+      }
+    }
 
     if (!resourceUrl) {
       return res.status(400).json({ message: 'Upload a file or paste a resource link.' });
@@ -2851,8 +2882,8 @@ app.post(
     const metadata = {
       uploadKind: req.file ? 'file' : 'link',
       originalName: req.file ? req.file.originalname : null,
-      fileName: req.file ? req.file.filename : null,
-      externalLink: req.file ? null : resourceLink
+      fileName: req.file ? path.basename(resourceUrl) : null,
+      externalLink: !req.file ? resourceUrl : null,
     };
 
     const client = await pool.connect();
