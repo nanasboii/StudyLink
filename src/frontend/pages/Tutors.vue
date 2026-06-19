@@ -524,10 +524,39 @@ const getNextSlotDateTime = (dayOfWeek, startTime) => {
 
 const bookSlot = (slot) => {
   if (!selectedTutorData.value) return
+ 
   const query = { tutorId: String(selectedTutorData.value.id) }
   if (slot?.courseCode) query.courseCode = String(slot.courseCode).toUpperCase()
   const next = getNextSlotDateTime(slot?.dayOfWeek, slot?.startTime)
   if (next) query.sessionTime = next
+ 
+  // FIX → optimistic remove: strip slot from modal view
+  const tutorId = selectedTutorData.value.id
+  selectedTutorData.value = {
+    ...selectedTutorData.value,
+    availability: (selectedTutorData.value.availability || []).filter(s =>
+      !(s.dayOfWeek === slot?.dayOfWeek &&
+        s.startTime === slot?.startTime &&
+        s.endTime   === slot?.endTime &&
+        s.courseCode === slot?.courseCode)
+    )
+  }
+ 
+  // FIX → also remove from global tutors[] cache so re-open shows same state
+  const idx = tutors.value.findIndex(t => String(t.id) === String(tutorId))
+  if (idx !== -1) {
+    tutors.value[idx] = {
+      ...tutors.value[idx],
+      availability: (tutors.value[idx].availability || []).filter(s =>
+        !(s.dayOfWeek === slot?.dayOfWeek &&
+          s.startTime === slot?.startTime &&
+          s.endTime   === slot?.endTime &&
+          s.courseCode === slot?.courseCode)
+      )
+    }
+  }
+ 
+  // close modal + navigate
   selectedTutorData.value = null
   router.push({ path: '/session', query })
 }
