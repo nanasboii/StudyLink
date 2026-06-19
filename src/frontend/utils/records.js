@@ -155,33 +155,43 @@ export const normalizeTutor = (row) => {
 
   return {
     id: row?.id,
+    // FIX → handle both snake_case (raw DB) and camelCase (sanitizePublicTutor output)
     full_name: row?.full_name ?? row?.fullName ?? 'Unknown Tutor',
     major: row?.major ?? '',
+    year_of_study: row?.year_of_study ?? row?.yearOfStudy ?? null,
     expertise: Array.isArray(row?.expertise) ? row.expertise : [],
     bio: row?.bio ?? '',
     rating: Number(row?.rating ?? 0),
     total_points: Number(row?.total_points ?? row?.totalPoints ?? 0),
     is_verified: Boolean(row?.is_verified ?? row?.isVerified),
     profile_picture_url: row?.profile_picture_url ?? row?.profilePictureUrl ?? '',
+    // FIX → preserve matchScore from recommended endpoint
+    matchScore: row?.matchScore ?? 0,
     availability
   }
 }
 
+// FIX → normalizeUserProfile was missing yearOfStudy, expertise, targetSubjects
+// These fields are stripped after every save/load — root cause of "saved but not displayed"
 export const normalizeUserProfile = (user) => ({
   fullName:
     user.fullName ||
     [user.firstName, user.lastName].filter(Boolean).join(' ') ||
     '',
-  email: user.email || '',
-  phoneNumber: user.phoneNumber || '',
-  major: user.major || '',
-  bio: user.bio || '',
-  studentId: user.studentId || '',
-  role: user.role || '',
-  points: Number(user.totalPoints ?? user.points ?? 0),
-  rating: Number(user.rating || 0),
-  isVerified: Boolean(user.isVerified),
+  email:          user.email          || '',
+  phoneNumber:    user.phoneNumber    || user.phone_number    || '',
+  major:          user.major          || '',
+  bio:            user.bio            || '',
+  studentId:      user.studentId      || user.student_id      || '',
+  role:           user.role           || '',
+  points:         Number(user.totalPoints ?? user.points ?? 0),
+  rating:         Number(user.rating  || 0),
+  isVerified:     Boolean(user.isVerified ?? user.is_verified),
   profilePicture: normalizeAssetUrl(
     user.profilePictureUrl || user.profile_picture_url || user.profilePicture || user.profile_picture || ''
-  )
+  ),
+  // FIX → these three fields were completely missing — caused silent data loss on every save
+  yearOfStudy:    user.yearOfStudy    ?? user.year_of_study    ?? null,
+  targetSubjects: user.targetSubjects ?? user.target_subjects  ?? '',
+  expertise:      Array.isArray(user.expertise) ? user.expertise : [],
 })

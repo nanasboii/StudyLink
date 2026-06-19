@@ -452,7 +452,7 @@ const loadRecommended = async () => {
   try {
     isLoadingRecommended.value = true
     const resp = await api('/tutors/recommended')
-    recommendedTutors.value = resp.tutors || []
+    recommendedTutors.value = (resp.tutors || []).map(normalizeTutor)
     matchedSubjectTokens.value = resp.matchedOn || []
     // BUG FIX → hasTargetSubjects tracks whether user SET subjects, not whether matches found
     // Server returns empty matchedOn when target_subjects is blank → use that as signal
