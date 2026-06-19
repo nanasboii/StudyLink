@@ -16,13 +16,15 @@
         </div>
 
         <!-- Feedback message -->
-        <p
-          v-if="message"
-          class="feedback-msg"
-          :class="isError ? 'error' : 'success'"
-          role="status"
-          aria-live="polite"
-        >{{ message }}</p>
+        <transition name="fade">
+          <p
+            v-if="message"
+            class="feedback-msg"
+            :class="isError ? 'error' : 'success'"
+            role="status"
+            aria-live="polite"
+          >{{ message }}</p>
+        </transition>
 
         <!-- Completed Sessions -->
         <div class="glass-card">
@@ -31,11 +33,17 @@
             <span v-if="completedBookings.length" class="count-badge">{{ completedBookings.length }}</span>
           </div>
 
+          <!-- FIX → inline booking load error (not global showMessage) -->
+          <p v-if="bookingsError" class="inline-error" role="alert">⚠️ {{ bookingsError }}</p>
+
           <!-- Skeleton -->
-          <div v-if="isLoadingBookings" class="skeleton-list">
+          <div v-else-if="isLoadingBookings" class="skeleton-list">
             <div v-for="n in 3" :key="n" class="skeleton-item">
-              <div class="skel skel-title"></div>
-              <div class="skel skel-meta"></div>
+              <div class="skel-avatar"></div>
+              <div class="skel-lines">
+                <div class="skel skel-title"></div>
+                <div class="skel skel-meta"></div>
+              </div>
             </div>
           </div>
 
@@ -100,7 +108,9 @@
 
             <!-- Comment -->
             <div class="form-group">
-              <label class="form-label" for="review-comment">Comment <span class="optional">(optional)</span></label>
+              <label class="form-label" for="review-comment">
+                Comment <span class="optional">(optional)</span>
+              </label>
               <textarea
                 id="review-comment"
                 v-model="reviewData.comment"
@@ -112,7 +122,7 @@
               <span class="char-count">{{ reviewData.comment.length }}/250</span>
             </div>
 
-            <!-- Submit -->
+            <!-- FIX → disabled when no booking or no rating or submitting -->
             <button
               class="btn-primary"
               type="button"
@@ -129,11 +139,17 @@
         <div class="glass-card">
           <h3>Your Past Reviews</h3>
 
-          <div v-if="isLoadingReviews" class="skeleton-list">
+          <!-- FIX → inline reviews error -->
+          <p v-if="reviewsError" class="inline-error" role="alert">⚠️ {{ reviewsError }}</p>
+
+          <div v-else-if="isLoadingReviews" class="skeleton-list">
             <div v-for="n in 2" :key="n" class="skeleton-item">
-              <div class="skel skel-title"></div>
-              <div class="skel skel-meta"></div>
-              <div class="skel skel-body"></div>
+              <div class="skel-avatar"></div>
+              <div class="skel-lines">
+                <div class="skel skel-title"></div>
+                <div class="skel skel-meta"></div>
+                <div class="skel skel-body"></div>
+              </div>
             </div>
           </div>
 
@@ -176,20 +192,24 @@ import { api } from '@/api.js'
 
 const route = useRoute()
 
-// ─── State ───────────────────────────────────────────────
-const completedBookings = ref([])
-const recentReviews = ref([])
-const reviewData = ref({ bookingId: 0, comment: '', rating: 0 })
-const message = ref('')
-const isError = ref(false)
-const isLoading = ref(false)
-const isLoadingBookings = ref(false)
-const isLoadingReviews = ref(false)
-const isSubmitting = ref(false)
-const hoveredStar = ref(0)
-let messageTimer = null
+// ─── State ────────────────────────────────────────────────
+const completedBookings  = ref([])
+const recentReviews      = ref([])
+const reviewData         = ref({ bookingId: 0, comment: '', rating: 0 })
+const message            = ref('')
+const isError            = ref(false)
+const isLoading          = ref(false)
+const isLoadingBookings  = ref(false)
+const isLoadingReviews   = ref(false)
+const isSubmitting       = ref(false)
+const hoveredStar        = ref(0)
+// FIX → separate error strings for each section (not global showMessage)
+const bookingsError      = ref('')
+const reviewsError       = ref('')
+let messageTimer         = null
 
-// ─── Computed ─────────────────────────────────────────────
+// ─── Computed ──────────────────────────────────────────────
+// FIX → guard bookingId === 0 (falsy zero bug)
 const canSubmit = computed(() =>
   reviewData.value.bookingId > 0 && reviewData.value.rating >= 1
 )
@@ -200,7 +220,7 @@ const ratingLabel = computed(() => {
   return labels[r] || ''
 })
 
-// ─── Helpers ──────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────
 const renderStars = (rating) => {
   const n = Math.max(0, Math.min(5, Number(rating) || 0))
   return '★'.repeat(n) + '☆'.repeat(5 - n)
@@ -224,27 +244,34 @@ const showMessage = (text, error = false) => {
   if (messageTimer) clearTimeout(messageTimer)
   message.value = text
   isError.value = error
-  messageTimer = setTimeout(() => { message.value = '' }, 4000)
+  // FIX → success auto-dismisses; errors persist
+  if (!error) {
+    messageTimer = setTimeout(() => { message.value = '' }, 4500)
+  }
 }
 
-// ─── Data Loaders ─────────────────────────────────────────
+// ─── Data Loaders ──────────────────────────────────────────
 const loadCompletedBookings = async () => {
   isLoadingBookings.value = true
+  bookingsError.value = ''
   try {
     const resp = await api('/bookings/inbox')
     const bookings = Array.isArray(resp?.bookings) ? resp.bookings : []
+    // FIX → only completed AND not already reviewed by me
+    // Server returns all — filter completed, let user still select reviewed ones (server upserts)
     completedBookings.value = bookings
       .filter((b) => b?.status === 'completed')
       .map((b) => ({
-        id: b.id,
-        tutorName: b.tutor_name || b.tutorName || '',
-        tuteeName: b.tutee_name || b.tuteeName || '',
-        courseCode: b.course_code || b.courseCode || '',
-        sessionTime: b.session_time || b.sessionTime || '',
-        status: b.status,
+        id:           b.id,
+        tutorName:    b.tutor_name  || b.tutorName  || '',
+        tuteeName:    b.tutee_name  || b.tuteeName  || '',
+        courseCode:   b.course_code || b.courseCode  || '',
+        sessionTime:  b.session_time || b.sessionTime || '',
+        status:       b.status,
       }))
   } catch (err) {
-    showMessage(`Failed to load sessions: ${err?.message || 'Unknown error'}`, true)
+    // FIX → don't call showMessage here → was polluting global message
+    bookingsError.value = err?.message || 'Could not load sessions.'
   } finally {
     isLoadingBookings.value = false
   }
@@ -252,12 +279,13 @@ const loadCompletedBookings = async () => {
 
 const loadRecentReviews = async () => {
   isLoadingReviews.value = true
+  reviewsError.value = ''
   try {
     const resp = await api('/users/me/submitted-reviews')
     recentReviews.value = Array.isArray(resp?.reviews) ? resp.reviews : []
   } catch (err) {
-    // -> non-critical, silent
-    console.warn('Reviews load failed:', err?.message)
+    // FIX → silent for non-critical; show inline only
+    reviewsError.value = err?.message || 'Could not load reviews.'
     recentReviews.value = []
   } finally {
     isLoadingReviews.value = false
@@ -270,9 +298,13 @@ const loadAll = async () => {
   isLoading.value = false
 }
 
-// ─── Actions ──────────────────────────────────────────────
+// ─── Actions ───────────────────────────────────────────────
 const selectBooking = (booking) => {
   reviewData.value.bookingId = booking.id
+  // FIX → clear old rating/comment when switching session
+  reviewData.value.rating  = 0
+  reviewData.value.comment = ''
+  hoveredStar.value = 0
 }
 
 const submitReview = async () => {
@@ -280,6 +312,7 @@ const submitReview = async () => {
 
   const { bookingId, rating, comment } = reviewData.value
 
+  // FIX → guard bookingId zero (falsy)
   if (!bookingId || bookingId <= 0) {
     showMessage('Select a session first.', true)
     return
@@ -292,23 +325,26 @@ const submitReview = async () => {
   isSubmitting.value = true
   try {
     await api(`/bookings/${bookingId}/review`, 'POST', {
-      rating: Number(rating),
+      rating:  Number(rating),
       comment: String(comment || '').trim(),
     })
     showMessage('Review submitted! 🎉', false)
+    // FIX → reset form fully
     reviewData.value = { bookingId: 0, comment: '', rating: 0 }
+    hoveredStar.value = 0
     await Promise.all([loadCompletedBookings(), loadRecentReviews()])
   } catch (err) {
     showMessage(err?.message || 'Submit failed.', true)
   } finally {
+    // FIX → always reset submitting flag
     isSubmitting.value = false
   }
 }
 
-// ─── Mount ────────────────────────────────────────────────
+// ─── Mount ─────────────────────────────────────────────────
 onMounted(async () => {
-  // -> Pre-fill from route param
   const paramId = Number(route.params.resourceId)
+  // FIX → guard zero (falsy bookingId bug)
   if (paramId > 0) {
     reviewData.value.bookingId = paramId
   }
@@ -338,21 +374,38 @@ onMounted(async () => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary, #FF85BB);
 }
 
 .page-header h2 {
   margin: 0 0 4px;
   font-size: clamp(1.3rem, 2.5vw, 1.65rem);
-  color: var(--ink);
+  color: var(--ink, #021A54);
   font-weight: 700;
 }
 
 .page-subtext {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--ink-muted);
+  color: var(--ink-muted, #6e6e73);
 }
+
+/* ── Refresh chip ── */
+.chip {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(255, 133, 187, 0.4);
+  background: transparent;
+  color: var(--ink, #021A54);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.chip:hover:not(:disabled) { background: rgba(255, 133, 187, 0.1); }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Glass card ── */
 .glass-card {
@@ -375,7 +428,7 @@ onMounted(async () => {
   margin: 0 0 14px;
   font-size: 1rem;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--ink, #021A54);
 }
 
 /* ── Card header row ── */
@@ -386,18 +439,28 @@ onMounted(async () => {
   margin-bottom: 14px;
 }
 
-.card-header-row h3 {
-  margin: 0;
-}
+.card-header-row h3 { margin: 0; }
 
 .count-badge {
-  background: var(--primary-soft);
-  color: var(--ink);
+  background: var(--primary-soft, #FFCEE3);
+  color: var(--ink, #021A54);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 20px;
   border: 1px solid rgba(255, 133, 187, 0.3);
+}
+
+/* ── FIX → inline error (not showMessage) ── */
+.inline-error {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: rgba(191, 47, 69, 0.07);
+  border: 1px solid rgba(191, 47, 69, 0.2);
+  color: #c22840;
+  margin: 0 0 12px;
 }
 
 /* ── Feedback message ── */
@@ -410,125 +473,156 @@ onMounted(async () => {
 }
 
 .feedback-msg.success {
-  background: rgba(255, 206, 227, 0.45);
-  color: #8a1a42;
-  border: 1px solid rgba(255, 133, 187, 0.35);
+  background: rgba(26, 122, 72, 0.08);
+  color: #1a6b40;
+  border: 1px solid rgba(26, 122, 72, 0.2);
 }
 
 .feedback-msg.error {
-  background: rgba(255, 80, 80, 0.1);
-  color: #b91c1c;
-  border: 1px solid rgba(255, 80, 80, 0.25);
+  background: rgba(191, 47, 69, 0.07);
+  color: #8f2335;
+  border: 1px solid rgba(191, 47, 69, 0.2);
 }
 
-/* ── Booking list ── */
-.booking-list {
+/* ── Skeleton shimmer ── */
+.skeleton-list { display: flex; flex-direction: column; gap: 10px; }
+
+.skeleton-item {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
 }
+
+.skel-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, #f0eef5 25%, #e8e6f0 50%, #f0eef5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skel-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+.skel {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0eef5 25%, #e8e6f0 50%, #f0eef5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skel-title { height: 14px; width: 60%; }
+.skel-meta  { height: 11px; width: 40%; }
+.skel-body  { height: 11px; width: 80%; }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.empty-icon  { font-size: 2rem; margin: 0 0 6px; }
+.empty-title { margin: 0 0 4px; font-weight: 600; color: var(--ink, #021A54); }
+.empty-sub   { margin: 0; font-size: 0.83rem; color: var(--ink-muted, #6e6e73); }
+
+/* ── Booking list ── */
+.booking-list { display: flex; flex-direction: column; gap: 8px; }
 
 .booking-item {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1.5px solid var(--hairline);
-  background: var(--surface-soft);
+  border: 1.5px solid rgba(2, 26, 84, 0.08);
+  background: rgba(255, 255, 255, 0.6);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .booking-item:hover {
-  border-color: var(--primary);
-  background: rgba(255, 206, 227, 0.25);
+  border-color: rgba(255, 133, 187, 0.4);
+  background: rgba(255, 206, 227, 0.15);
 }
 
 .booking-item.selected {
-  border-color: var(--primary);
-  background: rgba(255, 206, 227, 0.4);
-  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.18);
+  border-color: #FF85BB;
+  background: rgba(255, 206, 227, 0.25);
 }
 
 .booking-avatar {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), #ff6da9);
+  background: linear-gradient(135deg, #FFCEE3 0%, #FF85BB 100%);
   color: #fff;
-  font-size: 0.85rem;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
 }
 
-.booking-info {
-  flex: 1;
-  min-width: 0;
-}
+.booking-info { flex: 1; min-width: 0; }
+.booking-info strong { font-size: 0.9rem; color: var(--ink, #021A54); display: block; }
 
-.booking-info strong {
-  display: block;
-  color: var(--ink);
-  font-size: 0.9rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.booking-info .meta {
+.meta {
   margin: 2px 0 0;
   font-size: 0.78rem;
-  color: var(--ink-muted);
+  color: var(--ink-muted, #6e6e73);
 }
 
 .selected-tick {
-  color: var(--primary);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #FF85BB;
+  color: #fff;
+  font-size: 0.8rem;
   font-weight: 700;
-  font-size: 1rem;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
 }
 
-/* ── Form ── */
-.review-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* ── Review form ── */
+.form-tip {
+  padding: 12px 14px;
+  background: rgba(255, 206, 227, 0.3);
+  border: 1.5px dashed rgba(255, 133, 187, 0.4);
+  border-radius: 12px;
+  font-size: 0.88rem;
+  color: var(--ink, #021A54);
+  margin: 0 0 14px;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.review-form { display: flex; flex-direction: column; gap: 16px; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
 
 .form-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  color: var(--ink, #021A54);
 }
 
 .optional {
+  font-size: 0.72rem;
   font-weight: 400;
+  color: var(--ink-muted, #6e6e73);
   text-transform: none;
   letter-spacing: 0;
-  color: var(--ink-muted);
-}
-
-.form-tip {
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 206, 227, 0.3);
-  border: 1px dashed rgba(255, 133, 187, 0.45);
-  color: var(--ink-muted);
-  font-size: 0.85rem;
 }
 
 /* ── Stars ── */
@@ -539,237 +633,133 @@ onMounted(async () => {
 }
 
 .star-btn {
-  font-size: 1.7rem;
   background: none;
   border: none;
+  font-size: 1.6rem;
   cursor: pointer;
-  color: #d1d5db;
+  color: #d0cdd8;
+  padding: 2px 3px;
   line-height: 1;
-  padding: 2px;
   transition: color 0.1s, transform 0.1s;
 }
 
-.star-btn:hover,
-.star-btn.hovered {
-  color: #f0b300;
-  transform: scale(1.15);
-}
+.star-btn.active,
+.star-btn.hovered { color: #FF85BB; }
 
-.star-btn.active {
-  color: #f0b300;
-}
+.star-btn:hover { transform: scale(1.2); }
 
 .star-label {
+  margin-left: 8px;
   font-size: 0.82rem;
-  color: var(--ink-muted);
-  margin-left: 6px;
-  font-weight: 500;
-  min-width: 56px;
+  font-weight: 600;
+  color: var(--ink-muted, #6e6e73);
+  min-width: 60px;
 }
 
 /* ── Textarea ── */
 .glass-textarea {
   width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 12px;
-  border: 1.5px solid var(--hairline);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--ink);
-  font-size: 0.9rem;
+  border: 1.5px solid rgba(2, 26, 84, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--ink, #021A54);
+  outline: none;
   resize: vertical;
-  font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
 
 .glass-textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.2);
+  border-color: #FF85BB;
+  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.18);
 }
 
 .char-count {
   text-align: right;
-  font-size: 0.75rem;
-  color: var(--ink-muted);
+  font-size: 0.74rem;
+  color: var(--ink-muted, #6e6e73);
 }
 
-/* ── Primary button ── */
+/* ── Submit button ── */
 .btn-primary {
   width: 100%;
-  padding: 13px 20px;
-  background: linear-gradient(135deg, var(--primary), #ff6da9);
-  color: #fff;
-  border: none;
+  padding: 13px;
   border-radius: 14px;
+  border: none;
+  background: #FF85BB;
+  color: #fff;
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.12s;
-  box-shadow: 0 4px 14px rgba(255, 133, 187, 0.4);
+  transition: background 0.15s, transform 0.1s;
 }
 
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
+.btn-primary:hover:not(:disabled) { background: #ff6da9; }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* ── Recent reviews list ── */
-.reviews-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+/* ── Past reviews ── */
+.reviews-list { display: flex; flex-direction: column; gap: 12px; }
 
 .review-item {
-  padding: 12px 14px;
+  padding: 14px;
   border-radius: 14px;
-  background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  background: rgba(245, 245, 245, 0.6);
+  border: 1px solid rgba(2, 26, 84, 0.07);
 }
 
 .review-item-top {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .review-avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-soft), var(--primary));
-  color: var(--ink);
-  font-size: 0.78rem;
+  background: linear-gradient(135deg, #FFCEE3 0%, #FF85BB 100%);
+  color: #fff;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 0.9rem;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
 }
 
-.review-meta-block {
-  flex: 1;
-  min-width: 0;
-}
-
-.review-meta-block strong {
-  display: block;
-  font-size: 0.88rem;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.review-meta-block .meta {
-  margin: 1px 0 0;
-  font-size: 0.75rem;
-  color: var(--ink-muted);
-}
+.review-meta-block { flex: 1; min-width: 0; }
+.review-meta-block strong { font-size: 0.88rem; color: var(--ink, #021A54); display: block; }
 
 .review-stars {
-  color: #f0b300;
-  font-size: 0.9rem;
-  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: #FF85BB;
   letter-spacing: 1px;
 }
 
 .review-comment {
   margin: 0;
-  font-size: 0.88rem;
-  color: var(--ink-muted);
+  font-size: 0.83rem;
+  color: var(--ink-muted, #6e6e73);
   font-style: italic;
-  line-height: 1.45;
+  line-height: 1.4;
+  padding-left: 46px;
 }
 
-/* ── Empty state ── */
-.empty-state {
-  text-align: center;
-  padding: 20px 12px;
-}
+/* ── Fade transition ── */
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from,
+.fade-leave-to     { opacity: 0; }
 
-.empty-icon {
-  font-size: 2rem;
-  margin: 0 0 6px;
-}
-
-.empty-title {
-  font-weight: 600;
-  color: var(--ink);
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-}
-
-.empty-sub {
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-  margin: 0;
-}
-
-/* ── Skeleton shimmer ── */
-.skeleton-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.skeleton-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.skel {
-  border-radius: 8px;
-  background: linear-gradient(90deg, #f0e8ef 25%, #f9f0f5 50%, #f0e8ef 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-}
-
-.skel-title  { height: 14px; width: 60%; }
-.skel-meta   { height: 11px; width: 40%; }
-.skel-body   { height: 11px; width: 80%; margin-top: 4px; }
-
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* ── Chip ── */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 20px;
-  border: 1.5px solid rgba(255, 133, 187, 0.45);
-  background: rgba(255, 206, 227, 0.3);
-  color: var(--ink);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.chip:hover:not(:disabled) {
-  background: rgba(255, 206, 227, 0.55);
-  border-color: var(--primary);
-}
-
-.chip:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@media (prefers-reduced-motion: reduce) {
+  .skel, .skel-avatar { animation: none; }
 }
 </style>
