@@ -639,6 +639,7 @@ onMounted(loadQuizzes)
   color: var(--ink-muted, #6e6e73);
   line-height: 1.4;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
