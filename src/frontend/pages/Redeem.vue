@@ -1,115 +1,189 @@
 <template>
-  <main class="view page active redeem-page">
-    <section class="card redeem-hero">
-      <div class="hero-title-wrap">
+  <main class="view redeem-page">
+
+    <!-- ── Hero ── -->
+    <header class="page-header">
+      <div class="header-text">
+        <p class="page-kicker">🎁 Rewards</p>
         <h2>Redeem Points</h2>
-        <p>Exchange your learning points for real rewards.</p>
+        <p class="page-subtext">Exchange learning points for real rewards.</p>
       </div>
-      <div class="points-display" aria-label="Your available points">
-        <span class="points-label">Available Points</span>
-        <span class="points-value">{{ totalPoints }}</span>
+      <div class="points-badge" aria-label="Available points">
+        <span class="points-label">Available</span>
+        <span class="points-value">{{ totalPoints.toLocaleString() }}</span>
+        <span class="points-unit">pts</span>
       </div>
-    </section>
+    </header>
 
-    <p class="limit-info">
-      Daily redemptions: {{ redeemedToday }} / {{ maxPerDay }}
-    </p>
+    <!-- ── Limit bar ── -->
+    <div class="limit-bar">
+      <span class="limit-text">
+        Daily redemptions: <strong>{{ redeemedToday }} / {{ maxPerDay }}</strong>
+      </span>
+      <div class="limit-track" role="progressbar"
+           :aria-valuenow="redeemedToday"
+           :aria-valuemax="maxPerDay">
+        <div class="limit-fill"
+             :style="{ width: maxPerDay ? `${Math.min((redeemedToday / maxPerDay) * 100, 100)}%` : '0%' }"
+             :class="{ full: redeemedToday >= maxPerDay }">
+        </div>
+      </div>
+    </div>
 
-    <p v-if="message" class="status-msg" :class="{ error: messageType === 'error' }">{{ message }}</p>
+    <!-- ── Status message ── -->
+    <Transition name="fade">
+      <p v-if="message"
+         class="feedback-msg"
+         :class="messageType">
+        {{ message }}
+      </p>
+    </Transition>
 
-    <section class="card rewards-section">
-      <h3>Available Rewards</h3>
-      <div class="rewards-grid">
+    <!-- ── Skeleton ── -->
+    <div v-if="loading" class="rewards-grid">
+      <div v-for="n in 4" :key="n" class="reward-card skeleton-card">
+        <div class="skeleton-line skeleton-icon"></div>
+        <div class="skeleton-line skeleton-title"></div>
+        <div class="skeleton-line skeleton-short"></div>
+        <div class="skeleton-line skeleton-btn"></div>
+      </div>
+    </div>
+
+    <!-- ── Rewards grid ── -->
+    <section v-else class="rewards-section">
+      <div v-if="rewards.length" class="rewards-grid">
         <article
           v-for="reward in rewards"
           :key="reward.id"
           class="reward-card"
-          :class="{ affordable: reward.isEligible }"
+          :class="{ affordable: reward.isEligible, locked: !reward.isEligible }"
         >
-          <div class="reward-icon">{{ reward.icon }}</div>
+          <div class="reward-icon" aria-hidden="true">{{ reward.icon }}</div>
           <div class="reward-body">
             <h4 class="reward-name">{{ reward.name }}</h4>
             <p class="reward-desc">{{ reward.description }}</p>
             <p class="reward-rules">{{ formatRuleSummary(reward) }}</p>
-            <p v-if="reward.ineligibilityReason" class="reward-lock-reason">{{ reward.ineligibilityReason }}</p>
+            <p v-if="reward.ineligibilityReason" class="reward-lock-reason">
+              🔒 {{ reward.ineligibilityReason }}
+            </p>
           </div>
           <div class="reward-footer">
-            <span class="reward-cost">{{ reward.points_cost }} pts</span>
+            <span class="reward-cost">{{ reward.points_cost.toLocaleString() }} pts</span>
             <button
               class="redeem-btn"
+              :class="{ processing: redeeming === reward.id }"
               :disabled="!reward.isEligible || redeeming === reward.id"
               @click="confirmRedeem(reward)"
+              :aria-label="`Redeem ${reward.name} for ${reward.points_cost} points`"
             >
-              {{ redeeming === reward.id ? 'Redeeming…' : redeemButtonLabel(reward) }}
+              <span v-if="redeeming === reward.id" class="spinner" aria-hidden="true"></span>
+              {{ redeeming === reward.id ? 'Processing…' : reward.isEligible ? 'Redeem' : 'Locked' }}
             </button>
           </div>
         </article>
       </div>
-      <p v-if="!rewards.length && !loading" class="empty-msg">No rewards available at this time.</p>
+
+      <!-- ── Empty ── -->
+      <div v-else class="empty-block">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <p>No rewards available right now.</p>
+      </div>
     </section>
 
-    <section class="card history-section" v-if="history.length">
-      <h3>Redemption History</h3>
+    <!-- ── History ── -->
+    <section v-if="history.length" class="history-section">
+      <h3 class="section-title">History</h3>
       <ul class="history-list">
         <li v-for="item in history" :key="item.id" class="history-item">
-          <span class="history-icon">{{ item.icon }}</span>
+          <span class="history-icon" aria-hidden="true">{{ item.icon }}</span>
           <div class="history-info">
             <p class="history-name">{{ item.name }}</p>
-              <p class="history-date">{{ formatDateValue(item.redeemed_at, '', 'en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) }}</p>
+            <p class="history-date">{{ formatDate(item.redeemed_at) }}</p>
           </div>
-          <span class="history-cost">-{{ item.points_spent }} pts</span>
+          <span class="history-cost">−{{ Number(item.points_spent).toLocaleString() }} pts</span>
         </li>
       </ul>
     </section>
 
-    <!-- Confirm modal -->
+    <!-- ── Confirm modal ── -->
     <Transition name="modal-fade">
-      <div v-if="pendingReward" class="modal-backdrop" @click.self="pendingReward = null">
-        <div class="modal-card" role="dialog" aria-modal="true">
-          <button class="modal-close" @click="pendingReward = null" aria-label="Close">&times;</button>
-          <div class="modal-reward-icon">{{ pendingReward.icon }}</div>
+      <div
+        v-if="pendingReward"
+        class="modal-overlay"
+        @click.self="closeModal"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`Confirm redeem ${pendingReward.name}`"
+      >
+        <div class="modal-card" ref="modalCard">
+          <div class="modal-header">
+            <div class="modal-reward-icon" aria-hidden="true">{{ pendingReward.icon }}</div>
+            <button class="close-btn" @click="closeModal" aria-label="Close">&times;</button>
+          </div>
+
           <h3 class="modal-title">Redeem "{{ pendingReward.name }}"?</h3>
           <p class="modal-desc">{{ pendingReward.description }}</p>
           <p class="modal-rule">{{ formatRuleSummary(pendingReward) }}</p>
-          <p v-if="pendingReward.ineligibilityReason" class="modal-warning">{{ pendingReward.ineligibilityReason }}</p>
+
+          <p v-if="pendingReward.ineligibilityReason" class="modal-warning">
+            ⚠️ {{ pendingReward.ineligibilityReason }}
+          </p>
+
           <div class="modal-points-row">
             <div class="modal-stat">
               <span class="modal-stat-label">Cost</span>
-              <strong class="modal-stat-value">{{ pendingReward.points_cost }} pts</strong>
+              <strong class="modal-stat-value cost">{{ pendingReward.points_cost.toLocaleString() }} pts</strong>
             </div>
             <div class="modal-stat">
               <span class="modal-stat-label">Balance After</span>
-              <strong class="modal-stat-value">{{ totalPoints - pendingReward.points_cost }} pts</strong>
+              <strong
+                class="modal-stat-value"
+                :class="{ negative: (totalPoints - pendingReward.points_cost) < 0 }"
+              >
+                {{ (totalPoints - pendingReward.points_cost).toLocaleString() }} pts
+              </strong>
             </div>
           </div>
+
           <div class="modal-actions">
-            <button class="btn-cancel" @click="pendingReward = null">Cancel</button>
-            <button class="btn-confirm" :disabled="redeeming === pendingReward.id || !pendingReward.isEligible" @click="doRedeem(pendingReward)">
-              {{ redeeming === pendingReward.id ? 'Processing…' : 'Confirm Redeem' }}
+            <button class="btn-cancel" @click="closeModal">Cancel</button>
+            <button
+              class="btn-confirm"
+              :disabled="redeeming === pendingReward.id || !pendingReward.isEligible"
+              @click="doRedeem(pendingReward)"
+            >
+              <span v-if="redeeming === pendingReward.id" class="spinner" aria-hidden="true"></span>
+              {{ redeeming === pendingReward.id ? 'Redeeming…' : 'Confirm' }}
             </button>
           </div>
         </div>
       </div>
     </Transition>
+
   </main>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { api } from '@/api.js'
 import { formatDateValue } from '@/utils/records.js'
 
-const rewards = ref([])
-const history = ref([])
-const totalPoints = ref(0)
+// ── State ──────────────────────────────────────────────
+const rewards       = ref([])
+const history       = ref([])
+const totalPoints   = ref(0)
 const redeemedToday = ref(0)
-const maxPerDay = ref(0)
-const loading = ref(true)
-const redeeming = ref(null)
+const maxPerDay     = ref(0)
+const loading       = ref(true)
+const redeeming     = ref(null)
 const pendingReward = ref(null)
-const message = ref('')
-const messageType = ref('success')
+const message       = ref('')
+const messageType   = ref('success')
+const modalCard     = ref(null)
 
+let msgTimer = null
+
+// ── Load ───────────────────────────────────────────────
 const loadData = async () => {
   loading.value = true
   try {
@@ -117,211 +191,326 @@ const loadData = async () => {
       api('/redeem/rewards'),
       api('/redeem/history')
     ])
-    rewards.value = rewardsData.rewards || []
-    totalPoints.value = Number(rewardsData.totalPoints || 0)
-    redeemedToday.value = Number(rewardsData.redeemedToday || 0)
-    maxPerDay.value = Number(rewardsData.maxPerDay || 0)
-    history.value = historyData.history || []
-    message.value = ''
+
+    // BUG FIX -> safe array + type coercion
+    rewards.value       = Array.isArray(rewardsData?.rewards) ? rewardsData.rewards : []
+    totalPoints.value   = Number(rewardsData?.totalPoints ?? rewardsData?.availablePoints ?? 0)
+    redeemedToday.value = Number(rewardsData?.redeemedToday ?? 0)
+    maxPerDay.value     = Number(rewardsData?.maxPerDay ?? 0)
+    history.value       = Array.isArray(historyData?.history) ? historyData.history : []
+
+    clearMsg()
   } catch (err) {
-    message.value = err.message || 'Failed to load rewards.'
-    messageType.value = 'error'
+    showMsg(err?.message || 'Failed to load rewards.', 'error')
   } finally {
     loading.value = false
   }
 }
 
+// ── Helpers ────────────────────────────────────────────
+const showMsg = (text, type = 'success', ms = 5000) => {
+  message.value     = text
+  messageType.value = type
+  clearTimeout(msgTimer)
+  // BUG FIX -> auto-dismiss success only
+  if (type === 'success') {
+    msgTimer = setTimeout(clearMsg, ms)
+  }
+}
+
+const clearMsg = () => {
+  message.value = ''
+  clearTimeout(msgTimer)
+}
+
+// BUG FIX -> null-safe rule formatting
 const formatRuleSummary = (reward) => {
-  const cooldown = Number(reward?.cooldownDays || reward?.ruleSummary?.cooldownDays || 0)
-  const max30d = Number(reward?.maxPer30Days || reward?.ruleSummary?.maxPer30Days || 0)
-  const maxDaily = Number(reward?.maxPerDay || reward?.ruleSummary?.maxPerDay || maxPerDay.value || 0)
+  if (!reward) return ''
+  const cooldown = Number(reward.cooldownDays ?? reward.ruleSummary?.cooldownDays ?? 0)
+  const max30d   = Number(reward.maxPer30Days ?? reward.ruleSummary?.maxPer30Days ?? 0)
+  const maxDaily = Number(reward.maxPerDay    ?? reward.ruleSummary?.maxPerDay    ?? maxPerDay.value ?? 0)
 
   const parts = []
-  if (cooldown) parts.push(`${cooldown} day cooldown`)
-  if (max30d) parts.push(`${max30d} in 30 days`)
-  if (maxDaily) parts.push(`${maxDaily} total per day`)
+  if (cooldown) parts.push(`${cooldown}d cooldown`)
+  if (max30d)   parts.push(`${max30d}x per 30 days`)
+  if (maxDaily) parts.push(`${maxDaily}x daily limit`)
 
-  return parts.length ? `Rules: ${parts.join(' • ')}` : 'Rules: standard redemption policy applies.'
+  return parts.length ? `Rules: ${parts.join(' · ')}` : 'Standard redemption rules apply.'
 }
 
-const redeemButtonLabel = (reward) => {
-  if (!reward?.isEligible) {
-    return 'Locked'
+// BUG FIX -> guard invalid date
+const formatDate = (val) => {
+  if (!val) return '—'
+  try {
+    return formatDateValue(val, '', 'en-MY', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    })
+  } catch {
+    return String(val)
   }
-  return 'Redeem'
 }
 
+// ── Modal ──────────────────────────────────────────────
 const confirmRedeem = (reward) => {
   if (!reward?.isEligible) {
-    message.value = reward?.ineligibilityReason || 'This reward is not redeemable right now.'
-    messageType.value = 'error'
+    showMsg(reward?.ineligibilityReason || 'Reward not available.', 'error')
     return
   }
   pendingReward.value = reward
+  // IMPROVEMENT -> lock scroll + focus trap
+  document.body.style.overflow = 'hidden'
+  nextTick(() => modalCard.value?.querySelector('.btn-confirm')?.focus())
 }
 
+const closeModal = () => {
+  pendingReward.value = null
+  document.body.style.overflow = ''
+}
+
+// ── Redeem ─────────────────────────────────────────────
 const doRedeem = async (reward) => {
+  if (!reward?.id) return
   redeeming.value = reward.id
   try {
     const result = await api(`/redeem/${reward.id}`, 'POST')
-    message.value = result?.message || 'Redeemed successfully.'
-    messageType.value = 'success'
-    pendingReward.value = null
+    closeModal()
+    showMsg(result?.message || `Redeemed "${reward.name}" successfully! 🎉`, 'success')
     await loadData()
   } catch (err) {
-    message.value = err.message || 'Redemption failed.'
-    messageType.value = 'error'
+    showMsg(err?.message || 'Redemption failed.', 'error')
   } finally {
     redeeming.value = null
   }
 }
 
-onMounted(loadData)
+// ── Keyboard ESC ───────────────────────────────────────
+const onKeydown = (e) => {
+  if (e.key === 'Escape' && pendingReward.value) closeModal()
+}
+
+// ── Lifecycle ──────────────────────────────────────────
+onMounted(() => {
+  loadData()
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  clearTimeout(msgTimer)
+  document.body.style.overflow = ''
+})
 </script>
 
 <style scoped>
+/* ── Page ── */
 .redeem-page {
-  max-width: 1120px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 2rem 2rem 4rem;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
-.card {
-  border: 1px solid #f1cdd9;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fffefe 0%, #fff7fa 100%);
-  box-shadow: 0 12px 28px rgba(141, 28, 66, 0.08);
-  padding: 24px;
-}
-
-/* Hero */
-.redeem-hero {
+/* ── Header ── */
+.page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 1rem;
   flex-wrap: wrap;
-  gap: 16px;
 }
 
-.hero-title-wrap h2 {
-  margin: 0 0 4px;
-  font-size: 1.6rem;
-  color: #5b1a35;
+.page-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent, #FF85BB);
+  margin: 0 0 0.25rem;
 }
 
-.hero-title-wrap p {
+.page-header h2 {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 700;
+  color: var(--ink, #021A54);
+  margin: 0 0 0.2rem;
+}
+
+.page-subtext {
+  font-size: 0.85rem;
+  color: var(--glass-pink-muted, #7a5c6e);
   margin: 0;
-  color: #8d6275;
-  font-size: 0.95rem;
 }
 
-.points-display {
+/* ── Points badge ── */
+.points-badge {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: linear-gradient(135deg, #8d1c42, #b5295a);
-  border-radius: 12px;
-  padding: 14px 28px;
-  color: #fff;
-  min-width: 130px;
+  justify-content: center;
+  min-width: 120px;
+  padding: 1rem 1.5rem;
+  border-radius: 16px;
+  background: var(--glass-pink-surface-strong, rgba(255, 206, 227, 0.45));
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.3));
+  box-shadow: 0 4px 16px rgba(2, 26, 84, 0.07);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .points-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.85;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin-bottom: 0.15rem;
 }
 
 .points-value {
   font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.1;
+  font-weight: 800;
+  color: var(--ink, #021A54);
+  line-height: 1;
 }
 
-.limit-info {
-  margin: -6px 2px 0;
-  font-size: 0.84rem;
-  color: #7a4d60;
+.points-unit {
+  font-size: 0.72rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin-top: 0.1rem;
 }
 
-.status-msg {
-  margin: -4px 2px 0;
-  font-size: 0.88rem;
-  color: #1f7a47;
+/* ── Limit bar ── */
+.limit-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.status-msg.error {
-  color: #b12a4a;
+.limit-text {
+  font-size: 0.82rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  white-space: nowrap;
 }
 
-/* Rewards grid */
-.rewards-section h3,
-.history-section h3 {
-  margin: 0 0 18px;
-  font-size: 1.1rem;
-  color: #5b1a35;
+.limit-text strong {
+  color: var(--ink, #021A54);
 }
+
+.limit-track {
+  flex: 1;
+  min-width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 133, 187, 0.18);
+  overflow: hidden;
+}
+
+.limit-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FF85BB, #ff6da9);
+  transition: width 500ms ease;
+}
+
+.limit-fill.full {
+  background: linear-gradient(90deg, #d94070, #b11f4b);
+}
+
+/* ── Feedback ── */
+.feedback-msg {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  border: 1px solid transparent;
+}
+
+.feedback-msg.success {
+  background: rgba(34, 134, 82, 0.09);
+  border-color: rgba(34, 134, 82, 0.22);
+  color: #1b7a4a;
+}
+
+.feedback-msg.error {
+  background: rgba(191, 47, 69, 0.08);
+  border-color: rgba(191, 47, 69, 0.2);
+  color: #8f2335;
+}
+
+/* ── Rewards grid ── */
+.rewards-section { width: 100%; }
 
 .rewards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  gap: 1rem;
 }
 
+/* ── Reward card ── */
 .reward-card {
-  border: 1px solid #ecd5de;
-  border-radius: 12px;
-  background: #fff;
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  opacity: 0.6;
-  transition: opacity 0.2s, box-shadow 0.2s;
+  gap: 0.6rem;
+  padding: 1.25rem;
+  border-radius: 18px;
+  background: var(--glass-pink-surface-strong, rgba(255, 206, 227, 0.35));
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.25));
+  box-shadow: 0 2px 12px rgba(2, 26, 84, 0.06);
+  backdrop-filter: blur(12px);
+  transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
-.reward-card.affordable {
-  opacity: 1;
-  box-shadow: 0 4px 14px rgba(141, 28, 66, 0.1);
+.reward-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(2, 26, 84, 0.11);
+}
+
+/* BUG FIX -> locked cards visually distinct */
+.reward-card.locked {
+  opacity: 0.65;
+  filter: grayscale(0.25);
 }
 
 .reward-icon {
-  font-size: 2.2rem;
+  font-size: 2rem;
   line-height: 1;
 }
 
 .reward-body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .reward-name {
-  margin: 0 0 6px;
   font-size: 1rem;
-  font-weight: 600;
-  color: #3a0f22;
+  font-weight: 700;
+  color: var(--ink, #021A54);
+  margin: 0;
 }
 
 .reward-desc {
+  font-size: 0.82rem;
+  color: var(--glass-pink-muted, #7a5c6e);
   margin: 0;
-  font-size: 0.85rem;
-  color: #7a4d60;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .reward-rules {
-  margin: 8px 0 0;
-  font-size: 0.76rem;
-  color: #8b6072;
+  font-size: 0.75rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin: 0;
+  opacity: 0.85;
 }
 
 .reward-lock-reason {
-  margin: 6px 0 0;
-  font-size: 0.78rem;
-  color: #b12a4a;
+  font-size: 0.76rem;
+  color: #8f2335;
+  margin: 0;
   font-weight: 600;
 }
 
@@ -329,307 +518,464 @@ onMounted(loadData)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.2));
 }
 
 .reward-cost {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  color: #8d1c42;
+  color: var(--ink, #021A54);
 }
 
+/* ── Redeem button ── */
 .redeem-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: none;
-  font-size: 0.85rem;
-  font-weight: 600;
+  background: var(--accent, #FF85BB);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
-  background: #8d1c42;
-  color: #fff;
-  transition: background 0.15s;
+  transition: background 150ms ease, transform 100ms ease;
   white-space: nowrap;
 }
 
 .redeem-btn:hover:not(:disabled) {
-  background: #6e1534;
+  background: #ff6da9;
+}
+
+.redeem-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .redeem-btn:disabled {
-  background: #d4a0b0;
+  background: rgba(255, 133, 187, 0.35);
+  color: rgba(2, 26, 84, 0.45);
   cursor: not-allowed;
 }
 
-/* History */
+/* ── Spinner ── */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty ── */
+.empty-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 2rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  text-align: center;
+}
+
+.empty-block svg {
+  width: 40px;
+  height: 40px;
+  fill: currentColor;
+  opacity: 0.45;
+}
+
+/* ── Skeleton ── */
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-line {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 206, 227, 0.35) 25%,
+    rgba(255, 133, 187, 0.25) 37%,
+    rgba(255, 206, 227, 0.35) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.skeleton-icon  { width: 40px;  height: 40px; border-radius: 12px; margin-bottom: 0.5rem; }
+.skeleton-title { width: 75%;   height: 18px; margin-bottom: 0.4rem; }
+.skeleton-short { width: 55%;   height: 13px; margin-bottom: 1rem; }
+.skeleton-btn   { width: 100px; height: 34px; border-radius: 10px; margin-left: auto; }
+
+@keyframes shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+
+/* ── History ── */
+.history-section {
+  padding-top: 0.5rem;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink, #021A54);
+  margin: 0 0 0.75rem;
+}
+
 .history-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.5rem;
 }
 
 .history-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #fdf4f7;
-  border: 1px solid #f1cdd9;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  background: var(--glass-pink-surface-strong, rgba(255, 206, 227, 0.3));
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.2));
+  backdrop-filter: blur(8px);
 }
 
 .history-icon {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   flex-shrink: 0;
 }
 
 .history-info {
   flex: 1;
+  min-width: 0;
 }
 
 .history-name {
-  margin: 0 0 2px;
-  font-weight: 600;
-  color: #3a0f22;
   font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink, #021A54);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .history-date {
-  margin: 0;
-  font-size: 0.78rem;
-  color: #9e7080;
+  font-size: 0.75rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin: 2px 0 0;
 }
 
 .history-cost {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #c0304f;
-  white-space: nowrap;
+  color: #8f2335;
+  flex-shrink: 0;
 }
 
-.empty-msg {
-  color: #9e7080;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-/* Confirm modal */
-.modal-backdrop {
+/* ── Modal overlay ── */
+.modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(60, 10, 30, 0.45);
+  background: rgba(2, 26, 84, 0.4);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
+  padding: 1rem;
 }
 
 .modal-card {
-  background: #fff;
-  border-radius: 18px;
-  padding: 32px 28px 24px;
-  max-width: 400px;
-  width: 90%;
-  position: relative;
-  box-shadow: 0 20px 50px rgba(141, 28, 66, 0.2);
-  text-align: center;
+  background: var(--glass-pink-surface-strong, rgba(255, 206, 227, 0.55));
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.35));
+  border-radius: 22px;
+  box-shadow: 0 20px 60px rgba(2, 26, 84, 0.18);
+  backdrop-filter: blur(24px);
+  width: min(100%, 420px);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.modal-close {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  background: none;
-  border: none;
-  font-size: 1.4rem;
-  cursor: pointer;
-  color: #9e7080;
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
 }
 
 .modal-reward-icon {
-  font-size: 3rem;
-  margin-bottom: 12px;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.close-btn {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--glass-pink-muted, #7a5c6e);
+  padding: 0 4px;
+  border-radius: 50%;
+  transition: color 120ms ease;
+}
+
+.close-btn:hover {
+  color: var(--ink, #021A54);
 }
 
 .modal-title {
-  margin: 0 0 8px;
-  font-size: 1.1rem;
-  color: #3a0f22;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink, #021A54);
+  margin: 0;
 }
 
 .modal-desc {
-  margin: 0 0 20px;
-  font-size: 0.87rem;
-  color: #7a4d60;
+  font-size: 0.875rem;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin: 0;
   line-height: 1.5;
 }
 
 .modal-rule {
-  margin: -10px 0 14px;
   font-size: 0.78rem;
-  color: #866070;
+  color: var(--glass-pink-muted, #7a5c6e);
+  margin: 0;
+  opacity: 0.85;
 }
 
 .modal-warning {
-  margin: -8px 0 12px;
-  font-size: 0.8rem;
-  color: #b12a4a;
+  font-size: 0.82rem;
   font-weight: 600;
+  color: #8f2335;
+  background: rgba(191, 47, 69, 0.08);
+  border: 1px solid rgba(191, 47, 69, 0.2);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
 }
 
+/* ── Modal stats ── */
 .modal-points-row {
   display: flex;
-  justify-content: center;
-  gap: 32px;
-  margin-bottom: 24px;
+  gap: 1rem;
+  margin: 0.5rem 0;
 }
 
 .modal-stat {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  gap: 2px;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.22));
 }
 
 .modal-stat-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #9e7080;
+  color: var(--glass-pink-muted, #7a5c6e);
 }
 
 .modal-stat-value {
-  font-size: 1.1rem;
-  color: #3a0f22;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink, #021A54);
 }
 
+/* BUG FIX -> negative balance indicator */
+.modal-stat-value.negative {
+  color: #8f2335;
+}
+
+.modal-stat-value.cost {
+  color: #b11f4b;
+}
+
+/* ── Modal actions ── */
 .modal-actions {
   display: flex;
-  gap: 10px;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .btn-cancel {
-  padding: 9px 22px;
-  border-radius: 8px;
-  border: 1px solid #d4a0b0;
-  background: #fff;
-  color: #7a4d60;
-  font-size: 0.9rem;
+  padding: 9px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-pink-border, rgba(255, 133, 187, 0.3));
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink, #021A54);
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 130ms ease;
 }
 
 .btn-cancel:hover {
-  background: #fdf4f7;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .btn-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 9px 22px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: none;
-  background: #8d1c42;
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
+  background: var(--accent, #FF85BB);
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 130ms ease, transform 100ms ease;
 }
 
 .btn-confirm:hover:not(:disabled) {
-  background: #6e1534;
+  background: #ff6da9;
+}
+
+.btn-confirm:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn-confirm:disabled {
-  background: #d4a0b0;
+  background: rgba(255, 133, 187, 0.4);
   cursor: not-allowed;
 }
 
-/* Modal transition */
-.modal-fade-enter-active,
-.modal-fade-leave-active {
-  transition: opacity 0.2s;
+/* ── Transitions ── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 200ms ease;
+}
 .modal-fade-enter-from,
 .modal-fade-leave-to {
   opacity: 0;
 }
 
+.modal-fade-enter-active .modal-card,
+.modal-fade-leave-active .modal-card {
+  transition: transform 200ms ease;
+}
+.modal-fade-enter-from .modal-card {
+  transform: scale(0.96) translateY(8px);
+}
+.modal-fade-leave-to .modal-card {
+  transform: scale(0.96) translateY(8px);
+}
+
+/* ── Responsive ── */
 @media (max-width: 820px) {
   .redeem-page {
-    padding: 14px;
-    gap: 14px;
-  }
-
-  .card {
-    padding: 16px;
+    padding: 1.25rem 1.25rem 3rem;
   }
 
   .rewards-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 
-  .points-display {
-    width: 100%;
-    min-width: 0;
+  .points-badge {
+    min-width: 100px;
+    padding: 0.75rem 1rem;
+  }
+
+  .points-value {
+    font-size: 1.6rem;
   }
 }
 
 @media (max-width: 640px) {
   .redeem-page {
-    padding: 12px;
+    padding: 1rem 1rem 3rem;
   }
 
-  .hero-title-wrap h2 {
-    font-size: 1.35rem;
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .points-badge {
+    flex-direction: row;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    padding: 0.75rem 1rem;
+  }
+
+  .points-value {
+    font-size: 1.4rem;
   }
 
   .rewards-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .history-item {
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-
-  .history-cost {
-    margin-left: auto;
   }
 
   .modal-card {
-    width: min(100%, calc(100vw - 24px));
-    padding: 22px 16px 16px;
+    padding: 1.25rem 1rem;
   }
 
   .modal-points-row {
-    gap: 14px;
-    margin-bottom: 16px;
+    gap: 0.5rem;
   }
 
   .modal-actions {
-    width: 100%;
     flex-direction: column;
   }
 
   .modal-actions button {
     width: 100%;
+    justify-content: center;
+  }
+
+  .history-item {
+    flex-wrap: wrap;
+  }
+
+  .history-cost {
+    margin-left: auto;
   }
 }
 
-@media (max-width: 420px) {
-  .reward-footer {
-    align-items: stretch;
-  }
-
-  .redeem-btn {
-    width: 100%;
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .skeleton-line,
+  .reward-card,
+  .modal-card {
+    animation: none !important;
+    transition: none !important;
   }
 }
 </style>

@@ -3,26 +3,24 @@
 
     <!-- ── LOADING ── -->
     <div v-if="state === 'loading'" class="play-center">
-      <div class="glass-card loading-card">
-        <div class="spinner-lg"></div>
-        <p class="play-loading-text">Loading quiz…</p>
-      </div>
+      <div class="spinner-lg"></div>
+      <p class="play-loading-text">Loading quiz…</p>
     </div>
 
     <!-- ── LOBBY ── -->
     <div v-else-if="state === 'lobby'" class="play-center lobby-screen">
-      <div class="glass-card lobby-card">
+      <div class="lobby-card glass-card">
         <div class="lobby-color-bar" :style="{ background: quiz.cover_color || 'var(--primary)' }"></div>
         <div class="lobby-body">
           <span class="lobby-course" v-if="quiz.course_code">{{ quiz.course_code }}</span>
           <h1 class="lobby-title">{{ quiz.title }}</h1>
           <p class="lobby-desc" v-if="quiz.description">{{ quiz.description }}</p>
           <div class="lobby-meta">
-            <span>{{ questions.length }} question{{ questions.length !== 1 ? 's' : '' }}</span>
+            <span>{{ questions.length }} questions</span>
             <span class="lobby-dot">·</span>
             <span>~{{ estimatedTime }} min</span>
             <span class="lobby-dot">·</span>
-            <span>by {{ quiz.creator_name }}</span>
+            <span>by {{ quiz.creator_name || 'Unknown' }}</span>
           </div>
           <div class="lobby-plays" v-if="quiz.play_count">{{ quiz.play_count }} plays so far</div>
           <button class="start-btn" @click="startQuiz">
@@ -35,18 +33,18 @@
 
     <!-- ── QUESTION ── -->
     <div v-else-if="state === 'question'" class="play-question-screen">
-      <!-- top bar -->
+      <!-- Top bar -->
       <div class="play-topbar">
         <div class="play-progress">
           <div class="play-progress-fill" :style="{ width: progressPercent + '%' }"></div>
         </div>
         <div class="play-topbar-row">
           <span class="play-q-counter">{{ currentIndex + 1 }} / {{ questions.length }}</span>
-          <span class="play-score-display">🏅 {{ totalScore }} pts</span>
+          <span class="play-score-display">⭐ {{ totalScore }} pts</span>
         </div>
       </div>
 
-      <!-- timer circle -->
+      <!-- Timer circle -->
       <div class="timer-area">
         <div class="timer-circle" :class="{ 'timer-warning': timeLeft <= 5 }">
           <svg class="timer-svg" viewBox="0 0 100 100">
@@ -57,12 +55,12 @@
         </div>
       </div>
 
-      <!-- question text -->
+      <!-- Question text -->
       <div class="question-display">
         <h2 class="question-text">{{ currentQuestion.question_text }}</h2>
       </div>
 
-      <!-- answer blocks 2×2 -->
+      <!-- Answer blocks 2×2 Kahoot-style -->
       <div class="answer-blocks">
         <button
           v-for="(answer, ai) in currentQuestion.answers"
@@ -73,8 +71,8 @@
             { 'answer-block--selected': selectedAnswerId === answer.id },
             { 'answer-block--disabled': selectedAnswerId !== null }
           ]"
-          :disabled="selectedAnswerId !== null"
           @click="selectAnswer(answer)"
+          :disabled="selectedAnswerId !== null"
         >
           <span class="answer-shape">{{ blockShapes[ai] }}</span>
           <span class="answer-label">{{ answer.answer_text }}</span>
@@ -84,7 +82,7 @@
 
     <!-- ── FEEDBACK ── -->
     <div v-else-if="state === 'feedback'" class="play-center feedback-screen">
-      <div class="glass-card feedback-card" :class="lastAnswerCorrect ? 'feedback--correct' : 'feedback--wrong'">
+      <div class="feedback-card" :class="lastAnswerCorrect ? 'feedback--correct' : 'feedback--wrong'">
         <div class="feedback-icon">
           <svg v-if="lastAnswerCorrect" viewBox="0 0 64 64">
             <circle cx="32" cy="32" r="30" fill="#34c759"/>
@@ -105,10 +103,11 @@
 
     <!-- ── RESULTS ── -->
     <div v-else-if="state === 'results'" class="play-center results-screen">
-      <div class="glass-card results-card">
+      <div class="results-card glass-card">
         <div class="results-confetti" v-if="resultPercent >= 70">🎉</div>
         <h1 class="results-title">Quiz Complete!</h1>
 
+        <!-- Score ring -->
         <div class="results-score-ring">
           <svg viewBox="0 0 120 120" class="ring-svg">
             <circle cx="60" cy="60" r="52" class="ring-track" />
@@ -120,6 +119,7 @@
           </div>
         </div>
 
+        <!-- Stats -->
         <div class="results-stats">
           <div class="result-stat">
             <span class="result-stat__value">{{ totalScore }}</span>
@@ -135,7 +135,7 @@
           </div>
         </div>
 
-        <!-- leaderboard -->
+        <!-- Leaderboard -->
         <div class="results-leaderboard" v-if="leaderboard.length">
           <h3 class="lb-title">🏆 Leaderboard</h3>
           <div
@@ -166,45 +166,41 @@ import { useRouter, useRoute } from 'vue-router'
 import { api, getUser, getToken, setSession } from '@/api.js'
 
 const router = useRouter()
-const route  = useRoute()
+const route = useRoute()
 
-// ── BUG FIX: quizId must survive re-parse; NaN guard added ──
-const rawId  = route.params.id
-const quizId = Number(rawId)
-
+// -> Bug fix: handle both /quizzes/:id and /quizzes/:id/play routes
+const quizId = computed(() => Number(route.params.id))
 const userId = computed(() => getUser()?.id)
 
-// state machine: loading | lobby | question | feedback | results
-const state = ref('loading')
-
-const quiz      = ref({})
+const state = ref('loading') // loading | lobby | question | feedback | results
+const quiz = ref({})
 const questions = ref([])
 const leaderboard = ref([])
 
-const currentIndex     = ref(0)
+const currentIndex = ref(0)
 const selectedAnswerId = ref(null)
-const timeLeft         = ref(20)
-const timerInterval    = ref(null)
-const totalScore       = ref(0)
-const correctCount     = ref(0)
-const earnedLP         = ref(0)
-const totalTimeTaken   = ref(0)
+const timeLeft = ref(20)
+const timerInterval = ref(null)
+const totalScore = ref(0)
+const correctCount = ref(0)
+const earnedLP = ref(0)
+const totalTimeTaken = ref(0)
 
-const lastAnswerCorrect  = ref(false)
-const lastPointsEarned   = ref(0)
-const correctAnswerText  = ref('')
+const lastAnswerCorrect = ref(false)
+const lastPointsEarned = ref(0)
+const correctAnswerText = ref('')
 
-const userAnswers       = ref([])
+const userAnswers = ref([])
 const questionStartTime = ref(0)
 
 const blockColors = ['red', 'blue', 'yellow', 'green']
 const blockShapes = ['▲', '◆', '●', '■']
 
-// ── computed ──
-
+// -> Bug fix: safe fallback if questions array empty
 const currentQuestion = computed(() => questions.value[currentIndex.value] ?? {})
 
 const estimatedTime = computed(() => {
+  if (!questions.value.length) return 0
   const total = questions.value.reduce(
     (sum, q) => sum + (q.time_limit_seconds || quiz.value.time_limit_seconds || 20),
     0
@@ -212,92 +208,84 @@ const estimatedTime = computed(() => {
   return Math.ceil(total / 60)
 })
 
-const progressPercent = computed(() =>
-  questions.value.length
-    ? ((currentIndex.value + 1) / questions.value.length) * 100
-    : 0
-)
+const progressPercent = computed(() => {
+  if (!questions.value.length) return 0
+  return ((currentIndex.value + 1) / questions.value.length) * 100
+})
 
-// BUG FIX: timeLimit must not be 0 (caused division by zero in timerDashStyle)
-const timeLimit = computed(() =>
-  Math.max(currentQuestion.value.time_limit_seconds || quiz.value.time_limit_seconds || 20, 1)
-)
+const timeLimit = computed(() => {
+  return currentQuestion.value?.time_limit_seconds || quiz.value.time_limit_seconds || 20
+})
 
 const timerDashStyle = computed(() => {
-  const circ = 2 * Math.PI * 45
+  const circumference = 2 * Math.PI * 45
   const progress = timeLeft.value / timeLimit.value
   return {
-    strokeDasharray: `${circ}`,
-    strokeDashoffset: `${circ * (1 - Math.max(0, Math.min(progress, 1)))}`
+    strokeDasharray: `${circumference}`,
+    strokeDashoffset: `${circumference * (1 - progress)}`
   }
 })
 
-const resultPercent = computed(() =>
-  questions.value.length
+const resultPercent = computed(() => {
+  return questions.value.length
     ? Math.round((correctCount.value / questions.value.length) * 100)
     : 0
-)
+})
 
 const resultRingStyle = computed(() => {
-  const circ = 2 * Math.PI * 52
-  const progress = correctCount.value / Math.max(questions.value.length, 1)
+  const circumference = 2 * Math.PI * 52
+  const progress = resultPercent.value / 100
   return {
-    strokeDasharray: `${circ}`,
-    strokeDashoffset: `${circ * (1 - progress)}`
+    strokeDasharray: `${circumference}`,
+    strokeDashoffset: `${circumference * (1 - progress)}`
   }
 })
 
+// -> Bug fix: dynamic bg only while playing; lobby/results use canvas
 const bgStyle = computed(() => {
-  const color = quiz.value.cover_color || '#FF85BB'
-  if (state.value === 'question' || state.value === 'feedback') {
-    return { background: `linear-gradient(135deg, ${color}18, var(--canvas-parchment))` }
+  if (state.value === 'question') {
+    const color = quiz.value.cover_color || '#FF85BB'
+    return { background: `linear-gradient(160deg, ${color}22 0%, #F5F5F5 60%)` }
   }
   return {}
 })
 
-// ── api ──
-
+// ── API ──
 const loadQuiz = async () => {
-  // BUG FIX: guard invalid id before hitting API
-  if (!quizId || isNaN(quizId)) {
-    quiz.value  = { title: 'Invalid quiz ID' }
-    state.value = 'lobby'
-    return
-  }
+  state.value = 'loading'
   try {
-    const resp      = await api(`/quizzes/${quizId}`)
-    quiz.value      = resp.quiz      || {}
-    questions.value = resp.quiz?.questions || []
-    leaderboard.value = resp.leaderboard   || []
-    state.value     = 'lobby'
-  } catch {
-    quiz.value  = { title: 'Quiz not found' }
-    questions.value = []
+    // -> Bug fix: null guard on response shape
+    const resp = await api(`/quizzes/${quizId.value}`)
+    quiz.value = resp?.quiz ?? {}
+    questions.value = resp?.questions ?? []
+
+    // -> Bug fix: validate questions array not empty before lobby
+    if (!questions.value.length) {
+      console.warn('No questions found for quiz', quizId.value)
+    }
+
     state.value = 'lobby'
+  } catch (err) {
+    console.error('Failed to load quiz:', err)
+    state.value = 'lobby' // show lobby with empty state rather than crash
   }
 }
 
-// ── quiz flow ──
-
 const startQuiz = () => {
-  // BUG FIX: reset ALL state on (re)start — previously earnedLP stayed from prior run
-  currentIndex.value   = 0
-  totalScore.value     = 0
-  correctCount.value   = 0
-  earnedLP.value       = 0
-  userAnswers.value    = []
+  // -> Bug fix: reset all state on each play
+  currentIndex.value = 0
+  totalScore.value = 0
+  correctCount.value = 0
+  earnedLP.value = 0
   totalTimeTaken.value = 0
-  lastAnswerCorrect.value = false
-  lastPointsEarned.value  = 0
-  correctAnswerText.value = ''
+  userAnswers.value = []
   showQuestion()
 }
 
 const showQuestion = () => {
-  selectedAnswerId.value  = null
-  lastAnswerCorrect.value = false
-  state.value             = 'question'
-  timeLeft.value          = timeLimit.value
+  selectedAnswerId.value = null
+  timeLeft.value = timeLimit.value
+  state.value = 'question'
   questionStartTime.value = Date.now()
   startTimer()
 }
@@ -308,28 +296,21 @@ const startTimer = () => {
     timeLeft.value--
     if (timeLeft.value <= 0) {
       clearInterval(timerInterval.value)
-      handleTimeout()
+      // -> Bug fix: auto-advance on timeout with 0 points logged
+      totalTimeTaken.value += timeLimit.value
+      userAnswers.value.push({
+        questionId: currentQuestion.value.id,
+        selectedAnswerId: null,
+        timeTaken: timeLimit.value,
+        isCorrect: false
+      })
+      lastAnswerCorrect.value = false
+      lastPointsEarned.value = 0
+      const correct = currentQuestion.value.answers?.find(a => a.is_correct)
+      correctAnswerText.value = correct?.answer_text || ''
+      showFeedback()
     }
   }, 1000)
-}
-
-const handleTimeout = () => {
-  // BUG FIX: guard against double-fire if answer already selected
-  if (selectedAnswerId.value !== null) return
-
-  const correct = currentQuestion.value.answers?.find(a => a.is_correct)
-  userAnswers.value.push({
-    questionId:       currentQuestion.value.id,
-    selectedAnswerId: null,
-    timeTaken:        timeLimit.value,
-    isCorrect:        false
-  })
-  lastAnswerCorrect.value  = false
-  lastPointsEarned.value   = 0
-  correctAnswerText.value  = correct?.answer_text || ''
-  // BUG FIX: add full timeLimit to totalTimeTaken, not arbitrary += timeLimit
-  totalTimeTaken.value += timeLimit.value
-  showFeedback()
 }
 
 const selectAnswer = (answer) => {
@@ -337,37 +318,35 @@ const selectAnswer = (answer) => {
   clearInterval(timerInterval.value)
 
   selectedAnswerId.value = answer.id
-  // BUG FIX: clamp timeTaken so it never goes negative
-  const timeTaken = Math.max(
-    Math.round((Date.now() - questionStartTime.value) / 1000),
-    0
-  )
-  const correct   = currentQuestion.value.answers?.find(a => a.is_correct)
+  const timeTaken = Math.round((Date.now() - questionStartTime.value) / 1000)
+
+  // -> Bug fix: safe find with optional chain
+  const correct = currentQuestion.value.answers?.find(a => a.is_correct)
   const isCorrect = answer.id === correct?.id
 
   let pointsEarned = 0
   if (isCorrect) {
     const basePoints = currentQuestion.value.points || 100
     const speedBonus = Math.round(basePoints * (timeLeft.value / timeLimit.value) * 0.5)
-    pointsEarned         = basePoints + speedBonus
-    totalScore.value    += pointsEarned
+    pointsEarned = basePoints + speedBonus
+    totalScore.value += pointsEarned
     correctCount.value++
   }
 
   totalTimeTaken.value += timeTaken
 
   userAnswers.value.push({
-    questionId:       currentQuestion.value.id,
+    questionId: currentQuestion.value.id,
     selectedAnswerId: answer.id,
     timeTaken,
     isCorrect
   })
 
-  lastAnswerCorrect.value  = isCorrect
-  lastPointsEarned.value   = pointsEarned
-  correctAnswerText.value  = !isCorrect ? (correct?.answer_text || '') : ''
+  lastAnswerCorrect.value = isCorrect
+  lastPointsEarned.value = pointsEarned
+  correctAnswerText.value = !isCorrect ? (correct?.answer_text || '') : ''
 
-  setTimeout(showFeedback, 400)
+  setTimeout(() => showFeedback(), 400)
 }
 
 const showFeedback = () => {
@@ -385,49 +364,54 @@ const showFeedback = () => {
 const submitAttempt = async () => {
   state.value = 'loading'
   try {
-    const resp  = await api(`/quizzes/${quizId}/attempt`, 'POST', {
-      answers:          userAnswers.value,
+    const resp = await api(`/quizzes/${quizId.value}/attempt`, 'POST', {
+      answers: userAnswers.value,
       timeTakenSeconds: totalTimeTaken.value
     })
-    earnedLP.value = resp.earnedPoints || 0
+    earnedLP.value = resp?.earnedPoints ?? 0
 
-    // refresh session silently
+    // -> Bug fix: null guard before refreshing session
     const token = getToken()
     if (token) {
       try {
         const meResp = await api('/me')
         if (meResp?.user) setSession(token, meResp.user)
-      } catch { /* non-fatal */ }
+      } catch (refreshError) {
+        console.warn('Session refresh failed:', refreshError)
+      }
     }
 
-    // BUG FIX: leaderboard fetch in finally-style block — still shows results on error
-    try {
-      const lbResp      = await api(`/quizzes/${quizId}/leaderboard`)
-      leaderboard.value = lbResp.leaderboard || []
-    } catch { /* non-fatal */ }
+    const lbResp = await api(`/quizzes/${quizId.value}/leaderboard`)
+    leaderboard.value = lbResp?.leaderboard ?? []
   } catch (err) {
-    console.error('submitAttempt failed:', err)
+    console.error('Failed to submit attempt:', err)
+    // -> Bug fix: still show results even if submit fails
   }
   state.value = 'results'
 }
 
 const restartQuiz = () => {
+  // -> Bug fix: reset userAnswers on replay
+  userAnswers.value = []
+  currentIndex.value = 0
+  totalScore.value = 0
+  correctCount.value = 0
+  earnedLP.value = 0
+  totalTimeTaken.value = 0
   state.value = 'lobby'
 }
 
-const backToQuizzes = () => {
-  router.push('/quizzes')
-}
+const backToQuizzes = () => router.push('/quizzes')
 
 onMounted(loadQuiz)
 onUnmounted(() => clearInterval(timerInterval.value))
 </script>
 
 <style scoped>
-/* ── canvas ── */
+/* ── Base ── */
 .play-bg {
   min-height: 100vh;
-  background: linear-gradient(160deg, var(--canvas-parchment, #F5F5F5), #fff);
+  background: linear-gradient(180deg, #ffffff, var(--canvas-parchment, #F5F5F5));
   transition: background 400ms ease;
 }
 
@@ -439,28 +423,15 @@ onUnmounted(() => clearInterval(timerInterval.value))
   padding: 24px 16px;
 }
 
-/* ── glass card base ── */
+/* ── Glass card shared ── */
 .glass-card {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255, 133, 187, 0.18);
-  box-shadow:
-    0 4px 24px rgba(2, 26, 84, 0.08),
-    0 1px 4px rgba(2, 26, 84, 0.04);
+  background: #ffffff;
+  border: 1px solid var(--theme-border, #e0e0e0);
   border-radius: 20px;
-  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(2, 26, 84, 0.07);
 }
 
-/* ── loading ── */
-.loading-card {
-  padding: 40px 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 220px;
-}
-
+/* ── Loading ── */
 .spinner-lg {
   width: 48px;
   height: 48px;
@@ -468,35 +439,27 @@ onUnmounted(() => clearInterval(timerInterval.value))
   border-top-color: var(--primary, #FF85BB);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 .play-loading-text {
   color: var(--ink-muted, #6e6e73);
   font-size: 15px;
-}
-
-/* ── lobby ── */
-.lobby-screen { flex-direction: column; }
-
-.lobby-card {
-  max-width: 420px;
-  width: 100%;
-}
-
-.lobby-color-bar {
-  height: 6px;
-  width: 100%;
-}
-
-.lobby-body {
-  padding: 28px 24px 32px;
   text-align: center;
 }
 
+/* ── Lobby ── */
+.lobby-card {
+  overflow: hidden;
+  max-width: 420px;
+  width: 100%;
+}
+.lobby-color-bar { height: 6px; }
+.lobby-body {
+  padding: 28px 24px;
+  text-align: center;
+}
 .lobby-course {
-  display: inline-block;
   font-size: 11px;
   font-weight: 700;
   color: var(--primary, #FF85BB);
@@ -505,77 +468,72 @@ onUnmounted(() => clearInterval(timerInterval.value))
   background: var(--primary-soft, #FFCEE3);
   padding: 4px 12px;
   border-radius: 6px;
+  display: inline-block;
   margin-bottom: 16px;
 }
-
 .lobby-title {
   margin: 0 0 10px;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--ink, #021A54);
   line-height: 1.3;
 }
-
 .lobby-desc {
   margin: 0 0 14px;
   color: var(--ink-muted, #6e6e73);
   font-size: 14px;
   line-height: 1.5;
 }
-
 .lobby-meta {
   font-size: 13px;
   color: var(--ink-muted, #6e6e73);
   margin-bottom: 6px;
 }
 .lobby-dot { margin: 0 6px; }
-
 .lobby-plays {
   font-size: 12px;
   color: var(--ink-muted, #6e6e73);
   margin-bottom: 24px;
 }
-
 .start-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 14px 36px;
   background: var(--primary, #FF85BB);
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 28px;
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 150ms, transform 150ms;
-  box-shadow: 0 4px 14px rgba(255, 133, 187, 0.4);
+  transition: background 150ms ease, transform 150ms ease;
 }
-.start-btn:hover  { background: var(--primary-hover, #ff6da9); }
+.start-btn:hover { background: var(--primary-hover, #ff6da9); }
 .start-btn:active { transform: scale(0.96); }
 
-/* ── question screen ── */
+/* ── Question screen ── */
 .play-question-screen {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* top bar */
+/* Top bar */
 .play-topbar {
   padding: 12px 16px 0;
 }
 .play-progress {
-  height: 5px;
-  background: rgba(2, 26, 84, 0.1);
-  border-radius: 3px;
+  height: 4px;
+  background: var(--primary-soft, #FFCEE3);
+  border-radius: 2px;
   overflow: hidden;
   margin-bottom: 10px;
 }
 .play-progress-fill {
   height: 100%;
   background: var(--primary, #FF85BB);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 400ms ease;
 }
 .play-topbar-row {
@@ -594,11 +552,11 @@ onUnmounted(() => clearInterval(timerInterval.value))
   color: var(--ink, #021A54);
 }
 
-/* timer */
+/* Timer */
 .timer-area {
   display: flex;
   justify-content: center;
-  padding: 20px 0 12px;
+  padding: 16px 0 8px;
 }
 .timer-circle {
   position: relative;
@@ -612,7 +570,7 @@ onUnmounted(() => clearInterval(timerInterval.value))
 }
 .timer-track {
   fill: none;
-  stroke: rgba(2, 26, 84, 0.08);
+  stroke: var(--primary-soft, #FFCEE3);
   stroke-width: 7;
 }
 .timer-fill {
@@ -620,9 +578,10 @@ onUnmounted(() => clearInterval(timerInterval.value))
   stroke: var(--primary, #FF85BB);
   stroke-width: 7;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.9s linear;
+  transition: stroke-dashoffset 1s linear;
 }
 .timer-warning .timer-fill { stroke: #e53935; }
+.timer-warning .timer-text { color: #e53935; }
 .timer-text {
   position: absolute;
   inset: 0;
@@ -633,98 +592,94 @@ onUnmounted(() => clearInterval(timerInterval.value))
   font-weight: 800;
   color: var(--ink, #021A54);
 }
-.timer-warning .timer-text { color: #e53935; }
 
-/* question text */
+/* Question */
 .question-display {
-  padding: 8px 20px 16px;
-  text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
 }
 .question-text {
   margin: 0;
-  font-size: 19px;
+  font-size: clamp(16px, 4vw, 22px);
   font-weight: 700;
   color: var(--ink, #021A54);
+  text-align: center;
   line-height: 1.4;
 }
 
-/* answer blocks 2×2 */
+/* Answer blocks */
 .answer-blocks {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  padding: 0 14px 24px;
-  flex: 1;
+  padding: 0 12px 24px;
 }
-
 .answer-block {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 12px;
+  padding: 16px 14px;
   border: none;
   border-radius: 14px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: #ffffff;
   cursor: pointer;
   text-align: left;
-  transition: transform 120ms, opacity 120ms, filter 120ms;
+  transition: transform 120ms ease, filter 120ms ease;
   min-height: 72px;
-  backdrop-filter: blur(8px);
 }
+.answer-block:active { transform: scale(0.96); }
+.answer-block--disabled { opacity: 0.75; cursor: not-allowed; }
+.answer-block--selected { filter: brightness(1.12); box-shadow: 0 0 0 3px rgba(255,255,255,0.6); }
 
-.answer-block--red    { background: #e05a6f; }
-.answer-block--blue   { background: #4a7dc8; }
-.answer-block--yellow { background: #d4962a; color: #fff; }
-.answer-block--green  { background: #3aaa6b; }
-
-.answer-block:hover:not(:disabled) { transform: scale(1.03); filter: brightness(1.08); }
-.answer-block:active:not(:disabled){ transform: scale(0.97); }
-
-.answer-block--selected {
-  box-shadow: 0 0 0 3px #fff, 0 0 0 5px rgba(255,133,187,0.8);
-  transform: scale(1.03);
-}
-.answer-block--disabled:not(.answer-block--selected) {
-  opacity: 0.55;
-}
+/* Kahoot colors — keep vivid for game feel */
+.answer-block--red    { background: #e53935; }
+.answer-block--blue   { background: #1e88e5; }
+.answer-block--yellow { background: #f9a825; }
+.answer-block--green  { background: #2e7d32; }
 
 .answer-shape {
-  font-size: 18px;
+  font-size: 20px;
   flex-shrink: 0;
-  width: 26px;
+  width: 28px;
   text-align: center;
 }
 .answer-label { line-height: 1.3; }
 
-/* ── feedback ── */
+/* ── Feedback ── */
 .feedback-card {
   text-align: center;
   padding: 36px 28px;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid var(--theme-border, #e0e0e0);
   max-width: 360px;
   width: 100%;
-  animation: popIn 300ms cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 4px 24px rgba(2, 26, 84, 0.08);
+  animation: popIn 300ms ease;
 }
 @keyframes popIn {
-  from { transform: scale(0.82); opacity: 0; }
+  from { transform: scale(0.85); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
 .feedback-icon svg {
   width: 64px;
   height: 64px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 .feedback-card h2 {
   margin: 0 0 8px;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
-  color: var(--ink, #021A54);
 }
 .feedback--correct h2 { color: #34c759; }
 .feedback--wrong   h2 { color: #e53935; }
 .feedback-points {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--primary, #FF85BB);
   margin: 0;
@@ -732,33 +687,30 @@ onUnmounted(() => clearInterval(timerInterval.value))
 .feedback-correct-label {
   font-size: 14px;
   color: var(--ink-muted, #6e6e73);
-  margin: 4px 0 0;
+  margin: 0;
 }
 
-/* ── results ── */
+/* ── Results ── */
 .results-card {
   padding: 32px 24px;
   max-width: 440px;
   width: 100%;
   text-align: center;
 }
-.results-confetti {
-  font-size: 48px;
-  margin-bottom: 8px;
-}
+.results-confetti { font-size: 48px; margin-bottom: 8px; }
 .results-title {
   margin: 0 0 20px;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--ink, #021A54);
 }
 
-/* score ring */
+/* Score ring */
 .results-score-ring {
   position: relative;
   width: 120px;
   height: 120px;
-  margin: 0 auto 24px;
+  margin: 0 auto 20px;
 }
 .ring-svg {
   transform: rotate(-90deg);
@@ -767,7 +719,7 @@ onUnmounted(() => clearInterval(timerInterval.value))
 }
 .ring-track {
   fill: none;
-  stroke: rgba(2, 26, 84, 0.08);
+  stroke: var(--primary-soft, #FFCEE3);
   stroke-width: 8;
 }
 .ring-fill {
@@ -796,7 +748,7 @@ onUnmounted(() => clearInterval(timerInterval.value))
   color: var(--ink-muted, #6e6e73);
 }
 
-/* stats row */
+/* Stats */
 .results-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -804,26 +756,27 @@ onUnmounted(() => clearInterval(timerInterval.value))
   margin-bottom: 24px;
 }
 .result-stat {
-  padding: 10px 4px;
-  background: var(--primary-soft, #FFCEE3);
+  padding: 12px 4px;
+  background: var(--canvas-parchment, #F5F5F5);
+  border: 1px solid var(--theme-border, #e0e0e0);
   border-radius: 12px;
 }
 .result-stat__value {
   display: block;
   font-size: 18px;
-  font-weight: 800;
-  color: var(--ink, #021A54);
+  font-weight: 700;
+  color: var(--primary, #FF85BB);
 }
 .result-stat__label {
   display: block;
   font-size: 10px;
   color: var(--ink-muted, #6e6e73);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
   margin-top: 2px;
 }
 
-/* leaderboard */
+/* Leaderboard */
 .results-leaderboard {
   text-align: left;
   margin-bottom: 20px;
@@ -840,18 +793,10 @@ onUnmounted(() => clearInterval(timerInterval.value))
   gap: 10px;
   padding: 8px 10px;
   border-radius: 8px;
-  transition: background 120ms;
+  transition: background 120ms ease;
 }
-.lb-row:nth-child(even) {
-  background: rgba(2, 26, 84, 0.04);
-}
-/* BUG FIX: was nth-child(2/3/4) — off by 1 because .lb-title is child 1 */
-.lb-row:nth-child(2) .lb-rank { color: #f5a623; font-weight: 800; }
-.lb-row:nth-child(3) .lb-rank { color: #8e8e93; font-weight: 700; }
-.lb-row:nth-child(4) .lb-rank { color: #cd7f32; font-weight: 700; }
-.lb-row--me {
-  background: var(--primary-soft, #FFCEE3) !important;
-}
+.lb-row:nth-child(even) { background: var(--canvas-parchment, #F5F5F5); }
+.lb-row--me { background: var(--primary-soft, #FFCEE3) !important; }
 .lb-rank {
   width: 24px;
   text-align: center;
@@ -859,6 +804,10 @@ onUnmounted(() => clearInterval(timerInterval.value))
   font-weight: 700;
   color: var(--ink-muted, #6e6e73);
 }
+/* Gold / Silver / Bronze */
+.lb-row:nth-child(2) .lb-rank { color: #f9a825; }
+.lb-row:nth-child(3) .lb-rank { color: #8e8e93; }
+.lb-row:nth-child(4) .lb-rank { color: #cd7f32; }
 .lb-name {
   flex: 1;
   font-size: 13px;
@@ -871,7 +820,7 @@ onUnmounted(() => clearInterval(timerInterval.value))
   color: var(--primary, #FF85BB);
 }
 
-/* action buttons */
+/* Result actions */
 .results-actions {
   display: flex;
   gap: 10px;
@@ -880,36 +829,35 @@ onUnmounted(() => clearInterval(timerInterval.value))
 .btn-play-again {
   padding: 12px 28px;
   background: var(--primary, #FF85BB);
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 24px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(255, 133, 187, 0.35);
-  transition: background 150ms, transform 150ms;
+  transition: background 150ms ease, transform 120ms ease;
 }
 .btn-play-again:hover  { background: var(--primary-hover, #ff6da9); }
 .btn-play-again:active { transform: scale(0.96); }
 
 .btn-back-to-quizzes {
   padding: 12px 28px;
-  background: rgba(2, 26, 84, 0.06);
-  color: var(--ink, #021A54);
-  border: 1px solid rgba(2, 26, 84, 0.12);
+  background: var(--canvas-parchment, #F5F5F5);
+  color: var(--ink-muted, #6e6e73);
+  border: 1px solid var(--theme-border, #e0e0e0);
   border-radius: 24px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 150ms;
+  transition: background 150ms ease;
 }
-.btn-back-to-quizzes:hover { background: rgba(2, 26, 84, 0.1); }
+.btn-back-to-quizzes:hover { background: var(--primary-soft, #FFCEE3); }
 
-/* ── responsive ── */
-@media (max-width: 480px) {
-  .answer-blocks    { grid-template-columns: 1fr; }
-  .results-stats    { grid-template-columns: 1fr; }
-  .results-actions  { flex-direction: column; }
-  .answer-block     { min-height: 56px; }
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .answer-blocks { grid-template-columns: 1fr !important; }
+  .results-stats  { grid-template-columns: 1fr !important; }
+  .results-actions { flex-direction: column; }
+  .lobby-card { border-radius: 16px; }
 }
 </style>

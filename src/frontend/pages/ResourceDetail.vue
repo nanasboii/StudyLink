@@ -2,621 +2,903 @@
   <main class="page-bg">
     <section class="phone-shell">
       <div class="view page active">
-        
-        <div class="resource-detail-header">
+
+        <!-- HEADER -->
+        <div class="rd-header">
           <div>
-            <p class="resource-detail-kicker">Learning Resource</p>
+            <p class="rd-kicker">📖 Learning Resource</p>
           </div>
           <button @click="goBack" class="chip" type="button">{{ backButtonLabel }}</button>
         </div>
 
-        <p v-if="resourceDetailMessage" class="message" role="alert" aria-live="polite">
-          {{ resourceDetailMessage }}
-        </p>
+        <!-- GLOBAL MESSAGE -->
+        <transition name="fade">
+          <p
+            v-if="resourceDetailMessage"
+            class="rd-message"
+            :class="messageIsError ? 'rd-message--error' : 'rd-message--info'"
+            role="alert"
+            aria-live="polite"
+          >
+            {{ resourceDetailMessage }}
+          </p>
+        </transition>
 
-        <section v-if="resource" class="card resource-detail-card">
-          <div class="resource-detail-cover">
-            <span class="resource-type-tag">{{ resourceTypeLabel }}</span>
-            <h2 class="resource-cover-title">{{ resource.title || 'Resource Detail' }}</h2>
-            <p class="resource-contributor">Uploaded by {{ resource.contributor_name || '-' }}</p>
+        <!-- SKELETON LOADING -->
+        <template v-if="isLoadingResource">
+          <div class="glass-card rd-skeleton-card">
+            <div class="rd-skeleton-cover">
+              <div class="sk-pill"></div>
+              <div class="sk-line sk-title"></div>
+              <div class="sk-line sk-sub"></div>
+            </div>
+            <div class="rd-skeleton-body">
+              <div class="sk-line sk-med"></div>
+              <div class="sk-line sk-short"></div>
+              <div class="sk-grid">
+                <div class="sk-box"></div>
+                <div class="sk-box"></div>
+              </div>
+            </div>
           </div>
+        </template>
 
-          <div class="resource-detail-main">
-            <div class="resource-action-bar">
-              <button 
-                @click="openResource" 
-                :disabled="!canOpenResource" 
-                class="chip chip-strong" 
-                type="button"
-                :title="!canOpenResource ? (fileMissing ? 'File is missing from storage' : 'No file available') : 'Open resource in new tab'"
-              >
-                Open Resource
-              </button>
-              <button 
-                v-if="canDownloadResource" 
-                @click="openDownload" 
-                :disabled="fileMissing" 
-                class="chip" 
-                type="button"
-              >
-                ↓ Download
-              </button>
-              <button
-                v-if="resource.file_url"
-                class="chip"
-                type="button"
-                @click="copyLink"
-                aria-label="Copy resource link"
-              >
-                Copy Link
-              </button>
+        <!-- RESOURCE BODY -->
+        <template v-else-if="resource">
+
+          <!-- COVER CARD -->
+          <section class="glass-card rd-cover-card">
+            <div class="rd-cover-inner">
+              <span class="rd-type-badge">{{ resourceTypeLabel }}</span>
+              <h2 class="rd-title">{{ resource.title || 'Untitled Resource' }}</h2>
+              <p class="rd-uploader">
+                <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="currentColor">
+                  <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/>
+                </svg>
+                {{ resource.contributor_name || 'Unknown' }}
+              </p>
             </div>
 
-            <div class="resource-detail-meta-grid">
-              <div class="resource-meta-box">
-                <span>Course</span>
+            <!-- STAT ROW -->
+            <div class="rd-stat-row">
+              <div class="rd-stat-chip">
+                <span class="rd-stat-label">Course</span>
                 <strong>{{ resource.course_code || 'General' }}</strong>
               </div>
-              <div class="resource-meta-box">
-                <span>Published</span>
-                <strong>{{ formatDateValue(resource.created_at, '-') }}</strong>
+              <div class="rd-stat-chip">
+                <span class="rd-stat-label">Uploaded</span>
+                <strong>{{ formatDateValue(resource.created_at, '—') }}</strong>
+              </div>
+              <div class="rd-stat-chip">
+                <span class="rd-stat-label">Rating</span>
+                <strong>
+                  {{ resource.avg_rating ? Number(resource.avg_rating).toFixed(1) : '—' }}
+                  <span v-if="resource.avg_rating" style="color:#f0b300">★</span>
+                </strong>
+              </div>
+              <div class="rd-stat-chip">
+                <span class="rd-stat-label">Reviews</span>
+                <strong>{{ resource.review_count || resource.rating_count || 0 }}</strong>
               </div>
             </div>
+          </section>
 
-            <div class="resource-file-chip" v-if="!fileMissing && resource.file_url">
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="none" stroke="currentColor" stroke-width="2"/>
-                <polyline points="14,2 14,8 20,8" fill="none" stroke="currentColor" stroke-width="2"/>
-              </svg>
-              <span>{{ resource.metadata?.originalName || resource.metadata?.fileName || resource.file_url.split('/').pop() || 'View file' }}</span>
-            </div>
+          <!-- ACTION BAR -->
+          <div class="rd-action-bar glass-card">
+            <!-- BUG FIX -> missing file guard on open -->
+            <button
+              @click="openResource"
+              :disabled="!canOpenResource"
+              class="chip chip-strong"
+              type="button"
+              :title="!canOpenResource ? (fileMissing ? 'File missing from storage' : 'No file available') : 'Open in new tab'"
+            >
+              🔗 Open
+            </button>
 
-            <p v-if="resource.description" class="resource-description">
-              {{ resource.description }}
-            </p>
-            
-            <p v-if="fileMissing" class="message message-error" role="alert">
-              This resource file is missing from server storage and cannot be opened.
-            </p>
+            <button
+              v-if="canDownloadResource"
+              @click="openDownload"
+              :disabled="fileMissing"
+              class="chip"
+              type="button"
+            >
+              ⬇ Download
+            </button>
+
+            <button
+              v-if="resource.file_url && !fileMissing"
+              class="chip"
+              type="button"
+              @click="copyLink"
+              aria-label="Copy resource link"
+            >
+              {{ copySuccess ? '✓ Copied' : '🔗 Copy Link' }}
+            </button>
+
+            <!-- BUG FIX -> show missing badge clearly -->
+            <span v-if="fileMissing" class="rd-missing-badge">⚠ File Missing</span>
           </div>
-        </section>
 
-        <section v-else-if="isLoadingResource" class="card resource-detail-card">
-          <p>Loading resource details...</p>
-        </section>
+          <!-- DESCRIPTION -->
+          <div v-if="resource.description" class="glass-card rd-desc-card">
+            <p class="rd-desc-label">📋 Description</p>
+            <p class="rd-desc-text">{{ resource.description }}</p>
+          </div>
 
-        <section v-else class="card resource-detail-card">
-          <p>Resource could not be loaded.</p>
-        </section>
+          <!-- FILE INFO CHIP -->
+          <div v-if="!fileMissing && resource.file_url" class="rd-file-chip glass-card">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+              <polyline points="14,2 14,8 20,8"/>
+            </svg>
+            <span>{{ resource.metadata?.originalName || resource.metadata?.fileName || resource.file_url.split('/').pop() || 'File' }}</span>
+          </div>
 
-        <template v-if="resource">
-          <section class="card resource-rating-card">
-            <h3>Leave a Review</h3>
-            <form @submit.prevent="submitReview" class="stack">
-              <div class="detail-star-rating-wrap">
-                <p class="detail-rating-label">Your rating</p>
-                
-                <div class="detail-star-rating" role="radiogroup" aria-label="Your rating">
-                  <button 
-                    v-for="star in 5" 
-                    :key="star"
-                    type="button" 
-                    @mouseenter="previewRating = star"
-                    @mouseleave="previewRating = 0"
-                    @click="selectedRating = star"
-                    :class="{
-                      'is-active': star <= selectedRating,
-                      'is-previewed': previewRating ? star <= previewRating : false
-                    }"
-                    :aria-label="`Rate ${star} stars`"
-                    :aria-pressed="(star <= selectedRating).toString()"
-                  >★</button>
-                </div>
-                
-                <p class="meta">{{ ratingHint }}</p>
-              </div>
-              
-              <label>Your thoughts (optional)
-                <textarea v-model="comment" rows="3" maxlength="500" placeholder="What was helpful? Would you recommend it?"></textarea>
-                <span class="meta" style="text-align:right;display:block;">
-                  {{ comment.length }}/500
-                </span>
-              </label>
-              
-              <button class="primary" type="submit" :disabled="isSubmittingReview">
-                {{ isSubmittingReview ? 'Submitting...' : 'Submit Rating' }}
+          <!-- REVIEW FORM -->
+          <section class="glass-card rd-review-card">
+            <h3 class="rd-section-title">🌟 Rate This Resource</h3>
+
+            <!-- STAR PICKER -->
+            <div class="rd-star-wrap" role="group" aria-label="Star rating">
+              <button
+                v-for="star in 5"
+                :key="star"
+                type="button"
+                class="rd-star-btn"
+                :class="{
+                  'rd-star--filled': star <= (previewRating || selectedRating),
+                  'rd-star--selected': star <= selectedRating && !previewRating
+                }"
+                @mouseenter="previewRating = star"
+                @mouseleave="previewRating = 0"
+                @focus="previewRating = star"
+                @blur="previewRating = 0"
+                @click="selectedRating = star"
+                :aria-label="`${star} star${star === 1 ? '' : 's'}`"
+                :aria-pressed="star === selectedRating"
+              >
+                ★
               </button>
-            </form>
-            <p v-if="resourceReviewMessage" class="message" role="status" aria-live="polite">
-              {{ resourceReviewMessage }}
-            </p>
+            </div>
+            <p class="rd-rating-hint">{{ ratingHint }}</p>
+
+            <!-- COMMENT BOX -->
+            <label class="rd-label" for="rd-comment">Comment (optional)</label>
+            <textarea
+              id="rd-comment"
+              v-model="comment"
+              class="rd-textarea"
+              rows="3"
+              maxlength="500"
+              placeholder="Would you recommend it?"
+            ></textarea>
+            <span class="rd-char-count">{{ comment.length }} / 500</span>
+
+            <!-- BUG FIX -> prevent double submit -->
+            <button
+              class="chip chip-strong rd-submit-btn"
+              type="button"
+              :disabled="isSubmittingReview || !selectedRating"
+              @click="submitReview"
+            >
+              {{ isSubmittingReview ? 'Submitting…' : 'Submit Rating' }}
+            </button>
+
+            <transition name="fade">
+              <p v-if="resourceReviewMessage" class="rd-message rd-message--info" role="status" aria-live="polite">
+                {{ resourceReviewMessage }}
+              </p>
+            </transition>
           </section>
 
-          <section class="card resource-comments-card">
-            <div class="resource-comments-head">
-              <h3>
-                Comments & Ratings
-                <span v-if="reviews.length" style="font-size:0.8rem; font-weight:400; color:var(--ink-soft);">
-                  ({{ reviews.length }})
-                </span>
+          <!-- REVIEWS LIST -->
+          <section class="glass-card rd-comments-card">
+            <div class="rd-comments-head">
+              <h3 class="rd-section-title">
+                💬 Reviews
+                <span v-if="reviews.length" class="rd-review-count">({{ reviews.length }})</span>
               </h3>
-              <button @click="loadComments" class="chip" type="button">Refresh</button>
+              <button @click="loadComments" class="chip" type="button" :disabled="isLoadingComments">
+                {{ isLoadingComments ? '…' : 'Refresh' }}
+              </button>
             </div>
 
-            <div class="rating-summary" v-if="resource.review_count || resource.rating_count">
-              <span class="rating-big">{{ Number(resource.avg_rating || 0).toFixed(1) }}</span>
+            <!-- RATING SUMMARY -->
+            <div v-if="resource.review_count || resource.rating_count" class="rd-rating-summary">
+              <span class="rd-rating-big">{{ Number(resource.avg_rating || 0).toFixed(1) }}</span>
               <div>
-                <span style="color:#f0b300; font-size:1.1rem;">{{ renderStars(resource.avg_rating) }}</span>
-                <p class="meta" style="margin:0;">{{ resource.review_count || resource.rating_count || 0 }} review{{ (resource.review_count || resource.rating_count) !== 1 ? 's' : '' }}</p>
+                <!-- BUG FIX -> zero avg shows all empty stars -->
+                <span class="rd-stars-display">{{ renderStars(resource.avg_rating) }}</span>
+                <p class="rd-rating-sub">
+                  {{ resource.review_count || resource.rating_count || 0 }}
+                  review{{ (resource.review_count || resource.rating_count) !== 1 ? 's' : '' }}
+                </p>
               </div>
             </div>
-            
-            <div class="resource-comments-list">
-              <div v-if="isLoadingComments" class="resource-empty">Loading comments...</div>
-              <div v-else-if="reviews.length === 0" class="resource-empty">No comments yet. Be the first to rate this resource.</div>
-              
-              <article v-else v-for="review in reviews" :key="review.id" class="resource-comment">
-                <div class="resource-comment-head">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="reviewer-avatar">{{ (review.reviewer_name || 'U')[0].toUpperCase() }}</div>
-                    <p class="resource-comment-user">{{ review.reviewer_name || 'User' }}</p>
-                  </div>
-                  <p class="resource-comment-date">{{ formatDateValue(review.created_at, '-') }}</p>
+
+            <!-- SKELETON COMMENTS -->
+            <template v-if="isLoadingComments">
+              <div v-for="n in 3" :key="n" class="rd-comment-skeleton">
+                <div class="sk-avatar"></div>
+                <div class="rd-comment-skeleton-lines">
+                  <div class="sk-line sk-short"></div>
+                  <div class="sk-line sk-med"></div>
                 </div>
-                <p class="resource-comment-rating" style="color:#f0b300; margin: 4px 0;">
-                  {{ renderStars(review.rating) }}
-                </p>
-                <p class="resource-comment-body">{{ review.comment || 'No comment provided.' }}</p>
-              </article>
+              </div>
+            </template>
+
+            <!-- EMPTY STATE -->
+            <div v-else-if="reviews.length === 0" class="rd-empty">
+              <p>No reviews yet.</p>
+              <p class="rd-empty-sub">Be first — rate above! 👆</p>
             </div>
+
+            <!-- REVIEW ITEMS -->
+            <article
+              v-else
+              v-for="review in reviews"
+              :key="review.id"
+              class="rd-comment"
+            >
+              <div class="rd-comment-head">
+                <div class="rd-comment-left">
+                  <!-- BUG FIX -> guard null reviewer_name -->
+                  <div class="rd-avatar">{{ (review.reviewer_name || 'U')[0].toUpperCase() }}</div>
+                  <p class="rd-comment-user">{{ review.reviewer_name || 'User' }}</p>
+                </div>
+                <p class="rd-comment-date">{{ formatDateValue(review.created_at, '—') }}</p>
+              </div>
+              <p class="rd-comment-stars">{{ renderStars(review.rating) }}</p>
+              <!-- BUG FIX -> guard null comment -->
+              <p class="rd-comment-body">{{ review.comment?.trim() || 'No comment provided.' }}</p>
+            </article>
           </section>
+
         </template>
+
+        <!-- ERROR / NOT FOUND STATE -->
+        <div v-else-if="!isLoadingResource" class="rd-not-found glass-card">
+          <p class="rd-not-found-icon">🔍</p>
+          <p class="rd-not-found-title">Resource not found</p>
+          <p class="rd-not-found-sub">{{ resourceDetailMessage || 'Check the URL or go back.' }}</p>
+          <button class="chip chip-strong" type="button" @click="goBack">{{ backButtonLabel }}</button>
+        </div>
+
       </div>
     </section>
   </main>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { api, requireSession, showToast } from '@/api.js';
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { api, requireSession, showToast } from '@/api.js'
 import { formatDateValue } from '@/utils/records.js'
 
-const route = useRoute();
-const router = useRouter();
+const route = useRoute()
+const router = useRouter()
 
-// State Variables
+// ── STATE ───────────────────────────────────────────────
+const resource   = ref(null)
+const reviews    = ref([])
+
+const selectedRating = ref(0)
+const previewRating  = ref(0)
+const comment        = ref('')
+
+const resourceDetailMessage = ref('')
+const resourceReviewMessage = ref('')
+const messageIsError        = ref(false)
+const isLoadingResource     = ref(true)
+const isLoadingComments     = ref(true)
+const isSubmittingReview    = ref(false)
+const copySuccess           = ref(false)
+
+// ── COMPUTED ─────────────────────────────────────────────
+
+// BUG FIX -> safe resourceId, handles undefined/null/blank
 const resourceId = computed(() => {
-  const raw = route.params.resourceId ?? route.query.id;
-  const normalized = String(raw ?? '').trim();
-  if (!normalized || normalized === 'undefined' || normalized === 'null') {
-    return '';
-  }
-  return normalized;
-});
-const resource = ref(null);
-const reviews = ref([]);
+  const raw = route.params.resourceId ?? route.query.id
+  const v   = String(raw ?? '').trim()
+  return (!v || v === 'undefined' || v === 'null') ? '' : v
+})
 
-// Form State
-const selectedRating = ref(0);
-const previewRating = ref(0);
-const comment = ref('');
-
-// Messages & Loading
-const resourceDetailMessage = ref('');
-const resourceReviewMessage = ref('');
-const isLoadingComments = ref(true);
-const isLoadingResource = ref(true);
-const isSubmittingReview = ref(false);
-
-// Computed Properties for UI
 const ratingHint = computed(() => {
-  if (!selectedRating.value) return 'Select rating';
-  return `${selectedRating.value} star${selectedRating.value === 1 ? '' : 's'} selected`;
-});
+  const active = previewRating.value || selectedRating.value
+  if (!active) return 'Select a rating'
+  return `${active} star${active === 1 ? '' : 's'}`
+})
+
+const RESOURCE_TYPE_MAP = {
+  'past-year':    'Past Year Paper',
+  'lecture-note': 'Lecture Note',
+  'notes':        'Notes',
+  'slides':       'Slides',
+  'pdf':          'PDF',
+  'picture':      'Picture',
+  'archive':      'Archive',
+  'audio':        'Audio',
+  'video':        'Video',
+  'link':         'External Link',
+}
 
 const resourceTypeLabel = computed(() => {
-  const rawType = String(resource.value?.resource_type || '').trim().toLowerCase();
-  if (rawType === 'past-year') return 'Past Year Paper';
-  if (rawType === 'lecture-note') return 'Lecture Note';
-  if (rawType === 'notes') return 'Notes';
-  if (rawType === 'slides') return 'Slides';
-  if (rawType === 'pdf') return 'PDF';
-  if (rawType === 'picture') return 'Picture';
-  if (rawType === 'archive') return 'Archive';
-  if (rawType === 'audio') return 'Audio';
-  if (rawType === 'video') return 'Video';
-  if (rawType === 'link' || String(resource.value?.file_url || '').startsWith('http')) return 'Link';
-  return resource.value?.resource_type || 'Resource';
-});
+  const t = String(resource.value?.resource_type || '').trim().toLowerCase()
+  if (RESOURCE_TYPE_MAP[t]) return RESOURCE_TYPE_MAP[t]
+  if (String(resource.value?.file_url || '').startsWith('http')) return 'External Link'
+  return resource.value?.resource_type || 'Resource'
+})
 
-const sourceLabel = computed(() => {
-  if (!resource.value) return '-';
-  if (resource.value.uploaded_file_missing) {
-    return 'Uploaded file is missing from server storage.';
-  }
-  const url = String(resource.value.file_url || '');
-  const isSupabaseUpload = url.includes('supabase.co/storage/');
-  const isLocalUpload = url.startsWith('/uploads/resources/');
-  if (isSupabaseUpload || isLocalUpload) {
-    return `File: ${resource.value.metadata?.originalName || resource.value.metadata?.fileName || url.split('/').pop() || '-'}`;
-  }
-  return url.startsWith('http')
-    ? `External link: ${url}`
-    : `File: ${resource.value.metadata?.originalName || url || '-'}`;
-});
-
-const fileMissing = computed(() => Boolean(resource.value?.uploaded_file_missing));
+const fileMissing = computed(() => Boolean(resource.value?.uploaded_file_missing))
 
 const canDownloadResource = computed(() => {
-  if (!resource.value) return false;
-  if (resource.value.uploaded_file_missing) return false;
-  const url = String(resource.value.file_url || '');
-  // Allow download for Supabase uploads and local uploads
-  return url.includes('supabase.co/storage/') || url.startsWith('/uploads/resources/');
-});
+  if (!resource.value || fileMissing.value) return false
+  const url = String(resource.value.file_url || '')
+  return url.includes('supabase.co/storage/') || url.startsWith('/uploads/resources/')
+})
 
 const canOpenResource = computed(() => {
-  if (!resource.value) return false;
-  if (resource.value.uploaded_file_missing) return false;
-  return Boolean(resource.value.file_url);
-});
+  if (!resource.value || fileMissing.value) return false
+  return Boolean(resource.value.file_url)
+})
 
 const backPath = computed(() => {
-  const from = String(route.query.from || '').trim().toLowerCase();
-  if (from === 'admin-resources') return '/admin/resources';
-  if (from === 'my-resources') return '/my-resources';
-  if (from === 'resources') return '/resources';
-
+  const from = String(route.query.from || '').trim().toLowerCase()
+  if (from === 'admin-resources') return '/admin/resources'
+  if (from === 'my-resources')    return '/my-resources'
+  if (from === 'resources')       return '/resources'
   try {
-    const rawUser = localStorage.getItem('studylinkUser');
-    const user = rawUser ? JSON.parse(rawUser) : null;
-    if (user?.role === 'admin') return '/admin/resources';
-  } catch {}
-
-  return '/resources';
-});
+    const user = JSON.parse(localStorage.getItem('studylinkUser') || 'null')
+    if (user?.role === 'admin') return '/admin/resources'
+  } catch { /* ignore */ }
+  return '/resources'
+})
 
 const backButtonLabel = computed(() => {
-  if (backPath.value === '/admin/resources') return 'Back to Review Resources';
-  if (backPath.value === '/my-resources') return 'Back to My Uploads';
-  return 'Back to Resources';
-});
+  if (backPath.value === '/admin/resources') return '← Admin Resources'
+  if (backPath.value === '/my-resources')    return '← My Uploads'
+  return '← Resources'
+})
 
-// Helper Functions
+// ── HELPERS ───────────────────────────────────────────────
+
 const renderStars = (rating) => {
-  const value = Math.max(0, Math.min(5, Number(rating || 0)));
-  const full = Math.floor(value);
-  const hasHalf = value - full >= 0.5;
+  const v    = Math.max(0, Math.min(5, Number(rating || 0)))
+  const full = Math.floor(v)
+  const half = v - full >= 0.5
   return Array.from({ length: 5 }, (_, i) => {
-    if (i < full) return '★';
-    if (i === full && hasHalf) return '⯨';
-    return '☆';
-  }).join('');
-};
+    if (i < full)          return '★'
+    if (i === full && half) return '⯨'
+    return '☆'
+  }).join('')
+}
 
-const canPreviewInBrowser = (rawUrl) => {
-  const url = String(rawUrl || '').trim().toLowerCase();
-  if (!url) return false;
-  if (/^https?:\/\//.test(url)) return true;
+const setError = (msg) => {
+  resourceDetailMessage.value = msg
+  messageIsError.value = true
+}
 
-  const cleanPath = url.split('?')[0].split('#')[0];
-  return [
-    '.pdf',
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.webp',
-    '.svg',
-    '.txt',
-    '.md',
-    '.mp4',
-    '.webm',
-    '.mp3',
-    '.wav',
-    '.ogg'
-  ].some((ext) => cleanPath.endsWith(ext));
-};
+const setInfo = (msg, ttl = 0) => {
+  resourceDetailMessage.value = msg
+  messageIsError.value = false
+  if (ttl) setTimeout(() => { resourceDetailMessage.value = '' }, ttl)
+}
 
-const openInNewTab = (url) => {
-  if (!url) return;
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.target = '_blank';
-  anchor.rel = 'noopener noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-};
+const getFileUrl = (download = false) =>
+  resource.value?.id
+    ? `/api/resources/${resource.value.id}/file${download ? '?download=1' : ''}`
+    : ''
 
-// API Actions
+const buildDownloadFilename = () => {
+  const meta = resource.value?.metadata
+  if (meta?.originalName) return meta.originalName
+  if (meta?.fileName)     return meta.fileName
+  const url   = String(resource.value?.file_url || '')
+  const match = url.match(/([^/\\?#]+)(?:[?#].*)?$/)
+  if (match?.[1] && match[1] !== 'file') return match[1]
+  const safe = String(resource.value?.title || 'resource').replace(/[^a-zA-Z0-9._-]+/g, '_')
+  const ext  = url.match(/\.([a-zA-Z0-9]+)$/)?.[1]
+  return ext ? `${safe}.${ext}` : safe
+}
+
+// ── ACTIONS ──────────────────────────────────────────────
+
 const loadResource = async () => {
   if (!resourceId.value) {
-    resourceDetailMessage.value = 'Missing resource id.';
-    isLoadingResource.value = false;
-    return;
+    setError('No resource ID in URL.')
+    isLoadingResource.value = false
+    return
   }
-
+  // BUG FIX -> validate numeric id before hitting API
   if (!/^\d+$/.test(resourceId.value)) {
-    resourceDetailMessage.value = 'Invalid resource id.';
-    isLoadingResource.value = false;
-    return;
+    setError('Invalid resource ID.')
+    isLoadingResource.value = false
+    return
   }
-
-  isLoadingResource.value = true;
+  isLoadingResource.value = true
   try {
-    const data = await api(`/resources/${encodeURIComponent(resourceId.value)}`);
-    if (!data.resource) {
-      resourceDetailMessage.value = 'Resource not found.';
-      return;
+    const data = await api(`/resources/${encodeURIComponent(resourceId.value)}`)
+    // BUG FIX -> null guard on data.resource
+    if (!data?.resource) {
+      setError('Resource not found.')
+      return
     }
-    resource.value = data.resource;
-    
-    document.title = `${data.resource.title} — StudyLink`;
-    resourceDetailMessage.value = '';
-  } catch (error) {
-    resourceDetailMessage.value = error.message || 'Unable to load this resource.';
+    resource.value = data.resource
+    document.title = `${data.resource.title || 'Resource'} — StudyLink`
+    resourceDetailMessage.value = ''
+  } catch (err) {
+    setError(err?.message || 'Unable to load this resource.')
   } finally {
-    isLoadingResource.value = false;
+    isLoadingResource.value = false
   }
-};
+}
 
 const loadComments = async () => {
-  if (!resourceId.value) return;
-
-  if (!/^\d+$/.test(resourceId.value)) {
-    isLoadingComments.value = false;
-    return;
+  if (!resourceId.value || !/^\d+$/.test(resourceId.value)) {
+    isLoadingComments.value = false
+    return
   }
-  
-  isLoadingComments.value = true;
+  isLoadingComments.value = true
   try {
-    const data = await api(`/resources/${encodeURIComponent(resourceId.value)}/reviews`);
-    reviews.value = Array.isArray(data.reviews) ? data.reviews : [];
-  } catch (error) {
-    reviews.value = [];
-    if (error?.message && !String(error.message).toLowerCase().includes('not found')) {
-      if (!resourceDetailMessage.value) {
-        resourceDetailMessage.value = error.message;
-      }
+    const data = await api(`/resources/${encodeURIComponent(resourceId.value)}/reviews`)
+    // BUG FIX -> safe array guard
+    reviews.value = Array.isArray(data?.reviews) ? data.reviews : []
+  } catch (err) {
+    reviews.value = []
+    if (err?.message && !String(err.message).toLowerCase().includes('not found')) {
+      if (!resourceDetailMessage.value) setError(err.message)
     }
   } finally {
-    isLoadingComments.value = false;
+    isLoadingComments.value = false
   }
-};
+}
 
 const submitReview = async () => {
-  if (isSubmittingReview.value) return;
-  
-  const rating = Number(selectedRating.value || 0);
-  const commentText = String(comment.value || '').trim();
+  // BUG FIX -> double submit guard
+  if (isSubmittingReview.value) return
+
+  const rating      = Number(selectedRating.value || 0)
+  const commentText = String(comment.value || '').trim()
 
   if (!resourceId.value || !/^\d+$/.test(resourceId.value)) {
-    resourceReviewMessage.value = 'Invalid resource id.';
-    return;
+    resourceReviewMessage.value = 'Invalid resource ID.'
+    return
   }
-
   if (!rating || rating < 1 || rating > 5) {
-    resourceReviewMessage.value = 'Please select a rating between 1 and 5.';
-    return;
+    resourceReviewMessage.value = 'Pick a star rating first.'
+    return
   }
 
-  isSubmittingReview.value = true;
+  isSubmittingReview.value = true
+  resourceReviewMessage.value = ''
   try {
     await api(`/resources/${encodeURIComponent(resourceId.value)}/reviews`, 'POST', {
       rating,
       comment: commentText
-    });
-    
-    resourceReviewMessage.value = 'Rating submitted successfully.';
-    if(typeof showToast === 'function') showToast('Thanks for your feedback.', true);
-    
-    selectedRating.value = 0;
-    previewRating.value = 0;
-    comment.value = '';
-    
-    await Promise.all([loadResource(), loadComments()]);
-    
-    setTimeout(() => { resourceReviewMessage.value = ''; }, 3000);
-    
-  } catch (error) {
-    resourceReviewMessage.value = error.message;
-  } finally {
-    isSubmittingReview.value = false;
-  }
-};
+    })
+    resourceReviewMessage.value = '✓ Rating submitted!'
+    if (typeof showToast === 'function') showToast('Thanks for your feedback.', true)
 
-const getResourceFileUrl = (download = false) => {
-  if (!resource.value?.id) return '';
-  return `/api/resources/${resource.value.id}/file${download ? '?download=1' : ''}`;
-};
+    selectedRating.value = 0
+    previewRating.value  = 0
+    comment.value        = ''
+
+    // BUG FIX -> parallel reload, not sequential
+    await Promise.all([loadResource(), loadComments()])
+
+    setTimeout(() => { resourceReviewMessage.value = '' }, 3000)
+  } catch (err) {
+    resourceReviewMessage.value = err?.message || 'Submission failed.'
+  } finally {
+    isSubmittingReview.value = false
+  }
+}
 
 const openResource = () => {
-  if (!resource.value) return;
-
-  if (resource.value.uploaded_file_missing) {
-    resourceDetailMessage.value = 'This uploaded resource file is missing from storage.';
-    return;
+  if (!resource.value) return
+  if (fileMissing.value) {
+    setError('File missing from storage.')
+    return
   }
-
   if (!resource.value.file_url) {
-    resourceDetailMessage.value = 'Unable to open this resource because no file URL is available.';
-    return;
+    setError('No file URL available.')
+    return
   }
-
-  resourceDetailMessage.value = '';
-  window.open(getResourceFileUrl(), '_blank', 'noopener,noreferrer');
-};
-
-const copyLink = async () => {
-  if (!resource.value?.file_url) return;
-  try {
-    await navigator.clipboard.writeText(resource.value.file_url);
-    resourceDetailMessage.value = 'Link copied to clipboard.';
-    setTimeout(() => { resourceDetailMessage.value = ''; }, 2000);
-  } catch {
-    resourceDetailMessage.value = 'Could not copy link automatically.';
-  }
-};
-
-const getResourceDownloadExtension = (source) => {
-  const cleaned = String(source || '').trim().split('?')[0].split('#')[0];
-  const match = cleaned.match(/\.([a-zA-Z0-9]+)$/);
-  return match ? `.${match[1]}` : '';
-};
-
-const getResourceDownloadFilename = () => {
-  const originalName = String(resource.value?.metadata?.originalName || '').trim();
-  if (originalName) return originalName;
-
-  const metadataFileName = String(resource.value?.metadata?.fileName || '').trim();
-  if (metadataFileName) return metadataFileName;
-
-  const fileUrl = String(resource.value?.file_url || '').trim();
-  const urlNameMatch = fileUrl.match(/([^\/\\?#]+)(?:[?#].*)?$/);
-  if (urlNameMatch && urlNameMatch[1] && urlNameMatch[1] !== 'file') {
-    return urlNameMatch[1];
-  }
-
-  const title = String(resource.value?.title || 'resource').trim();
-  const safeTitle = title.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'resource';
-  const extension = getResourceDownloadExtension(fileUrl || metadataFileName);
-  return `${safeTitle}${extension}`;
-};
+  resourceDetailMessage.value = ''
+  window.open(getFileUrl(), '_blank', 'noopener,noreferrer')
+}
 
 const openDownload = () => {
-  if (!resource.value) return;
-  if (resource.value.uploaded_file_missing) {
-    resourceDetailMessage.value = 'This uploaded resource file is missing from storage.';
-    return;
+  if (!resource.value || fileMissing.value) {
+    setError('File unavailable for download.')
+    return
   }
   if (!canDownloadResource.value) {
-    resourceDetailMessage.value = 'This resource cannot be downloaded directly.';
-    return;
+    setError('Cannot download this resource directly.')
+    return
   }
-  resourceDetailMessage.value = '';
-  const url = String(resource.value.file_url || '');
-  const anchor = document.createElement('a');
-  if (url.includes('supabase.co/storage/')) {
-    anchor.href = url;
-  } else {
-    anchor.href = getResourceFileUrl(true);
-  }
-  anchor.download = getResourceDownloadFilename();
-  anchor.target = '_blank';
-  anchor.rel = 'noopener noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-};
+  resourceDetailMessage.value = ''
+  const url = String(resource.value.file_url || '')
+  const a   = document.createElement('a')
+  a.href     = url.includes('supabase.co/storage/') ? url : getFileUrl(true)
+  a.download = buildDownloadFilename()
+  a.target   = '_blank'
+  a.rel      = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
 
-const goBack = () => {
-  router.replace(backPath.value);
-};
+const copyLink = async () => {
+  if (!resource.value?.file_url) return
+  try {
+    await navigator.clipboard.writeText(resource.value.file_url)
+    copySuccess.value = true
+    setInfo('Link copied!', 2000)
+    setTimeout(() => { copySuccess.value = false }, 2000)
+  } catch {
+    setError('Could not copy link.')
+  }
+}
+
+const goBack = () => router.replace(backPath.value)
+
+// ── LIFECYCLE ─────────────────────────────────────────────
 
 onMounted(() => {
-  requireSession();
-  
-  const viewEl = document.querySelector('.view');
-  if (viewEl) viewEl.scrollTop = 0;
+  requireSession()
+  const viewEl = document.querySelector('.view')
+  if (viewEl) viewEl.scrollTop = 0
 
   if (resourceId.value) {
-    Promise.all([loadResource(), loadComments()]).catch(() => {});
+    // BUG FIX -> catch at top level
+    Promise.all([loadResource(), loadComments()]).catch(() => {})
   } else {
-    resourceDetailMessage.value = 'No resource ID provided in the URL.';
-    isLoadingResource.value = false;
+    setError('No resource ID provided in the URL.')
+    isLoadingResource.value  = false
+    isLoadingComments.value  = false
   }
-});
+})
 
 onUnmounted(() => {
-  document.title = 'StudyLink';
-});
+  document.title = 'StudyLink'
+})
 </script>
 
 <style scoped>
-.resource-detail-header {
+/* ── LAYOUT ─────────────────────────────────────── */
+.rd-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-.resource-detail-kicker {
-  margin: 0 0 3px;
+.rd-kicker {
+  margin: 0;
   font-size: 0.7rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 700;
-  color: var(--ink-kicker);
+  color: var(--ink-kicker, #FF85BB);
 }
 
-.resource-detail-card,
-.resource-rating-card,
-.resource-comments-card {
-  margin-bottom: 12px;
-}
-
-.resource-detail-cover {
-  border-radius: 14px;
+/* ── GLASS CARD BASE ─────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid rgba(255, 133, 187, 0.22);
+  border-radius: 16px;
   padding: 14px;
+  margin-bottom: 12px;
+  box-shadow:
+    0 2px 12px rgba(2, 26, 84, 0.06),
+    inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+/* ── COVER CARD ──────────────────────────────────── */
+.rd-cover-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.rd-cover-inner {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.25), transparent 38%),
-    linear-gradient(135deg, #7f1d43, #b11f4b 58%, #d35a82);
+    radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 42%),
+    linear-gradient(135deg, #021A54 0%, #1a3a8f 55%, #FF85BB 100%);
+  padding: 18px 16px 14px;
   color: #fff;
   display: grid;
   gap: 8px;
 }
 
-.resource-cover-title {
-  margin: 0;
-  font-size: 1.5rem;
-  line-height: 1.2;
+.rd-type-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.30);
+  background: rgba(255,255,255,0.15);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.resource-action-bar {
+.rd-title {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.rd-uploader {
+  margin: 0;
+  font-size: 0.87rem;
+  opacity: 0.88;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── STAT ROW ────────────────────────────────────── */
+.rd-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  background: rgba(255, 133, 187, 0.12);
+  border-top: 1px solid rgba(255, 133, 187, 0.18);
+}
+
+.rd-stat-chip {
+  flex: 1 1 70px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(8px);
+}
+
+.rd-stat-chip:not(:last-child) {
+  border-right: 1px solid rgba(255, 133, 187, 0.15);
+}
+
+.rd-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #FF85BB;
+  margin-bottom: 2px;
+}
+
+.rd-stat-chip strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #021A54;
+}
+
+/* ── ACTION BAR ──────────────────────────────────── */
+.rd-action-bar {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--hairline);
-  margin-bottom: 12px;
+  align-items: center;
 }
 
-.resource-file-chip {
+.rd-missing-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 8px;
-  border: 1px solid var(--hairline);
-  background: var(--surface-soft-alt);
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  margin-bottom: 12px;
+  background: rgba(255, 59, 48, 0.1);
+  color: #c0392b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 59, 48, 0.22);
 }
 
-.rating-summary {
+/* ── DESCRIPTION ──────────────────────────────────── */
+.rd-desc-card {
+  background: rgba(255, 206, 227, 0.25);
+  border-color: rgba(255, 133, 187, 0.3);
+}
+
+.rd-desc-label {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #FF85BB;
+}
+
+.rd-desc-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: #021A54;
+}
+
+/* ── FILE CHIP ──────────────────────────────────── */
+.rd-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: #021A54;
+  background: rgba(245, 245, 245, 0.75);
+  border-color: rgba(2, 26, 84, 0.1);
+}
+
+/* ── REVIEW FORM ──────────────────────────────────── */
+.rd-review-card { }
+
+.rd-section-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #021A54;
+}
+
+.rd-review-count {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #6e6e73;
+  margin-left: 4px;
+}
+
+.rd-star-wrap {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.rd-star-btn {
+  font-size: 1.7rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #ddd;
+  line-height: 1;
+  transition: color 0.12s, transform 0.1s;
+  padding: 0 2px;
+}
+
+.rd-star-btn:hover,
+.rd-star-btn:focus {
+  outline: none;
+}
+
+.rd-star-btn.rd-star--filled {
+  color: #f0b300;
+  transform: scale(1.12);
+}
+
+.rd-star-btn.rd-star--selected {
+  color: #e6a800;
+}
+
+.rd-rating-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #6e6e73;
+}
+
+.rd-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #021A54;
+  margin-bottom: 6px;
+}
+
+.rd-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(255, 133, 187, 0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background: rgba(255,255,255,0.8);
+  color: #021A54;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.rd-textarea:focus {
+  outline: none;
+  border-color: #FF85BB;
+  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.18);
+}
+
+.rd-char-count {
+  display: block;
+  text-align: right;
+  font-size: 0.73rem;
+  color: #6e6e73;
+  margin-top: 3px;
+  margin-bottom: 10px;
+}
+
+.rd-submit-btn {
+  width: 100%;
+}
+
+/* ── COMMENTS ──────────────────────────────────── */
+.rd-comments-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rd-rating-summary {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid rgba(255, 133, 187, 0.18);
+  margin-bottom: 12px;
 }
 
-.rating-big {
-  font-size: 2.4rem;
+.rd-rating-big {
+  font-size: 2.6rem;
   font-weight: 700;
-  color: var(--ink);
+  color: #021A54;
   line-height: 1;
 }
 
-.reviewer-avatar {
+.rd-stars-display {
+  font-size: 1.1rem;
+  color: #f0b300;
+  letter-spacing: 2px;
+}
+
+.rd-rating-sub {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #6e6e73;
+}
+
+.rd-empty {
+  text-align: center;
+  padding: 20px 0;
+  color: #6e6e73;
+}
+
+.rd-empty p { margin: 0; }
+.rd-empty-sub { font-size: 0.83rem; margin-top: 4px !important; }
+
+.rd-comment {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 133, 187, 0.12);
+}
+
+.rd-comment:last-child { border-bottom: none; }
+
+.rd-comment-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.rd-comment-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rd-avatar {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--primary-soft-strong);
-  color: #fff;
+  background: linear-gradient(135deg, #FF85BB, #FFCEE3);
+  color: #021A54;
   font-size: 0.75rem;
   font-weight: 700;
   display: flex;
@@ -625,183 +907,157 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.resource-type-tag {
-  display: inline-flex;
-  width: fit-content;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.resource-contributor {
+.rd-comment-user {
   margin: 0;
-  font-size: 0.9rem;
-  opacity: 0.9;
-}
-
-.resource-detail-main {
-  margin-top: 12px;
-  display: grid;
-  gap: 12px;
-}
-
-.resource-detail-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: 8px;
-}
-
-.resource-meta-box {
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--surface);
-  padding: 8px 10px;
-}
-
-.resource-meta-box span {
-  display: block;
-  color: var(--ink-kicker);
-  font-size: 0.74rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.resource-meta-box strong {
-  display: block;
-  margin-top: 3px;
-  color: var(--ink);
-  font-size: 1rem;
-}
-
-.resource-description {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.92rem;
-  line-height: 1.6;
-  padding: 10px 12px;
-  background: var(--surface-soft-alt);
-  border-radius: 8px;
-  border-left: 3px solid var(--primary-soft-strong);
-}
-
-.detail-star-rating-wrap {
-  display: grid;
-  gap: 8px;
-}
-
-.detail-rating-label {
-  margin: 0;
-  color: var(--ink);
+  font-size: 0.88rem;
   font-weight: 600;
+  color: #021A54;
 }
 
-.detail-star-rating {
-  display: inline-flex;
-  gap: 6px;
-  flex-wrap: wrap;
+.rd-comment-date {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6e6e73;
 }
 
-.detail-star-rating button {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: 2px solid var(--primary-soft-strong);
-  background: var(--surface);
-  color: #d3a8b6;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
-}
-
-.detail-star-rating button:hover,
-.detail-star-rating button:focus-visible,
-.detail-star-rating button.is-previewed {
+.rd-comment-stars {
+  margin: 2px 0 4px;
+  font-size: 0.95rem;
   color: #f0b300;
-  background: #fff7d7;
+  letter-spacing: 1px;
 }
 
-.detail-star-rating button.is-active {
-  color: #f0b300;
-  background: #fff1bc;
+.rd-comment-body {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #3a3a3c;
+  line-height: 1.55;
 }
 
-.detail-star-rating button.is-active.is-previewed {
-  background: #ffeaa0;
+/* ── MESSAGES ──────────────────────────────────── */
+.rd-message {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.87rem;
+  font-weight: 500;
 }
 
-.detail-star-rating button:focus-visible,
-.detail-star-rating button:hover {
-  transform: scale(1.06);
+.rd-message--error {
+  background: rgba(255, 59, 48, 0.09);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #c0392b;
 }
 
-.resource-comments-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+.rd-message--info {
+  background: rgba(255, 206, 227, 0.35);
+  border: 1px solid rgba(255, 133, 187, 0.3);
+  color: #021A54;
 }
 
-.resource-comments-list {
+/* ── NOT FOUND ──────────────────────────────────── */
+.rd-not-found {
+  text-align: center;
+  padding: 32px 20px;
+}
+
+.rd-not-found-icon {
+  font-size: 2.5rem;
+  margin: 0 0 8px;
+}
+
+.rd-not-found-title {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #021A54;
+}
+
+.rd-not-found-sub {
+  margin: 0 0 16px;
+  font-size: 0.87rem;
+  color: #6e6e73;
+}
+
+/* ── SKELETONS ──────────────────────────────────── */
+.rd-skeleton-card { }
+
+.rd-skeleton-cover {
+  background: linear-gradient(135deg, rgba(2,26,84,0.08), rgba(255,133,187,0.12));
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
   display: grid;
   gap: 8px;
 }
 
-.resource-comment {
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--surface);
-  padding: 9px 10px;
+.rd-skeleton-body { display: grid; gap: 8px; }
+
+.sk-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(2,26,84,0.07) 25%, rgba(255,133,187,0.12) 50%, rgba(2,26,84,0.07) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
 }
 
-.resource-comment-head {
+.sk-pill {
+  height: 20px;
+  width: 80px;
+  border-radius: 999px;
+  background: rgba(255,133,187,0.18);
+  animation: shimmer 1.4s infinite;
+}
+
+.sk-title  { height: 20px; width: 75%; }
+.sk-sub    { height: 13px; width: 45%; }
+.sk-med    { width: 65%; }
+.sk-short  { width: 40%; }
+
+.sk-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sk-box {
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(2,26,84,0.06);
+  animation: shimmer 1.4s infinite;
+}
+
+.sk-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,133,187,0.2);
+  flex-shrink: 0;
+  animation: shimmer 1.4s infinite;
+}
+
+.rd-comment-skeleton {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,133,187,0.1);
 }
 
-.resource-comment-user {
-  margin: 0;
-  color: var(--ink);
-  font-weight: 700;
+.rd-comment-skeleton-lines {
+  flex: 1;
+  display: grid;
+  gap: 6px;
 }
 
-.resource-comment-date {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.86rem;
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
-.resource-comment-body {
-  margin: 6px 0 0;
-  color: var(--ink);
-  font-size: 0.92rem;
-}
-
-.resource-empty {
-  border: 1px dashed var(--hairline);
-  border-radius: 10px;
-  background: var(--surface-soft-alt);
-  color: var(--ink-soft);
-  padding: 10px;
-}
-
-@media (max-width: 640px) {
-  .resource-detail-header {
-    align-items: center;
-  }
-
-  .resource-action-bar .chip {
-    width: 100%;
-  }
-}
+/* ── TRANSITIONS ─────────────────────────────────── */
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from,
+.fade-leave-to     { opacity: 0; }
 </style>

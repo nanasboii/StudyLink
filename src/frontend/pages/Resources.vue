@@ -2,15 +2,17 @@
   <main class="page-bg">
     <section class="phone-shell">
       <div class="view page active">
-        <section class="resources-hero">
+
+        <!-- ── HERO ── -->
+        <section class="resources-hero glass-card">
           <div class="resources-hero__copy">
             <p class="resources-hero__kicker">Study Smarter</p>
             <h2 id="resourcesHeroTitle">Welcome back, {{ firstName }}</h2>
-            <p class="resources-hero__text">Find past papers, lecture notes, slides, and shared links in a glassy workspace built to help you move faster.</p>
+            <p class="resources-hero__text">Find past papers, lecture notes, slides, and shared links — all in one place.</p>
           </div>
           <div class="resources-hero__stats" aria-label="Resource highlights">
             <div class="hero-stat">
-              <span class="hero-stat__label">Available Now</span>
+              <span class="hero-stat__label">Available</span>
               <strong>{{ totalResources }}</strong>
             </div>
             <div class="hero-stat">
@@ -18,20 +20,44 @@
               <strong>{{ topPickCount }}</strong>
             </div>
             <div class="hero-stat">
-              <span class="hero-stat__label">Latest Uploads</span>
+              <span class="hero-stat__label">This Week</span>
               <strong>{{ latestCount }}</strong>
             </div>
           </div>
         </section>
 
+        <!-- ── SUMMARY BAR (NEW) ── -->
+        <div class="summary-bar" v-if="!isLoading && resources.length">
+          <div class="summary-stat">
+            <span class="summary-value">{{ totalResources }}</span>
+            <span class="summary-label">Resources</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ uniqueCourses }}</span>
+            <span class="summary-label">Courses</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ uniqueUploaders }}</span>
+            <span class="summary-label">Contributors</span>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-value">{{ avgRatingDisplay }}</span>
+            <span class="summary-label">Avg Rating</span>
+          </div>
+        </div>
+
+        <!-- ── SEARCH + CONTROLS ── -->
         <div class="search-row resource-toolbar" role="search">
-          <div class="search-input-wrap" style="position:relative;flex:1;display:flex;align-items:center;">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"/>
+            </svg>
             <input
               class="resource-search-input"
               v-model="searchQuery"
-              placeholder="Search by course code, title, type, or uploader"
+              placeholder="Search title, course, type, or uploader…"
               @input="debouncedSearch"
-              style="width:100%"
+              aria-label="Search resources"
             />
             <button
               v-if="searchQuery"
@@ -39,209 +65,137 @@
               type="button"
               aria-label="Clear search"
               @click="searchQuery = ''; visibleCount = pageSize"
-              style="position:absolute;right:10px;background:none;border:none;cursor:pointer;color:#6e6e73;"
             >✕</button>
           </div>
-          
-          <div class="search-inline-actions" aria-label="Search controls">
-            <button class="icon-chip" type="button" aria-label="Search" title="Search" @click="visibleCount = pageSize">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
-              </svg>
-            </button>
-            <button 
-              class="icon-chip" 
-              type="button" 
-              aria-label="Open filters" 
-              @click="showFilters = !showFilters" 
-              title="Toggle filters"
-              :style="hasActiveFilters ? 'color:#b11f4b; position:relative' : ''"
+
+          <div class="search-inline-actions">
+            <button
+              class="icon-chip"
+              type="button"
+              aria-label="Toggle filters"
+              @click="showFilters = !showFilters"
+              :class="{ 'icon-chip--active': hasActiveFilters }"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
+                <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z"/>
               </svg>
               <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
             </button>
           </div>
+
           <div class="action-row">
-            <button class="chip chip-strong" type="button" @click="showUploadModal = true">Upload Resource</button>
+            <select class="sort-select" v-model="selectedSort" aria-label="Sort resources">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="highest-rated">Top Rated</option>
+              <option value="most-reviewed">Most Reviewed</option>
+              <option value="az">A → Z</option>
+            </select>
+            <button v-if="canUpload" class="chip chip-strong" type="button" @click="showUploadModal = true">
+              + Upload
+            </button>
           </div>
         </div>
 
-        <div v-if="searchQuery || hasActiveFilters" style="margin-top: -8px; margin-bottom: 16px; padding: 0 4px;">
-          <p class="meta" style="font-size: 13px;">
-            Showing <strong>{{ filteredResources.length }}</strong> of {{ totalResources }} resource{{ totalResources !== 1 ? 's' : '' }}
-          </p>
+        <!-- ── RESULT COUNT ── -->
+        <div v-if="searchQuery || hasActiveFilters" class="result-count">
+          Showing <strong>{{ filteredResources.length }}</strong> of {{ totalResources }} resource{{ totalResources !== 1 ? 's' : '' }}
+          <button class="clear-link" @click="resetFilters">Clear all</button>
         </div>
 
-        <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
+        <!-- ── QUICK TYPE CHIPS ── -->
+        <div class="chip-row" role="group" aria-label="Filter by type">
+          <button
+            class="chip"
+            :class="{ 'chip--active': isQuickFilterActive(null) }"
+            @click="toggleQuickFilter(null)"
+          >All</button>
+          <button
+            v-for="type in quickFilterTypes"
+            :key="type.value"
+            class="chip"
+            :class="{ 'chip--active': isQuickFilterActive(type.value) }"
+            @click="toggleQuickFilter(type.value)"
+          >{{ type.label }}</button>
+        </div>
 
-        <div v-if="showFilters" class="filter-panel">
-          
+        <!-- ── FILTER PANEL ── -->
+        <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
+        <div v-if="showFilters" class="filter-panel glass-card">
+
           <div class="filter-section">
-            <button 
-              type="button" 
-              class="filter-header"
-              @click="expandedSections.rating = !expandedSections.rating"
-              :aria-expanded="expandedSections.rating"
-            >
+            <button type="button" class="filter-header" @click="expandedSections.rating = !expandedSections.rating" :aria-expanded="expandedSections.rating">
               <h4>Star Rating</h4>
-              <span class="expand-icon">{{ expandedSections.rating ? '−' : '+' }}</span>
+              <span>{{ expandedSections.rating ? '−' : '+' }}</span>
             </button>
             <div v-if="expandedSections.rating" class="filter-content">
               <div class="rating-slider-wrap">
-                <div
-                  class="dual-rating-slider"
-                  :style="ratingTrackStyle"
-                  aria-label="Star rating range"
-                >
+                <div class="dual-rating-slider" :style="ratingTrackStyle">
                   <div class="dual-rating-slider__track"></div>
                   <div class="dual-rating-slider__range"></div>
-                  <input
-                    :value="filterMinRating"
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="1"
-                    class="rating-slider rating-slider--min"
-                    aria-label="Minimum star rating"
-                    @input="setMinRating($event.target.value)"
-                  />
-                  <input
-                    :value="filterMaxRating"
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="1"
-                    class="rating-slider rating-slider--max"
-                    aria-label="Maximum star rating"
-                    @input="setMaxRating($event.target.value)"
-                  />
+                  <input :value="filterMinRating" type="range" min="0" max="5" step="1" class="rating-slider rating-slider--min" aria-label="Min rating" @input="setMinRating($event.target.value)"/>
+                  <input :value="filterMaxRating" type="range" min="0" max="5" step="1" class="rating-slider rating-slider--max" aria-label="Max rating" @input="setMaxRating($event.target.value)"/>
                 </div>
                 <div class="rating-markers" aria-hidden="true">
-                  <span v-for="star in ratingSteps" :key="star">{{ star }} star</span>
+                  <span v-for="s in ratingSteps" :key="s">{{ s }}★</span>
                 </div>
-                <div class="rating-value" :style="(filterMinRating !== 0 || filterMaxRating !== 5) ? 'color:#b11f4b;font-weight:600' : ''">
-                  {{ ratingRangeLabel }}
-                </div>
+                <p class="rating-value-label">{{ ratingRangeLabel }}</p>
               </div>
             </div>
           </div>
 
           <div class="filter-section">
-            <button 
-              type="button" 
-              class="filter-header"
-              @click="expandedSections.type = !expandedSections.type"
-              :aria-expanded="expandedSections.type"
-            >
+            <button type="button" class="filter-header" @click="expandedSections.type = !expandedSections.type" :aria-expanded="expandedSections.type">
               <h4>Resource Type</h4>
-              <span class="expand-icon">{{ expandedSections.type ? '−' : '+' }}</span>
+              <span>{{ expandedSections.type ? '−' : '+' }}</span>
             </button>
-            <div v-if="expandedSections.type" class="filter-content">
-              <div class="filter-pill-row" style="flex-wrap:wrap;">
-                <button
-                  v-for="rt in resourceTypeOptions"
-                  :key="rt.value"
-                  type="button"
-                  class="filter-pill"
-                  :class="{ active: selectedTypes.includes(rt.value) }"
-                  @click="toggleResourceType(rt.value)"
-                >
-                  {{ rt.label }}
-                </button>
-              </div>
+            <div v-if="expandedSections.type" class="filter-content filter-pills">
+              <button
+                v-for="type in allTypes"
+                :key="type"
+                class="filter-pill"
+                :class="{ 'filter-pill--active': selectedTypes.includes(type) }"
+                @click="toggleResourceType(type)"
+              >{{ formatResourceTypeLabel(type) }}</button>
             </div>
           </div>
 
           <div class="filter-section">
-            <button 
-              type="button" 
-              class="filter-header"
-              @click="expandedSections.course = !expandedSections.course"
-              :aria-expanded="expandedSections.course"
-            >
-              <h4>Course Code</h4>
-              <span class="expand-icon">{{ expandedSections.course ? '−' : '+' }}</span>
+            <button type="button" class="filter-header" @click="expandedSections.course = !expandedSections.course" :aria-expanded="expandedSections.course">
+              <h4>Course</h4>
+              <span>{{ expandedSections.course ? '−' : '+' }}</span>
             </button>
             <div v-if="expandedSections.course" class="filter-content">
-              <div v-if="courseOptions.length <= 8" class="filter-pill-row" style="flex-wrap:wrap;">
-                <button type="button" class="filter-pill" 
-                        :class="{ active: selectedCourseCode === '' }" 
-                        @click="selectedCourseCode = ''">All</button>
-                <button v-for="course in courseOptions" :key="course" 
-                        type="button" class="filter-pill"
-                        :class="{ active: selectedCourseCode === course }"
-                        @click="selectedCourseCode = course">{{ course }}</button>
-              </div>
-              <select v-else v-model="selectedCourseCode" class="filter-select">
-                <option value="">All courses</option>
-                <option v-for="course in courseOptions" :key="course" :value="course">{{ course }}</option>
+              <select class="filter-select" v-model="selectedCourseCode" aria-label="Filter by course">
+                <option value="">All Courses</option>
+                <option v-for="code in availableCourseCodes" :key="code" :value="code">{{ code }}</option>
               </select>
             </div>
           </div>
 
           <div class="filter-section">
-            <button 
-              type="button" 
-              class="filter-header"
-              @click="expandedSections.access = !expandedSections.access"
-              :aria-expanded="expandedSections.access"
-            >
+            <button type="button" class="filter-header" @click="expandedSections.access = !expandedSections.access" :aria-expanded="expandedSections.access">
               <h4>Access Type</h4>
-              <span class="expand-icon">{{ expandedSections.access ? '−' : '+' }}</span>
+              <span>{{ expandedSections.access ? '−' : '+' }}</span>
             </button>
-            <div v-if="expandedSections.access" class="filter-content">
-              <div class="filter-pill-row">
-                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'all' }" @click="selectedAccessType = 'all'">All</button>
-                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'file' }" @click="selectedAccessType = 'file'">Uploaded Files</button>
-                <button type="button" class="filter-pill" :class="{ active: selectedAccessType === 'link' }" @click="selectedAccessType = 'link'">External Links</button>
-              </div>
+            <div v-if="expandedSections.access" class="filter-content filter-pills">
+              <button class="filter-pill" :class="{ 'filter-pill--active': selectedAccessType === 'all' }" @click="selectedAccessType = 'all'">All</button>
+              <button class="filter-pill" :class="{ 'filter-pill--active': selectedAccessType === 'file' }" @click="selectedAccessType = 'file'">Files Only</button>
+              <button class="filter-pill" :class="{ 'filter-pill--active': selectedAccessType === 'link' }" @click="selectedAccessType = 'link'">Links Only</button>
             </div>
           </div>
 
-          <div class="filter-section">
-            <button 
-              type="button" 
-              class="filter-header"
-              @click="expandedSections.sort = !expandedSections.sort"
-              :aria-expanded="expandedSections.sort"
-            >
-              <h4>Sort By</h4>
-              <span class="expand-icon">{{ expandedSections.sort ? '−' : '+' }}</span>
-            </button>
-            <div v-if="expandedSections.sort" class="filter-content">
-              <select v-model="selectedSort" class="filter-select">
-                <option value="newest">Newest uploads</option>
-                <option value="highest-rated">Highest rated</option>
-                <option value="course-asc">Course code A-Z</option>
-                <option value="title-asc">Title A-Z</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="filter-action-row">
-            <button class="filter-reset-btn" type="button" @click="resetFilters">Reset</button>
-            <button class="filter-apply-btn" type="button" @click="applyFilters">Apply</button>
+          <div class="filter-actions">
+            <button class="filter-reset-btn" type="button" @click="resetFilters">Reset all</button>
+            <button class="filter-apply-btn" type="button" @click="applyFilters">Apply filters</button>
           </div>
         </div>
 
-        <div class="chip-row" id="typeChips">
-          <button 
-            v-for="resourceType in quickFilterTypes" 
-            :key="resourceType.value"
-            class="chip"
-            :class="{ 'chip-active': isQuickFilterActive(resourceType.value) }"
-            @click="toggleQuickFilter(resourceType.value)"
-          >
-            {{ resourceType.label }}
-          </button>
-        </div>
-
-        <section class="suggested-section">
-          <div class="search-row compact">
+        <!-- ── SUGGESTED CAROUSEL ── -->
+        <section class="suggested-section" v-if="suggestedResources.length && !isLoading">
+          <div class="section-header">
             <h3>Suggested for You</h3>
-            <span class="meta">Scroll through resources people are using right now.</span>
+            <span class="meta">Top-rated picks</span>
           </div>
           <div
             ref="suggestedCarouselRef"
@@ -249,10 +203,10 @@
             @mouseenter="stopSuggestedCarousel"
             @mouseleave="startSuggestedCarousel"
           >
-            <button 
-              v-for="resource in suggestedResources" 
+            <button
+              v-for="resource in suggestedResources"
               :key="resource.id"
-              class="suggested-card"
+              class="suggested-card glass-card"
               @click="openResource(resource)"
             >
               <div class="suggested-media" :class="resourceCoverClass(resource)">
@@ -262,65 +216,68 @@
               </div>
               <div class="suggested-body">
                 <div class="suggested-type">{{ formatResourceTypeLabel(resource.resource_type) }}</div>
-                <strong>
-                  <span v-if="resource.course_code">{{ resource.course_code }} — </span>{{ resource.title || 'Untitled' }}
-                </strong>
-                <div class="meta">{{ resource.contributor_name }}</div>
-                <div class="meta rating-line" style="display:flex;align-items:center;margin-top:2px;">
-                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="fill:#f4b400;margin-right:4px;">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  </svg>
+                <strong><span v-if="resource.course_code">{{ resource.course_code }} — </span>{{ resource.title || 'Untitled' }}</strong>
+                <div class="meta">{{ resource.contributor_name || 'Unknown' }}</div>
+                <div class="rating-line">
+                  <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" class="star-icon"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  <!-- BUG FIX: guard NaN avg_rating -->
                   {{ Number(resource.avg_rating || 0).toFixed(1) }}
-                  <span v-if="!resource.avg_rating" class="muted" style="margin-left:4px;">(unrated)</span>
+                  <span v-if="!resource.avg_rating" class="muted">(unrated)</span>
                 </div>
               </div>
             </button>
           </div>
         </section>
 
+        <!-- ── RESOURCE GRID ── -->
         <section class="resources-section">
-          <div class="search-row compact">
+          <div class="section-header">
             <h3>Newly Uploaded</h3>
-            <p class="meta" v-if="filteredResources.length">
-              Fresh uploads from your community.
-            </p>
+            <p class="meta" v-if="filteredResources.length">Fresh from your community</p>
           </div>
 
           <div role="status" aria-live="polite" class="sr-only">
             {{ filteredResources.length }} resource{{ filteredResources.length !== 1 ? 's' : '' }} found
           </div>
 
-          <div id="resourceList" class="resources-list">
-            <div v-if="loadError" class="error-banner" role="alert" style="color:#b11f4b; text-align:center; padding:40px 20px; grid-column:1/-1;">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="32" height="32" style="fill:currentColor; margin-bottom:12px;">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-              </svg>
-              <div>{{ loadError }}</div>
-              <button class="chip" style="margin-top:16px;" @click="loadResources">Retry</button>
-            </div>
-            
-            <div v-if="isLoading" class="loading">Loading resources...</div>
-            
-            <div v-else-if="filteredResources.length === 0 && !loadError" class="empty-state-card" style="text-align:center; padding:60px 20px; grid-column:1/-1;">
-              <svg viewBox="0 0 64 64" width="48" height="48" aria-hidden="true" style="margin-bottom:16px;">
-                <path fill="#e0e0e0" d="M6 12h22l4 6h26v32H6z"/>
-                <circle cx="44" cy="40" r="8" fill="none" stroke="#b11f4b" stroke-width="2.5"/>
-                <path d="M50 46l4 4" stroke="#b11f4b" stroke-width="2.5" stroke-linecap="round"/>
-              </svg>
-              <div style="margin-bottom: 6px; font-size:15px; color:#1d1d1f;">
-                <strong v-if="searchQuery">No resources match "{{ searchQuery }}"</strong>
-                <strong v-else-if="hasActiveFilters">No matches for your filters</strong>
-                <strong v-else>No resources yet</strong>
+          <!-- SKELETON SHIMMER while loading -->
+          <div v-if="isLoading" class="resources-list">
+            <div v-for="n in 6" :key="n" class="resource-card skeleton-card">
+              <div class="skeleton-cover"></div>
+              <div class="skeleton-body">
+                <div class="skeleton-line skeleton-line--wide"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line skeleton-line--short"></div>
               </div>
-              <p class="meta" v-if="searchQuery || hasActiveFilters">Try adjusting your search or clearing some filters.</p>
-              <p class="meta" v-else>Be the first to share a study resource with your community.</p>
-              
-              <button v-if="searchQuery || hasActiveFilters" class="chip chip-strong" style="margin-top:16px;" @click="resetFilters">Clear search & filters</button>
-              <button v-else-if="canUpload" class="chip chip-strong" style="margin-top:16px;" @click="showUploadModal = true">Be the first to upload for this course</button>
             </div>
+          </div>
 
-            <button 
-              v-for="resource in paginatedResources" 
+          <!-- ERROR STATE -->
+          <div v-else-if="loadError" class="error-banner" role="alert">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="28" height="28"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <div>{{ loadError }}</div>
+            <button class="chip" @click="loadResources">Retry</button>
+          </div>
+
+          <!-- EMPTY STATE -->
+          <div v-else-if="filteredResources.length === 0" class="empty-state-card" role="status">
+            <svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true">
+              <path fill="#FFCEE3" d="M6 12h22l4 6h26v32H6z"/>
+              <circle cx="44" cy="40" r="8" fill="none" stroke="#FF85BB" stroke-width="2.5"/>
+              <path d="M50 46l4 4" stroke="#FF85BB" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <strong v-if="searchQuery">No results for "{{ searchQuery }}"</strong>
+            <strong v-else-if="hasActiveFilters">No matches for your filters</strong>
+            <strong v-else>No resources yet</strong>
+            <p class="meta">{{ searchQuery || hasActiveFilters ? 'Try adjusting your search or filters.' : 'Be the first to share a study resource.' }}</p>
+            <button v-if="searchQuery || hasActiveFilters" class="chip chip-strong" @click="resetFilters">Clear filters</button>
+            <button v-else-if="canUpload" class="chip chip-strong" @click="showUploadModal = true">Upload first resource</button>
+          </div>
+
+          <!-- RESOURCE CARDS -->
+          <div v-else class="resources-list">
+            <button
+              v-for="resource in paginatedResources"
               :key="resource.id"
               :class="['resource-card', resource.resource_type ? 'type-' + normalizeResourceType(resource.resource_type) : '']"
               @click="openResource(resource)"
@@ -336,87 +293,138 @@
                 <strong>
                   <span v-if="resource.course_code">{{ resource.course_code }} — </span>{{ resource.title || 'Untitled' }}
                 </strong>
-                <div class="meta">By {{ resource.contributor_name }}</div>
-                <div class="meta rating-line" style="display:flex;align-items:center;margin-top:2px;">
-                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="fill:#f4b400;margin-right:4px;">
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                  </svg>
+                <div class="meta">By {{ resource.contributor_name || 'Unknown' }}</div>
+                <div class="rating-line">
+                  <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" class="star-icon"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  <!-- BUG FIX: 0-rating shows 0.0 not NaN -->
                   {{ Number(resource.avg_rating || 0).toFixed(1) }}
-                  <span v-if="resource.review_count || resource.rating_count" class="meta" style="margin-left:4px; font-size:11px;">
-                    ({{ resource.review_count || resource.rating_count }})
-                  </span>
-                  <span v-if="!resource.avg_rating" class="muted" style="margin-left:4px;">(unrated)</span>
+                  <span v-if="resource.review_count || resource.rating_count" class="count-badge">({{ resource.review_count || resource.rating_count }})</span>
+                  <span v-else class="muted">(unrated)</span>
                 </div>
-                <div class="meta" style="font-size:11px;color:#6e6e73;margin-top:6px;">
-                  {{ formatDateValue(resource.created_at, '') }}
-                </div>
+                <!-- BUG FIX: invalid date guard -->
+                <div class="meta date-meta">{{ formatDateValue(resource.created_at, '') }}</div>
               </div>
             </button>
           </div>
-          <button 
-            v-if="visibleCount < filteredResources.length"
-            class="chip"
+
+          <button
+            v-if="!isLoading && visibleCount < filteredResources.length"
+            class="chip load-more-btn"
             @click="visibleCount += pageSize"
           >
-            Load more resources
+            Load more ({{ filteredResources.length - visibleCount }} left)
           </button>
         </section>
 
-        <div v-if="showUploadModal" class="modal-backdrop" @click="!isUploading && (showUploadModal = false)">
-          <div class="modal-content" @click.stop>
-            <button class="modal-close" @click="!isUploading && (showUploadModal = false)" :disabled="isUploading" aria-label="Close upload modal">
-              <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
-                <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
-            <h3>Upload Resource</h3>
-            <form ref="uploadFormRef" @submit.prevent="handleUpload" class="stack">
-              <label>
-                Title
-                <input v-model="uploadForm.title" placeholder="Week 3 Lecture Slides" required />
+        <!-- ── UPLOAD MODAL ── -->
+        <div v-if="showUploadModal" class="modal-backdrop" @click="!isUploading && (showUploadModal = false)" role="dialog" aria-modal="true" aria-label="Upload resource">
+          <div class="modal-content glass-card" @click.stop>
+            <div class="modal-header">
+              <h3>Upload Resource</h3>
+              <button class="modal-close" @click="!isUploading && (showUploadModal = false)" :disabled="isUploading" aria-label="Close">✕</button>
+            </div>
+
+            <form @submit.prevent="handleUpload" ref="uploadFormRef" novalidate>
+              <label class="form-label">
+                Title <span aria-hidden="true">*</span>
+                <input
+                  class="form-input"
+                  v-model="uploadForm.title"
+                  placeholder="e.g. CS101 Midterm Notes"
+                  required
+                  :disabled="isUploading"
+                  maxlength="200"
+                />
               </label>
-              <label>
-                Course Code
-                <input v-model="uploadForm.courseCode" placeholder="TMF3953" />
-              </label>
-              <label>
-                Resource Type
-                <select v-model="uploadForm.resourceType" required>
-                  <option value="">Select a type</option>
+
+              <label class="form-label">
+                Type <span aria-hidden="true">*</span>
+                <select class="form-input" v-model="uploadForm.resourceType" required :disabled="isUploading">
+                  <option value="">Select type…</option>
                   <option value="past-year">Past Year Paper</option>
-                  <option value="lecture-note">Lecture Notes</option>
+                  <option value="lecture-note">Lecture Note</option>
                   <option value="slides">Slides</option>
                   <option value="assignment">Assignment</option>
                   <option value="pdf">PDF</option>
                   <option value="link">External Link</option>
+                  <option value="miscellaneous">Miscellaneous</option>
                 </select>
               </label>
-              <label>
-                Description
-                <textarea v-model="uploadForm.description" rows="3" placeholder="What's this resource about?"></textarea>
-              </label>
-              <label v-if="uploadForm.resourceType !== 'link'">
-                Upload File <span v-if="uploadForm.resourceType !== 'link'">(required if no link)</span>
-                <input ref="fileInputRef" type="file" @change="onUploadFileChange" />
-              </label>
 
-              <label>
-                Resource Link
-                <span v-if="uploadForm.resourceType === 'link'" class="field-required">*</span>
-                <span v-else class="field-optional">(optional)</span>
+              <label class="form-label">
+                Course Code
                 <input
-                  v-model="uploadForm.resourceLink"
-                  :placeholder="uploadForm.resourceType === 'link' ? 'https://example.com/resource' : 'https://example.com (optional)'"
+                  class="form-input"
+                  v-model="uploadForm.courseCode"
+                  placeholder="e.g. CS101"
+                  :disabled="isUploading"
+                  maxlength="20"
                 />
               </label>
-              <button class="primary" type="submit" :disabled="isUploading">
-                {{ isUploading ? 'Uploading...' : 'Upload' }}
-              </button>
+
+              <label class="form-label">
+                Description
+                <textarea
+                  class="form-input"
+                  v-model="uploadForm.description"
+                  placeholder="Short description…"
+                  rows="2"
+                  :disabled="isUploading"
+                  maxlength="500"
+                ></textarea>
+              </label>
+
+              <!-- BUG FIX: link field only shows for link type, but always allow file -->
+              <label class="form-label" v-if="uploadForm.resourceType === 'link'">
+                URL <span aria-hidden="true">*</span>
+                <input
+                  class="form-input"
+                  v-model="uploadForm.resourceLink"
+                  type="url"
+                  placeholder="https://example.com/resource"
+                  :disabled="isUploading"
+                />
+              </label>
+
+              <label class="form-label" v-else>
+                Resource Link (optional)
+                <input
+                  class="form-input"
+                  v-model="uploadForm.resourceLink"
+                  type="url"
+                  placeholder="https://example.com (optional)"
+                  :disabled="isUploading"
+                />
+              </label>
+
+              <label class="form-label" v-if="uploadForm.resourceType !== 'link'">
+                File
+                <input
+                  ref="fileInputRef"
+                  class="form-input"
+                  type="file"
+                  :disabled="isUploading"
+                  @change="selectedUploadFile = $event.target.files[0] || null"
+                />
+              </label>
+
+              <p v-if="uploadMessage" class="upload-message" :class="uploadMessageType === 'error' ? 'msg-error' : 'msg-success'">
+                {{ uploadMessage }}
+              </p>
+              <p v-if="uploadMessageDetails && uploadMessageType === 'error'" class="upload-message msg-error msg-details">
+                {{ uploadMessageDetails }}
+              </p>
+
+              <div class="modal-actions">
+                <button type="button" class="chip" @click="showUploadModal = false" :disabled="isUploading">Cancel</button>
+                <button type="submit" class="chip chip-strong" :disabled="isUploading">
+                  {{ isUploading ? 'Uploading…' : 'Upload' }}
+                </button>
+              </div>
             </form>
-            <p v-if="uploadMessage" :class="['message', uploadMessageType]">{{ uploadMessage }}</p>
-            <p v-if="uploadMessageDetails" class="message message-details">{{ uploadMessageDetails }}</p>
           </div>
         </div>
+
       </div>
     </section>
   </main>
@@ -431,43 +439,39 @@ import { formatDateValue } from '@/utils/records.js'
 const router = useRouter()
 const currentUser = getUser()
 
-// ── Role gate: only tutors and admins may upload ──
+// ── Role gate ──────────────────────────────────────────────────────────────
 const canUpload = computed(() => {
   const role = String(currentUser?.role || '').toLowerCase().trim()
   return role === 'tutor' || role === 'admin'
 })
 
-const resources = ref([])
-const isLoading = ref(true)
-const loadError = ref('')
-const searchQuery = ref('')
+// ── State ──────────────────────────────────────────────────────────────────
+const resources     = ref([])
+const isLoading     = ref(true)
+const loadError     = ref('')
+const searchQuery   = ref('')
 const selectedTypes = ref([])
-const selectedCourseCode = ref('')
-const selectedAccessType = ref('all')
-const selectedSort = ref('newest')
+const selectedCourseCode   = ref('')
+const selectedAccessType   = ref('all')
+const selectedSort  = ref('newest')
 const showUploadModal = ref(false)
-const showFilters = ref(false)
-const visibleCount = ref(12)
-const pageSize = 12
-const isUploading = ref(false)
+const showFilters   = ref(false)
+const visibleCount  = ref(12)
+const pageSize      = 12
+const isUploading   = ref(false)
 const uploadMessage = ref('')
-const uploadMessageType = ref('')
+const uploadMessageType    = ref('')
 const uploadMessageDetails = ref('')
-const selectedUploadFile = ref(null)
-const fileInputRef = ref(null)
+const selectedUploadFile   = ref(null)
+const fileInputRef  = ref(null)
 const uploadFormRef = ref(null)
 const suggestedCarouselRef = ref(null)
-let suggestedCarouselTimer = null
-const expandedSections = ref({
-  rating: true,
-  type: true,
-  course: false,
-  access: true,
-  sort: false
-})
-const filterMinRating = ref(0)
-const filterMaxRating = ref(5)
-const ratingSteps = [1, 2, 3, 4, 5]
+let   suggestedCarouselTimer = null
+
+const expandedSections = ref({ rating: true, type: true, course: false, access: true })
+const filterMinRating  = ref(0)
+const filterMaxRating  = ref(5)
+const ratingSteps      = [1, 2, 3, 4, 5]
 
 const uploadForm = ref({
   title: '',
@@ -477,114 +481,113 @@ const uploadForm = ref({
   resourceLink: ''
 })
 
+// ── Quick filter chip definitions ──────────────────────────────────────────
+const quickFilterTypes = [
+  { value: 'past-year',     label: 'Past Year'   },
+  { value: 'lecture-note',  label: 'Notes'       },
+  { value: 'slides',        label: 'Slides'      },
+  { value: 'assignment',    label: 'Assignments' },
+  { value: 'link',          label: 'Links'       },
+]
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 const normalizeResourceType = (value) => String(value || '').trim().toLowerCase()
 
 const formatResourceTypeLabel = (value) => {
-  const normalized = normalizeResourceType(value)
-  if (!normalized) return 'Other Resources'
-
-  const aliases = {
-    'past-year': 'Past Year Papers',
-    'past paper': 'Past Year Papers',
-    'past-paper': 'Past Year Papers',
-    exam: 'Past Year Papers',
-    'exam paper': 'Past Year Papers',
+  const n = normalizeResourceType(value)
+  const map = {
+    'past-year':    'Past Year Papers',
+    'past paper':   'Past Year Papers',
+    'past-paper':   'Past Year Papers',
+    'exam':         'Past Year Papers',
     'lecture-note': 'Lecture Notes',
     'lecture note': 'Lecture Notes',
-    'lecture notes': 'Lecture Notes',
-    notes: 'Lecture Notes',
-    slides: 'Slides',
-    slide: 'Slides',
-    assignment: 'Assignments',
-    pdf: 'PDFs',
-    link: 'External Links'
+    'notes':        'Lecture Notes',
+    'slides':       'Slides',
+    'slide':        'Slides',
+    'assignment':   'Assignments',
+    'pdf':          'PDFs',
+    'link':         'External Links',
+    'miscellaneous':'Misc',
   }
-
-  return aliases[normalized] || normalized.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+  return map[n] || n.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Other'
 }
 
 const resourceCoverBadge = (resource) => {
-  const normalized = normalizeResourceType(resource?.resource_type)
-  if (['past-year', 'past paper', 'past-paper', 'exam', 'exam paper'].includes(normalized)) return 'Past Year'
-  if (['lecture-note', 'lecture note', 'lecture notes', 'notes'].includes(normalized)) return 'Notes'
-  if (['slide', 'slides'].includes(normalized)) return 'Slides'
-  if (normalized === 'assignment') return 'Task'
-  if (normalized === 'pdf') return 'PDF'
-  if (normalized === 'link') return 'Link'
-  return 'Resource'
+  const n = normalizeResourceType(resource?.resource_type)
+  if (['past-year','past paper','past-paper','exam'].includes(n)) return 'Past Year'
+  if (['lecture-note','lecture note','notes'].includes(n))        return 'Notes'
+  if (['slide','slides'].includes(n))                             return 'Slides'
+  if (n === 'assignment') return 'Task'
+  if (n === 'pdf')        return 'PDF'
+  if (n === 'link')       return 'Link'
+  return 'Doc'
 }
 
 const resourceCoverMonogram = (resource) => {
-  const courseCode = String(resource?.course_code || '').trim()
-  if (courseCode) return courseCode.toUpperCase()
-
-  const title = String(resource?.title || '').trim()
-  if (title) return title.slice(0, 12)
-
-  return formatResourceTypeLabel(resource?.resource_type || 'Resource')
+  const title = String(resource?.title || resource?.course_code || 'R').trim()
+  return title.slice(0, 2).toUpperCase()
 }
 
+// BUG FIX: guard null resource_type in class binding
 const resourceCoverClass = (resource) => {
-  const normalized = normalizeResourceType(resource?.resource_type)
-  if (['past-year', 'past paper', 'past-paper', 'exam', 'exam paper'].includes(normalized)) return 'cover-past-year'
-  if (['lecture-note', 'lecture note', 'lecture notes', 'notes'].includes(normalized)) return 'cover-notes'
-  if (['slide', 'slides'].includes(normalized)) return 'cover-slides'
-  if (normalized === 'assignment') return 'cover-assignment'
-  if (normalized === 'pdf') return 'cover-pdf'
-  if (normalized === 'link') return 'cover-link'
-  return 'cover-generic'
+  const n = normalizeResourceType(resource?.resource_type)
+  if (['past-year','past paper','past-paper','exam'].includes(n)) return 'cover-past-year'
+  if (['lecture-note','lecture note','notes'].includes(n))        return 'cover-notes'
+  if (['slide','slides'].includes(n))                             return 'cover-slides'
+  if (n === 'assignment') return 'cover-assignment'
+  if (n === 'pdf')        return 'cover-pdf'
+  if (n === 'link')       return 'cover-link'
+  return 'cover-misc'
 }
 
-const resourceTypeOptions = computed(() => {
-  const seen = new Set()
-
-  return resources.value.reduce((options, resource) => {
-    const value = normalizeResourceType(resource.resource_type)
-    if (!value || seen.has(value)) return options
-    seen.add(value)
-    options.push({ value, label: formatResourceTypeLabel(value) })
-    return options
-  }, []).sort((left, right) => left.label.localeCompare(right.label))
-})
-
-const quickFilterTypes = computed(() => [
-  { value: '', label: 'All Resources' },
-  ...resourceTypeOptions.value.slice(0, 6)
-])
-
-const courseOptions = computed(() => {
-  return [...new Set(
-    resources.value
-      .map((resource) => String(resource.course_code || '').trim())
-      .filter(Boolean)
-  )].sort((left, right) => left.localeCompare(right))
-})
-
+// ── Computed ───────────────────────────────────────────────────────────────
 const firstName = computed(() => {
   if (!currentUser) return 'there'
   const name = currentUser.fullName || currentUser.full_name || currentUser.username || ''
   return name.split(/\s+/)[0] || 'there'
 })
 
-const suggestedResources = computed(() => {
-  return [...resources.value]
-    .sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0))
-    .slice(0, 8)
-})
-
 const totalResources = computed(() => resources.value.length)
-const topPickCount = computed(() => resources.value.filter(r => r.avg_rating >= 4).length)
-
-const latestCount = computed(() => {
+const topPickCount   = computed(() => resources.value.filter(r => Number(r.avg_rating || 0) >= 4).length)
+const latestCount    = computed(() => {
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-  return resources.value.filter(r => new Date(r.created_at).getTime() > cutoff).length
+  return resources.value.filter(r => {
+    const t = new Date(r.created_at).getTime()
+    return !isNaN(t) && t > cutoff
+  }).length
 })
+
+// NEW: summary bar stats
+const uniqueCourses   = computed(() => new Set(resources.value.map(r => r.course_code).filter(Boolean)).size)
+const uniqueUploaders = computed(() => new Set(resources.value.map(r => r.contributor_name || r.uploader_email).filter(Boolean)).size)
+const avgRatingDisplay = computed(() => {
+  const rated = resources.value.filter(r => Number(r.avg_rating || 0) > 0)
+  if (!rated.length) return '—'
+  const sum = rated.reduce((acc, r) => acc + Number(r.avg_rating), 0)
+  return (sum / rated.length).toFixed(1)
+})
+
+const suggestedResources = computed(() =>
+  [...resources.value]
+    .filter(r => Number(r.avg_rating || 0) > 0)        // BUG FIX: only actually-rated
+    .sort((a, b) => Number(b.avg_rating) - Number(a.avg_rating))
+    .slice(0, 8)
+)
+
+const availableCourseCodes = computed(() =>
+  [...new Set(resources.value.map(r => String(r.course_code || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+)
+
+const allTypes = computed(() =>
+  [...new Set(resources.value.map(r => normalizeResourceType(r.resource_type)).filter(Boolean))]
+)
 
 const activeFilterCount = computed(() => {
   let count = 0
-  if (selectedTypes.value.length) count += selectedTypes.value.length
-  if (selectedCourseCode.value) count++
-  if (selectedAccessType.value !== 'all') count++
+  if (selectedTypes.value.length)                               count += selectedTypes.value.length
+  if (selectedCourseCode.value)                                 count++
+  if (selectedAccessType.value !== 'all')                       count++
   if (filterMinRating.value !== 0 || filterMaxRating.value !== 5) count++
   return count
 })
@@ -594,150 +597,97 @@ const hasActiveFilters = computed(() =>
 )
 
 const ratingRangeLabel = computed(() => {
-  if (filterMinRating.value === 0 && filterMaxRating.value === 5) {
-    return 'Any rating from unrated to 5 stars'
-  }
-
-  if (filterMinRating.value === filterMaxRating.value) {
-    return `${filterMinRating.value || 0} star${filterMinRating.value === 1 ? '' : 's'} only`
-  }
-
-  return `${filterMinRating.value || 0} to ${filterMaxRating.value} stars`
+  if (filterMinRating.value === 0 && filterMaxRating.value === 5) return 'Any rating'
+  if (filterMinRating.value === filterMaxRating.value)
+    return `${filterMinRating.value} star${filterMinRating.value === 1 ? '' : 's'} only`
+  return `${filterMinRating.value} – ${filterMaxRating.value} stars`
 })
 
-const ratingTrackStyle = computed(() => {
-  const minPercent = (filterMinRating.value / 5) * 100
-  const maxPercent = (filterMaxRating.value / 5) * 100
-
-  return {
-    '--range-start': `${minPercent}%`,
-    '--range-end': `${maxPercent}%`
-  }
-})
+const ratingTrackStyle = computed(() => ({
+  '--range-start': `${(filterMinRating.value / 5) * 100}%`,
+  '--range-end':   `${(filterMaxRating.value / 5) * 100}%`,
+}))
 
 const filteredResources = computed(() => {
-  let filtered = [...resources.value]
+  let list = [...resources.value]
 
+  // type filter
   if (selectedTypes.value.length) {
-    filtered = filtered.filter((resource) => selectedTypes.value.includes(normalizeResourceType(resource.resource_type)))
+    list = list.filter(r => selectedTypes.value.includes(normalizeResourceType(r.resource_type)))
   }
 
-  if (!(filterMinRating.value === 0 && filterMaxRating.value === 5)) {
-    filtered = filtered.filter((resource) => {
-      const rating = Number(resource.avg_rating || 0)
+  // rating filter — BUG FIX: unrated resources (0) excluded when min > 0
+  if (filterMinRating.value !== 0 || filterMaxRating.value !== 5) {
+    list = list.filter(r => {
+      const rating = Number(r.avg_rating || 0)
       return rating >= filterMinRating.value && rating <= filterMaxRating.value
     })
   }
 
+  // course filter
   if (selectedCourseCode.value) {
-    filtered = filtered.filter((resource) => String(resource.course_code || '').trim() === selectedCourseCode.value)
+    list = list.filter(r => String(r.course_code || '').trim() === selectedCourseCode.value)
   }
 
+  // access type filter
   if (selectedAccessType.value !== 'all') {
-    filtered = filtered.filter((resource) => {
-      const fileUrl = String(resource.file_url || '').trim()
-      const isExternalLink = /^https?:\/\//i.test(fileUrl)
-      return selectedAccessType.value === 'link' ? isExternalLink : Boolean(fileUrl) && !isExternalLink
+    list = list.filter(r => {
+      const url = String(r.file_url || '').trim()
+      const isLink = /^https?:\/\//i.test(url)
+      return selectedAccessType.value === 'link' ? isLink : !isLink
     })
   }
 
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(r =>
-      (r.title?.toLowerCase().includes(q) ||
-       r.course_code?.toLowerCase().includes(q) ||
-       r.contributor_name?.toLowerCase().includes(q) ||
-       r.resource_type?.toLowerCase().includes(q) ||
-       r.course_name?.toLowerCase().includes(q))
+  // search — BUG FIX: guard null fields before calling toLowerCase
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter(r =>
+      String(r.title || '').toLowerCase().includes(q) ||
+      String(r.course_code || '').toLowerCase().includes(q) ||
+      String(r.resource_type || '').toLowerCase().includes(q) ||
+      String(r.contributor_name || '').toLowerCase().includes(q)
     )
   }
 
-  if (selectedSort.value === 'highest-rated') {
-    filtered.sort((left, right) => Number(right.avg_rating || 0) - Number(left.avg_rating || 0))
-  } else if (selectedSort.value === 'course-asc') {
-    filtered.sort((left, right) => String(left.course_code || '').localeCompare(String(right.course_code || '')))
-  } else if (selectedSort.value === 'title-asc') {
-    filtered.sort((left, right) => String(left.title || '').localeCompare(String(right.title || '')))
-  } else {
-    filtered.sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+  // sort
+  switch (selectedSort.value) {
+    case 'oldest':        list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); break
+    case 'highest-rated': list.sort((a, b) => Number(b.avg_rating || 0) - Number(a.avg_rating || 0)); break
+    case 'most-reviewed': list.sort((a, b) => Number(b.review_count || b.rating_count || 0) - Number(a.review_count || a.rating_count || 0)); break
+    case 'az':            list.sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''))); break
+    default:              list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); break
   }
 
-  return filtered
+  return list
 })
 
-const paginatedResources = computed(() => 
-  filteredResources.value.slice(0, visibleCount.value)
-)
+const paginatedResources = computed(() => filteredResources.value.slice(0, visibleCount.value))
 
-const debouncedSearch = (() => {
-  let timeout
-  return () => {
-    clearTimeout(timeout)
-    timeout = setTimeout(() => {
-      visibleCount.value = pageSize
-    }, 300)
-  }
-})()
-
-const loadResources = async () => {
-  try {
-    isLoading.value = true
-    loadError.value = ''
-    const data = await api('/resources')
-    resources.value = data.resources || []
-    await nextTick()
-    requestAnimationFrame(() => startSuggestedCarousel())
-  } catch (error) {
-    loadError.value = error?.message || 'Failed to load resources.'
-    console.error('Failed to load resources:', error)
-  } finally {
-    isLoading.value = false
-  }
+// ── Debounce search ────────────────────────────────────────────────────────
+let searchTimer = null
+const debouncedSearch = () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { visibleCount.value = pageSize }, 300)
 }
 
-const onUploadFileChange = (event) => {
-  selectedUploadFile.value = event?.target?.files?.[0] || null
-  uploadMessage.value = ''
-  
-  if (selectedUploadFile.value) {
-    const maxSizeMB = 25
-    const maxSizeBytes = maxSizeMB * 1024 * 1024
-    
-    if (selectedUploadFile.value.size > maxSizeBytes) {
-      uploadMessage.value = `File is too large. Maximum size is ${maxSizeMB}MB. Selected: ${(selectedUploadFile.value.size / 1024 / 1024).toFixed(2)}MB`
-      uploadMessageType.value = 'error'
-      selectedUploadFile.value = null
-      if (event?.target) {
-        event.target.value = ''
-      }
-      return
-    }
-    
-    uploadMessage.value = `Selected: ${selectedUploadFile.value.name}`
-    uploadMessageType.value = ''
-  }
-}
-
+// ── Filter actions ─────────────────────────────────────────────────────────
 const setMinRating = (value) => {
   const next = Math.min(Number(value), filterMaxRating.value)
-  filterMinRating.value = Number.isNaN(next) ? 0 : next
+  filterMinRating.value = isNaN(next) ? 0 : next
 }
-
 const setMaxRating = (value) => {
   const next = Math.max(Number(value), filterMinRating.value)
-  filterMaxRating.value = Number.isNaN(next) ? 5 : next
+  filterMaxRating.value = isNaN(next) ? 5 : next
 }
 
 const toggleResourceType = (value) => {
-  const normalized = normalizeResourceType(value)
-  if (!normalized) return
-
-  if (selectedTypes.value.includes(normalized)) {
-    selectedTypes.value = selectedTypes.value.filter((item) => item !== normalized)
-    return
+  const n = normalizeResourceType(value)
+  if (!n) return
+  if (selectedTypes.value.includes(n)) {
+    selectedTypes.value = selectedTypes.value.filter(t => t !== n)
+  } else {
+    selectedTypes.value = [...selectedTypes.value, n]
   }
-
-  selectedTypes.value = [...selectedTypes.value, normalized]
 }
 
 const isQuickFilterActive = (value) => {
@@ -746,39 +696,53 @@ const isQuickFilterActive = (value) => {
 }
 
 const toggleQuickFilter = (value) => {
-  if (!value) {
-    selectedTypes.value = []
-    return
-  }
-
+  if (!value) { selectedTypes.value = []; return }
   toggleResourceType(value)
 }
 
-const applyFilters = () => {
-  visibleCount.value = pageSize
-  showFilters.value = false
-}
+const applyFilters = () => { visibleCount.value = pageSize; showFilters.value = false }
 
 const resetFilters = () => {
-  selectedTypes.value = []
+  selectedTypes.value    = []
   selectedCourseCode.value = ''
   selectedAccessType.value = 'all'
-  selectedSort.value = 'newest'
-  filterMinRating.value = 0
-  filterMaxRating.value = 5
-  searchQuery.value = ''
-  visibleCount.value = pageSize
+  selectedSort.value     = 'newest'
+  filterMinRating.value  = 0
+  filterMaxRating.value  = 5
+  searchQuery.value      = ''
+  visibleCount.value     = pageSize
 }
 
+// ── Load ───────────────────────────────────────────────────────────────────
+const loadResources = async () => {
+  loadError.value = ''
+  isLoading.value = true
+  try {
+    // BUG FIX: validate API response is array
+    const resp = await api('/resources')
+    resources.value = Array.isArray(resp?.resources) ? resp.resources : Array.isArray(resp) ? resp : []
+  } catch (err) {
+    loadError.value = `Couldn't load resources: ${err?.message || 'Unknown error'}`
+    resources.value = []
+  } finally {
+    isLoading.value = false
+    // start carousel after data loads
+    await nextTick()
+    startSuggestedCarousel()
+  }
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
 const handleUpload = async () => {
-  if (!uploadForm.value.title) {
-    uploadMessage.value = 'Please enter a title'
+  // BUG FIX: whitespace-only title bypass
+  const trimmedTitle = String(uploadForm.value.title || '').trim()
+  if (!trimmedTitle) {
+    uploadMessage.value = 'Title is required.'
     uploadMessageType.value = 'error'
     return
   }
-
   if (!uploadForm.value.resourceType) {
-    uploadMessage.value = 'Please select a resource type'
+    uploadMessage.value = 'Resource type is required.'
     uploadMessageType.value = 'error'
     return
   }
@@ -787,7 +751,7 @@ const handleUpload = async () => {
 
   if (uploadForm.value.resourceType === 'link') {
     if (!trimmedLink) {
-      uploadMessage.value = 'Please paste a link for link-type resources.'
+      uploadMessage.value = 'A URL is required for link-type resources.'
       uploadMessageType.value = 'error'
       return
     }
@@ -795,7 +759,7 @@ const handleUpload = async () => {
       const url = new URL(trimmedLink)
       if (!['http:', 'https:'].includes(url.protocol)) throw new Error()
     } catch {
-      uploadMessage.value = 'Please enter a valid URL starting with http:// or https://'
+      uploadMessage.value = 'Enter a valid URL (http:// or https://).'
       uploadMessageType.value = 'error'
       return
     }
@@ -805,91 +769,74 @@ const handleUpload = async () => {
     return
   }
 
-  isUploading.value = true
+  isUploading.value   = true
   uploadMessage.value = ''
   uploadMessageDetails.value = ''
-  
+
   try {
     const formData = new FormData()
-    formData.append('title', uploadForm.value.title)
-    formData.append('courseCode', uploadForm.value.courseCode || '')
+    formData.append('title',        trimmedTitle)
+    formData.append('courseCode',   uploadForm.value.courseCode || '')
     formData.append('resourceType', uploadForm.value.resourceType)
-    formData.append('description', uploadForm.value.description || '')
-
-    if (trimmedLink) {
-      formData.append('resourceLink', trimmedLink)
-    }
-
-    if (selectedUploadFile.value) {
-      formData.append('resourceFile', selectedUploadFile.value)
-    }
+    formData.append('description',  uploadForm.value.description || '')
+    if (trimmedLink)                formData.append('resourceLink', trimmedLink)
+    if (selectedUploadFile.value)   formData.append('resourceFile', selectedUploadFile.value)
 
     const token = getToken()
     const response = await fetch('/api/resources/upload', {
-      method: 'POST',
+      method:  'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData
+      body:    formData
     })
 
     const responseText = await response.text()
     let result = null
-
     if (responseText) {
-      try {
-        result = JSON.parse(responseText)
-      } catch (parseError) {
-        console.warn('[UPLOAD] Response JSON parse failed, falling back to text')
-      }
+      try { result = JSON.parse(responseText) } catch {}
     }
 
     if (!response.ok) {
-      let errorMessage = `Upload failed (HTTP ${response.status})`
-      if (result?.message) {
-        errorMessage = result.message
-      } else if (responseText && responseText.trim()) {
-        errorMessage = responseText.trim()
-      } else if (response.statusText) {
-        errorMessage = response.statusText
-      }
-      uploadMessageDetails.value = errorMessage
-      throw new Error(errorMessage)
+      const msg = result?.message || responseText?.trim() || `Upload failed (HTTP ${response.status})`
+      uploadMessageDetails.value = msg
+      throw new Error(msg)
     }
 
+    // BUG FIX: check resource ID exists in response
     if (!result?.resource?.id) {
-      const missingResourceMessage = 'Upload response missing resource data'
-      uploadMessageDetails.value = missingResourceMessage
-      throw new Error(missingResourceMessage)
+      throw new Error('Upload response missing resource data')
     }
 
-    uploadMessage.value = 'Resource uploaded successfully!'
+    uploadMessage.value     = 'Resource uploaded!'
     uploadMessageType.value = 'success'
 
-    const me = await api('/me')
-    if (token && me?.user) {
-      setSession(token, me.user)
-    }
+    // refresh session
+    const me = await api('/me').catch(() => null)
+    if (token && me?.user) setSession(token, me.user)
 
+    // reset form
     uploadForm.value = { title: '', courseCode: '', resourceType: '', description: '', resourceLink: '' }
     selectedUploadFile.value = null
-    if (fileInputRef.value) {
-      fileInputRef.value.value = ''
-    }
-    showUploadModal.value = false
+    if (fileInputRef.value) fileInputRef.value.value = ''
+
+    // BUG FIX: close modal THEN reload so user sees success briefly
+    setTimeout(() => { showUploadModal.value = false }, 800)
     await loadResources()
-  } catch (error) {
-    const message = error?.message || 'Upload failed'
-    uploadMessage.value = 'Upload failed'
+  } catch (err) {
+    uploadMessage.value     = 'Upload failed.'
     uploadMessageType.value = 'error'
-    uploadMessageDetails.value = message
+    uploadMessageDetails.value = err?.message || 'Unknown error'
   } finally {
     isUploading.value = false
   }
 }
 
+// ── Navigation ─────────────────────────────────────────────────────────────
 const openResource = (resource) => {
+  if (!resource?.id) return  // BUG FIX: guard missing id
   router.push({ path: `/resources/${resource.id}`, query: { from: 'resources' } })
 }
 
+// ── Carousel ───────────────────────────────────────────────────────────────
 const stopSuggestedCarousel = () => {
   if (suggestedCarouselTimer) {
     window.clearInterval(suggestedCarouselTimer)
@@ -900,35 +847,25 @@ const stopSuggestedCarousel = () => {
 const advanceSuggestedCarousel = () => {
   const carousel = suggestedCarouselRef.value
   if (!carousel) return
-
   const firstCard = carousel.querySelector('.suggested-card')
   if (!firstCard) return
-
-  const cardWidth = firstCard.getBoundingClientRect().width
-  const gap = 12
-  const step = cardWidth + gap
-  const maxScrollLeft = carousel.scrollWidth - carousel.clientWidth
-
-  if (maxScrollLeft <= 0) return
-
+  const step = firstCard.getBoundingClientRect().width + 12
+  const maxScroll = carousel.scrollWidth - carousel.clientWidth
+  if (maxScroll <= 0) return
   const nextLeft = carousel.scrollLeft + step
-  carousel.scrollTo({
-    left: nextLeft >= maxScrollLeft - 4 ? 0 : nextLeft,
-    behavior: 'smooth'
-  })
+  carousel.scrollTo({ left: nextLeft >= maxScroll - 4 ? 0 : nextLeft, behavior: 'smooth' })
 }
 
 const startSuggestedCarousel = () => {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   stopSuggestedCarousel()
-  if (!suggestedResources.value.length || suggestedResources.value.length < 2) return
-
+  if (suggestedResources.value.length < 2) return
   const carousel = suggestedCarouselRef.value
   if (!carousel || carousel.scrollWidth <= carousel.clientWidth) return
-
   suggestedCarouselTimer = window.setInterval(advanceSuggestedCarousel, 2800)
 }
 
+// ── Keyboard + scroll lock ─────────────────────────────────────────────────
 const handleKeydown = (e) => {
   if (e.key === 'Escape' && showUploadModal.value && !isUploading.value) {
     showUploadModal.value = false
@@ -938,9 +875,10 @@ const handleKeydown = (e) => {
 watch(showUploadModal, (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
   if (open) window.addEventListener('keydown', handleKeydown)
-  else window.removeEventListener('keydown', handleKeydown)
+  else       window.removeEventListener('keydown', handleKeydown)
 })
 
+// ── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(() => {
   requireSession()
   const viewEl = document.querySelector('.view')
@@ -956,23 +894,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ── Base Layout ──────────────────────────────────────────────────────────── */
 .page-bg {
   min-height: 100vh;
+  background: var(--canvas-parchment, #F5F5F5);
   display: block;
   padding: 0;
-  background: linear-gradient(180deg, #ffffff, #f5f5f7);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .phone-shell {
@@ -980,10 +907,6 @@ onBeforeUnmount(() => {
   max-width: 100%;
   margin: 0;
   min-height: 100vh;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
   display: grid;
   grid-template-rows: 1fr;
   overflow: hidden;
@@ -991,950 +914,801 @@ onBeforeUnmount(() => {
 
 .view {
   overflow-y: auto;
-  padding: 20px 16px;
+  padding: 20px 16px 40px;
   min-width: 0;
 }
 
-.view > * {
-  min-width: 0;
-  max-width: 100%;
+.view > * { min-width: 0; max-width: 100%; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
 
+/* ── Glass Card ───────────────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 133, 187, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 2px 16px rgba(2, 26, 84, 0.06);
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
 .resources-hero {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.82) 0%,
+    rgba(255,206,227,0.38) 100%);
+  border: 1px solid rgba(255,133,187,0.22);
 }
 
 .resources-hero__kicker {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #b11f4b;
-  letter-spacing: 0.5px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #FF85BB;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
 }
 
 .resources-hero__copy h2 {
-  margin: 0 0 12px;
-  font-size: 24px;
+  margin: 0 0 10px;
+  font-size: 22px;
   font-weight: 700;
-  color: #1d1d1f;
+  color: #021A54;
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
+  line-height: 1.2;
 }
 
 .resources-hero__text {
-  margin: 0;
+  margin: 0 0 16px;
   color: #6e6e73;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
 .resources-hero__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
 .hero-stat {
-  padding: 12px;
-  background: rgba(255, 183, 197, 0.1);
-  border-radius: 10px;
+  padding: 10px 8px;
+  background: rgba(255, 206, 227, 0.35);
+  border: 1px solid rgba(255,133,187,0.2);
+  border-radius: 12px;
   text-align: center;
 }
 
 .hero-stat__label {
   display: block;
-  font-size: 11px;
-  color: #b11f4b;
-  margin-bottom: 4px;
+  font-size: 10px;
+  color: #FF85BB;
+  margin-bottom: 3px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  overflow-wrap: anywhere;
+  letter-spacing: 0.4px;
 }
 
 .hero-stat strong {
   display: block;
   font-size: 20px;
-  color: #1d1d1f;
+  font-weight: 800;
+  color: #021A54;
+  line-height: 1;
 }
 
-.search-row {
+/* ── Summary Bar ──────────────────────────────────────────────────────────── */
+.summary-bar {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 16px;
   flex-wrap: wrap;
-  width: 100%;
-  box-sizing: border-box;
+}
+
+.summary-stat {
+  flex: 1 1 64px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255,133,187,0.2);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #021A54;
+  line-height: 1;
+}
+
+.summary-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #FF85BB;
+}
+
+/* ── Search Row ───────────────────────────────────────────────────────────── */
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
   align-items: center;
 }
 
-.search-row input.resource-search-input {
+.resource-toolbar {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(255,133,187,0.25);
+  border-radius: 12px;
+  padding: 0 10px;
+  min-width: 160px;
+}
+
+.search-icon {
+  width: 16px;
+  height: 16px;
+  fill: #FF85BB;
+  flex-shrink: 0;
+}
+
+.resource-search-input {
+  flex: 1;
   border: none;
   outline: none;
   padding: 10px 0;
   font-size: 14px;
   background: transparent;
+  color: #021A54;
+  min-width: 0;
 }
+
+.resource-search-input::placeholder { color: #b0b0b5; }
+
+.search-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #b0b0b5;
+  font-size: 13px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  transition: color 120ms;
+}
+.search-clear-btn:hover { color: #021A54; }
 
 .search-inline-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
-  align-items: center;
-}
-
-.icon-chip:hover {
-  color: #1d1d1f;
-}
-
-.icon-chip svg {
-  width: 20px;
-  height: 20px;
-}
-
-.filter-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: #b11f4b;
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid #fff;
 }
 
 .action-row {
   display: flex;
   gap: 8px;
-}
-
-.filter-panel {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-  backdrop-filter: blur(5px);
-}
-
-.filter-section {
-  margin-bottom: 0;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.filter-section:last-of-type {
-  border-bottom: none;
-}
-
-.filter-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  width: 100%;
+  flex-shrink: 0;
+}
+
+.sort-select {
+  padding: 8px 10px;
+  border: 1px solid rgba(255,133,187,0.25);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.82);
+  font-size: 13px;
+  color: #021A54;
+  outline: none;
+  cursor: pointer;
+}
+.sort-select:focus { border-color: #FF85BB; }
+
+/* ── Result count ─────────────────────────────────────────────────────────── */
+.result-count {
+  margin: -4px 0 12px;
+  font-size: 13px;
+  color: #6e6e73;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.result-count strong { color: #021A54; }
+.clear-link {
   background: none;
   border: none;
-  padding: 0;
   cursor: pointer;
-  text-align: left;
+  color: #FF85BB;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
 }
 
-.filter-header h4 {
-  margin: 0;
-  font-size: 14px;
+/* ── Chips ────────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border: 1px solid rgba(255,133,187,0.3);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.8);
+  color: #021A54;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms ease;
+  white-space: nowrap;
+}
+.chip:hover { border-color: #FF85BB; background: #FFCEE3; color: #021A54; }
+
+.chip--active,
+.chip.chip--active {
+  background: #FF85BB;
+  border-color: #FF85BB;
+  color: #ffffff;
+}
+
+.chip-strong {
+  background: #FF85BB;
+  border-color: #FF85BB;
+  color: #ffffff;
   font-weight: 600;
-  color: #1d1d1f;
-  flex: 1;
 }
-
-.filter-header:hover h4 {
-  color: #b11f4b;
-}
-
-.expand-icon {
-  font-size: 18px;
-  color: #6e6e73;
-  line-height: 1;
-}
-
-.filter-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: slideDown 150ms ease;
-  margin-top: 12px;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 500px;
-  }
-}
+.chip-strong:hover { background: #ff6da9; border-color: #ff6da9; }
 
 .chip-row {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin-bottom: 20px;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  position: sticky;
-  top: -20px;
-  z-index: 10;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
-.chip {
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.suggested-section {
-  max-width: 1040px;
-  margin: 0 auto 32px;
-}
-
-.suggested-section .search-row.compact {
-  justify-content: center;
+.icon-chip {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255,133,187,0.25);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.82);
+  display: flex;
   align-items: center;
-  text-align: center;
-  margin-bottom: 32px;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 120ms;
+  position: relative;
+  flex-shrink: 0;
+}
+.icon-chip svg { width: 16px; height: 16px; fill: #021A54; }
+.icon-chip:hover { border-color: #FF85BB; background: #FFCEE3; }
+.icon-chip--active { background: #FFCEE3; border-color: #FF85BB; }
+.icon-chip--active svg { fill: #FF85BB; }
+
+.filter-badge {
+  position: absolute;
+  top: -3px; right: -3px;
+  width: 16px; height: 16px;
+  background: #FF85BB;
+  color: white;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.search-row.compact {
+/* ── Filter Panel ─────────────────────────────────────────────────────────── */
+.filter-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 26, 84, 0.25);
+  z-index: 40;
+}
+
+.filter-panel {
+  position: relative;
+  z-index: 41;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.filter-section { border-bottom: 1px solid rgba(255,133,187,0.15); padding-bottom: 12px; margin-bottom: 12px; }
+.filter-section:last-of-type { border-bottom: none; }
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #021A54;
+}
+.filter-header h4 { margin: 0; font-size: 13px; font-weight: 600; }
+
+.filter-content { margin-top: 10px; }
+
+.filter-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.filter-pill {
+  padding: 5px 12px;
+  border: 1px solid rgba(255,133,187,0.3);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.7);
+  font-size: 12px;
+  color: #021A54;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.filter-pill:hover { border-color: #FF85BB; }
+.filter-pill--active { background: #FF85BB; border-color: #FF85BB; color: white; }
+
+.filter-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,133,187,0.25);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.82);
+  font-size: 13px;
+  color: #021A54;
+  outline: none;
+}
+
+.filter-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+.filter-reset-btn {
+  background: none;
+  border: 1px solid rgba(255,133,187,0.3);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: #6e6e73;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.filter-reset-btn:hover { border-color: #FF85BB; color: #FF85BB; }
+
+.filter-apply-btn {
+  background: #FF85BB;
+  border: 1px solid #FF85BB;
+  border-radius: 20px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.filter-apply-btn:hover { background: #ff6da9; }
+
+/* Rating slider */
+.rating-slider-wrap { position: relative; }
+.dual-rating-slider {
+  position: relative;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+.dual-rating-slider__track {
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+}
+.dual-rating-slider__range {
+  position: absolute;
+  height: 4px;
+  background: #FF85BB;
+  border-radius: 2px;
+  left: var(--range-start);
+  right: calc(100% - var(--range-end));
+}
+.rating-slider {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: transparent;
+  appearance: none;
+  pointer-events: none;
+  outline: none;
+}
+.rating-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #FF85BB;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(255,133,187,0.4);
+  pointer-events: all;
+  cursor: pointer;
+}
+.rating-markers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #6e6e73;
+  margin-top: 4px;
+}
+.rating-value-label {
+  font-size: 11px;
+  color: #FF85BB;
+  font-weight: 600;
+  margin: 4px 0 0;
+}
+
+/* ── Section Header ───────────────────────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   margin-bottom: 12px;
 }
-
-.search-row h3 {
+.section-header h3 {
   margin: 0;
   font-size: 16px;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: #021A54;
 }
 
-.meta {
-  margin: 0;
-  font-size: 12px;
-  color: #6e6e73;
-}
+/* ── Suggested Carousel ───────────────────────────────────────────────────── */
+.suggested-section { margin-bottom: 24px; }
 
 .suggested-carousel {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 4px 6px 12px;
-  justify-content: center;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: 24px;
-  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
   scrollbar-width: none;
 }
-
-.suggested-carousel::-webkit-scrollbar {
-  display: none;
-}
+.suggested-carousel::-webkit-scrollbar { display: none; }
 
 .suggested-card {
   flex-shrink: 0;
-  width: min(220px, 78vw);
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  width: min(200px, 74vw);
   padding: 12px;
   text-align: left;
   cursor: pointer;
-  transition: all 150ms ease;
   display: flex;
   flex-direction: column;
   gap: 8px;
   scroll-snap-align: center;
+  transition: transform 150ms, box-shadow 150ms;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(255,133,187,0.2);
 }
-
 .suggested-card:hover {
-  border-color: #b11f4b;
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
   transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(255,133,187,0.2);
+  border-color: #FF85BB;
 }
 
 .suggested-media {
-  height: 84px;
-  border-radius: 14px;
+  height: 80px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 12px;
-  color: #1d1d1f;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,0.5);
 }
 
-.suggested-media__badge,
-.resource-cover-tag {
-  font-size: 10px;
+.suggested-media__badge, .resource-cover-tag {
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(177, 31, 75, 0.9);
+  color: rgba(2, 26, 84, 0.8);
 }
 
 .suggested-media__title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
+  color: #021A54;
+  letter-spacing: -0.03em;
 }
 
-.suggested-media__meta,
-.resource-cover-course {
-  font-size: 0.75rem;
-  color: rgba(29, 29, 31, 0.72);
+.suggested-media__meta, .resource-cover-course {
+  font-size: 0.7rem;
+  color: rgba(2, 26, 84, 0.6);
 }
 
 .suggested-body strong {
   display: block;
-  font-size: 13px;
-  color: #1d1d1f;
-  margin-bottom: 4px;
+  font-size: 12px;
+  color: #021A54;
   line-height: 1.4;
+  margin-bottom: 3px;
 }
-
 .suggested-type {
-  font-size: 11px;
-  color: #b11f4b;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
+  color: #FF85BB;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.resources-section {
-  margin-top: 24px;
-}
+/* ── Cover colour themes ──────────────────────────────────────────────────── */
+.cover-past-year  { background: linear-gradient(135deg, #FFCEE3 0%, #FF85BB 100%); }
+.cover-notes      { background: linear-gradient(135deg, #dce8ff 0%, #93c5fd 100%); }
+.cover-slides     { background: linear-gradient(135deg, #e8d5ff 0%, #c084fc 100%); }
+.cover-assignment { background: linear-gradient(135deg, #fef3c7 0%, #f59e0b 100%); }
+.cover-pdf        { background: linear-gradient(135deg, #fee2e2 0%, #f87171 100%); }
+.cover-link       { background: linear-gradient(135deg, #d1fae5 0%, #34d399 100%); }
+.cover-misc       { background: linear-gradient(135deg, #F5F5F5 0%, #cbd5e1 100%); }
+
+/* ── Resource Grid ────────────────────────────────────────────────────────── */
+.resources-section { margin-top: 8px; }
 
 .resources-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .resource-card {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(255,133,187,0.18);
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 150ms ease;
   text-align: left;
+  transition: transform 150ms, box-shadow 150ms, border-color 150ms;
+  border-left: 3px solid transparent;
 }
-
-.resource-card { border-left: 3px solid transparent; }
-.resource-card.type-pdf       { border-left-color: #e53935; }
-.resource-card.type-notes     { border-left-color: #1e88e5; }
-.resource-card.type-slides    { border-left-color: #8e24aa; }
-.resource-card.type-past-year { border-left-color: #f4511e; }
-.resource-card.type-link      { border-left-color: #43a047; }
-
 .resource-card:hover {
-  border-color: #b11f4b;
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.15);
   transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(255,133,187,0.18);
+  border-color: #FF85BB;
 }
+
+/* Type accent borders */
+.resource-card.type-past-year  { border-left-color: #FF85BB; }
+.resource-card.type-lecture-note { border-left-color: #93c5fd; }
+.resource-card.type-slides     { border-left-color: #c084fc; }
+.resource-card.type-assignment { border-left-color: #f59e0b; }
+.resource-card.type-pdf        { border-left-color: #f87171; }
+.resource-card.type-link       { border-left-color: #34d399; }
 
 .resource-cover {
-  height: 120px;
+  height: 110px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 14px;
-  position: relative;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,133,187,0.1);
 }
 
 .resource-cover-icon {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.05em;
-  line-height: 1.1;
-  color: #1d1d1f;
-}
-
-.resource-cover-meta {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-}
-
-.cover-past-year {
-  background: linear-gradient(135deg, rgba(255, 231, 235, 0.95), rgba(255, 204, 214, 0.9));
-}
-
-.cover-notes {
-  background: linear-gradient(135deg, rgba(255, 245, 228, 0.96), rgba(255, 226, 184, 0.9));
-}
-
-.cover-slides {
-  background: linear-gradient(135deg, rgba(236, 248, 255, 0.96), rgba(190, 226, 255, 0.92));
-}
-
-.cover-assignment {
-  background: linear-gradient(135deg, rgba(246, 237, 255, 0.96), rgba(220, 201, 255, 0.92));
-}
-
-.cover-pdf {
-  background: linear-gradient(135deg, rgba(255, 239, 241, 0.96), rgba(255, 210, 217, 0.92));
-}
-
-.cover-link {
-  background: linear-gradient(135deg, rgba(236, 255, 247, 0.96), rgba(191, 241, 220, 0.92));
-}
-
-.cover-generic {
-  background: linear-gradient(135deg, rgba(243, 243, 246, 0.96), rgba(225, 226, 232, 0.92));
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: rgba(2, 26, 84, 0.75);
+  letter-spacing: -0.02em;
 }
 
 .resource-card-body {
-  padding: 12px;
+  padding: 10px 12px;
 }
-
 .resource-card-body strong {
   display: block;
-  font-size: 13px;
-  color: #1d1d1f;
-  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #021A54;
   line-height: 1.4;
+  margin-bottom: 4px;
+  /* BUG FIX: clamp long titles */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.loading,
-.empty-state {
-  padding: 40px 20px;
-  text-align: center;
+.meta { font-size: 11px; color: #6e6e73; }
+.muted { font-size: 11px; color: #b0b0b5; }
+.date-meta { margin-top: 4px; font-size: 10px; }
+
+.rating-line {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  font-size: 11px;
   color: #6e6e73;
-  grid-column: 1 / -1;
+}
+.star-icon { fill: #f4b400; flex-shrink: 0; }
+.count-badge { color: #b0b0b5; font-size: 10px; }
+
+.load-more-btn {
+  display: block;
+  margin: 8px auto 0;
 }
 
+/* ── Skeleton shimmer ─────────────────────────────────────────────────────── */
+.skeleton-card {
+  pointer-events: none;
+}
+.skeleton-cover {
+  height: 110px;
+  background: linear-gradient(90deg, #FFCEE3 25%, #F5F5F5 50%, #FFCEE3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 14px 14px 0 0;
+}
+.skeleton-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skeleton-line {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #FFCEE3 25%, #F5F5F5 50%, #FFCEE3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  width: 80%;
+}
+.skeleton-line--wide  { width: 100%; }
+.skeleton-line--short { width: 50%; }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Error / Empty ────────────────────────────────────────────────────────── */
+.error-banner {
+  text-align: center;
+  padding: 40px 20px;
+  grid-column: 1 / -1;
+  color: #021A54;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.error-banner svg { fill: #FF85BB; }
+
+.empty-state-card {
+  text-align: center;
+  padding: 50px 20px;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #021A54;
+}
+
+/* ── Upload Modal ─────────────────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(2, 26, 84, 0.38);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 100;
   padding: 20px;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 500px;
   width: 100%;
-  position: relative;
+  max-width: 420px;
   max-height: 90vh;
   overflow-y: auto;
+  padding: 20px;
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(255,133,187,0.25);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #021A54;
 }
 
 .modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   background: none;
   border: none;
-  font-size: 28px;
   cursor: pointer;
   color: #6e6e73;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 120ms;
 }
+.modal-close:hover { background: #FFCEE3; color: #021A54; }
+.modal-close:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.modal-content h3 {
-  margin: 0 0 20px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.stack {
+.form-label {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  margin-bottom: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #1d1d1f;
+  color: #021A54;
 }
 
-input,
-select,
-textarea {
-  border: 2px solid #d1dadf;
-  border-radius: 8px;
-  padding: 10px;
+.form-input {
+  padding: 9px 12px;
+  border: 1px solid rgba(255,133,187,0.3);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.9);
   font-size: 14px;
-  font-family: inherit;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
+  color: #021A54;
   outline: none;
-  border-color: #ffb7c5;
-  box-shadow: 0 0 0 3px rgba(255, 183, 197, 0.28);
-}
-
-button.primary {
-  padding: 12px;
-  font-weight: 600;
-}
-
-button.primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.message {
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.message.error {
-  background: #fff5f5;
-  border: 1px solid #ffd6d6;
-  color: #bc2f2f;
-}
-
-.message.success {
-  background: #f5fff5;
-  border: 1px solid #d6ffd6;
-  color: #3f6f57;
-}
-
-/* New Filter Panel Styles */
-.filter-panel {
-  position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  transition: border-color 120ms;
   width: 100%;
-  max-width: 400px;
-  background: white;
-  border-left: 1px solid #e0e0e0;
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
-  padding: 24px;
-  overflow-y: auto;
-  z-index: 999;
-  animation: slideInRight 300ms ease;
+  box-sizing: border-box;
 }
+.form-input:focus { border-color: #FF85BB; }
+.form-input:disabled { opacity: 0.55; }
 
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
+textarea.form-input { resize: vertical; min-height: 60px; font-family: inherit; }
 
-.filter-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 998;
-  animation: fadeIn 300ms ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.rating-slider-wrap {
+.modal-actions {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.dual-rating-slider {
-  position: relative;
-  height: 28px;
-  --slider-track-height: 8px;
-  --slider-thumb-width: 14px;
-  --slider-thumb-height: 18px;
-  --range-start: 0%;
-  --range-end: 100%;
-}
-
-.dual-rating-slider__track,
-.dual-rating-slider__range {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: var(--slider-track-height);
-  transform: translateY(-50%);
-  border-radius: 999px;
-}
-
-.dual-rating-slider__track {
-  background: #ececec;
-}
-
-.dual-rating-slider__range {
-  left: var(--range-start);
-  right: calc(100% - var(--range-end));
-  background: #b11f4b;
-}
-
-.rating-slider {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 0;
-  background: transparent;
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
-  margin: 0;
-  padding: 0;
-  border: none;
-  pointer-events: none;
-}
-
-.rating-slider:focus {
-  border: none;
-  box-shadow: none;
-}
-
-.rating-slider--min,
-.rating-slider--max {
-  z-index: 2;
-}
-
-.rating-slider--min {
-  z-index: 3;
-}
-
-.rating-slider::-webkit-slider-runnable-track {
-  height: var(--slider-track-height);
-  background: transparent;
-  border: none;
-}
-
-.rating-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: var(--slider-thumb-width);
-  height: var(--slider-thumb-height);
-  margin-top: calc((var(--slider-track-height) - var(--slider-thumb-height)) / 2);
-  border-radius: 4px;
-  background: #b11f4b;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
-  transition: transform 150ms ease, box-shadow 150ms ease;
-  pointer-events: auto;
-}
-
-.rating-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
-}
-
-.rating-slider::-moz-range-track,
-.rating-slider::-moz-range-progress {
-  height: var(--slider-track-height);
-  background: transparent;
-  border: none;
-}
-
-.rating-slider::-moz-range-thumb {
-  width: var(--slider-thumb-width);
-  height: var(--slider-thumb-height);
-  border-radius: 4px;
-  background: #b11f4b;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 6px rgba(196, 30, 58, 0.3);
-  transition: transform 150ms ease, box-shadow 150ms ease;
-  pointer-events: auto;
-}
-.rating-slider::-moz-range-progress {
-  height: var(--slider-track-height);
-  background: transparent;
-  border: none;
-}
-
-.rating-slider::-moz-range-thumb:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.4);
-}
-
-.rating-value {
-  font-size: 12px;
-  color: #6e6e73;
-  text-align: center;
-}
-
-.rating-markers {
-  display: flex;
-  justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
-  color: #6e6e73;
-}
-
-.filter-select {
-  width: 100%;
-  border: 2px solid #d1dadf;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  background: #fff;
-}
-
-.filter-select:focus {
-  border-color: #ffb7c5;
-  box-shadow: 0 0 0 3px rgba(255, 183, 197, 0.28);
-}
-
-.filter-pill-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.filter-pill {
-  border: 1px solid #d9d9dd;
-  border-radius: 999px;
-  background: #fff;
-  color: #6e6e73;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
-}
-
-.filter-pill.active {
-  border-color: #b11f4b;
-  background: rgba(177, 31, 75, 0.08);
-  color: #b11f4b;
-}
-
-.filter-action-row {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 8px;
+  justify-content: flex-end;
   margin-top: 16px;
 }
 
-.filter-reset-btn {
-  border-radius: 9999px;
-  padding: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  background: #f5f5f7;
-  color: #1d1d1f;
-  border: 1px solid #e0e0e0;
-  cursor: pointer;
-  transition: all 150ms ease;
+.upload-message {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin: 8px 0 0;
 }
+.msg-success { background: rgba(52,211,153,0.15); color: #065f46; border: 1px solid rgba(52,211,153,0.3); }
+.msg-error   { background: rgba(248,113,113,0.12); color: #991b1b; border: 1px solid rgba(248,113,113,0.25); }
+.msg-details { font-size: 11px; margin-top: 4px; }
 
-.filter-apply-btn {
-  background: linear-gradient(135deg, #b11f4b 0%, #e63a52 100%);
-  color: white;
-  border: none;
-  padding: 12px 16px;
-  border-radius: 9999px;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.filter-apply-btn:hover {
-  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.3);
-  transform: translateY(-2px);
-}
-
-.filter-apply-btn:active {
-  transform: translateY(0);
-}
-
+/* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .view {
-    padding: 14px 12px;
-  }
-
-  .search-row {
-    align-items: stretch;
-    width: 100%;
-    min-width: 0;
-  }
-
-  .resource-toolbar {
-    width: 100%;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .action-row {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .resources-hero__stats,
-  .resources-list,
-  .chip-row,
-  .suggested-carousel {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .hero-stat,
-  .resource-card-body,
-  .resource-cover {
-    min-width: 0;
-  }
-
-  .action-row .chip-strong {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .suggested-section {
-    width: 100%;
-    max-width: 100%;
-    margin-bottom: 28px;
-  }
-
-  .suggested-section .search-row.compact {
-    width: 100%;
-    max-width: 100%;
-    justify-content: flex-start;
-    text-align: left;
-  }
-
-  .suggested-section .suggested-carousel {
-    max-width: 100%;
-  }
-
-  .suggested-carousel {
-    justify-content: flex-start;
-    padding-inline: 0;
-  }
-
-  .resources-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .resources-hero__stats {
-    grid-template-columns: 1fr;
-  }
+  .view { padding: 14px 12px 40px; }
+  .resource-toolbar { flex-direction: column; }
+  .action-row { width: 100%; }
+  .action-row .chip-strong { flex: 1; justify-content: center; }
+  .resources-list { grid-template-columns: repeat(2, 1fr); }
+  .resources-hero__stats { grid-template-columns: repeat(3, 1fr); }
+  .summary-bar { gap: 6px; }
 }
 
 @media (max-width: 420px) {
-  .resources-list {
-    grid-template-columns: 1fr;
-  }
-
-  .search-row input.resource-search-input {
-    font-size: 13px;
-  }
-
-  .chip-row {
-    padding-bottom: 4px;
-  }
-}
-
-/* Final polish overrides for cleaner Apple-like visual language */
-.resources-hero__text,
-.meta,
-.loading,
-.empty-state {
-  color: #6e6e73;
-}
-
-.hero-stat {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 18px;
-}
-
-.suggested-card,
-.resource-card,
-.filter-panel,
-.modal-content {
-  border-color: #e0e0e0;
-  box-shadow: none;
-}
-
-.suggested-card:hover,
-.resource-card:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.suggested-media,
-.resource-cover {
-  background: #f5f5f7;
-}
-
-.resource-cover-icon {
-  font-size: 14px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #6e6e73;
-}
-
-.filter-panel {
-  backdrop-filter: none;
-}
-
-.rating-slider::-webkit-slider-thumb,
-.rating-slider::-moz-range-thumb {
-  background: #b11f4b;
-  box-shadow: none;
-}
-
-.filter-reset-btn:hover,
-.filter-pill:hover {
-  border-color: #b11f4b;
-  color: #b11f4b;
-}
-
-.modal-backdrop,
-.filter-backdrop {
-  background: rgba(0, 0, 0, 0.44);
+  .resources-list { grid-template-columns: 1fr; }
+  .resources-hero__stats { grid-template-columns: 1fr 1fr; }
 }
 </style>
