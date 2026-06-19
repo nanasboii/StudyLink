@@ -3,342 +3,316 @@
     <section class="phone-shell">
       <div class="view page active">
 
-        <!-- ── Hero ── -->
+        <!-- Hero -->
         <section class="tutors-hero">
-          <div class="tutors-hero__copy">
-            <p class="tutors-hero__kicker">Expert Help</p>
-            <h2>Find Your Tutor</h2>
-            <p class="tutors-hero__text">Connect with verified peer tutors in your subjects.</p>
-          </div>
-          <div class="tutors-hero__stats" aria-label="Tutor highlights">
+          <p class="hero-kicker">Expert help</p>
+          <h2>Find Your Tutor</h2>
+          <p class="hero-sub">Connect with verified tutors who excel in your subjects.</p>
+          <div class="hero-stats" aria-label="Tutor highlights">
             <div class="hero-stat">
-              <span class="hero-stat__label">Active</span>
               <strong>{{ totalTutors }}</strong>
+              <span>Active tutors</span>
             </div>
             <div class="hero-stat">
-              <span class="hero-stat__label">Highly Rated</span>
               <strong>{{ highlyRatedTutors }}</strong>
+              <span>Highly rated</span>
             </div>
             <div class="hero-stat">
-              <span class="hero-stat__label">Sessions</span>
               <strong>{{ totalSessions }}</strong>
+              <span>Sessions</span>
             </div>
           </div>
         </section>
 
-        <!-- ── Suggested For You ── -->
+        <!-- ✨ Suggested for You -->
         <section
-          v-if="currentUserRole === 'tutee' && recommendedTutors.length > 0"
+          v-if="currentUserRole === 'tutee'"
           class="suggestions-section"
+          aria-live="polite"
         >
-          <div class="suggestions-header">
-            <h3 class="suggestions-title">✨ Suggested For You</h3>
-            <p class="suggestions-sub">
-              Matched on:
-              <span
-                v-for="token in matchedSubjectTokens"
-                :key="token"
-                class="match-chip"
-              >{{ token }}</span>
-            </p>
+          <!-- Skeleton shimmer while loading -->
+          <div v-if="isLoadingRecommended" class="suggestions-skeleton">
+            <div class="suggestions-header">
+              <div class="skeleton-line w-40"></div>
+              <div class="skeleton-line w-60 mt-4"></div>
+            </div>
+            <div class="suggestions-grid">
+              <div v-for="n in 3" :key="n" class="skeleton-card"></div>
+            </div>
           </div>
-          <div class="suggestions-grid">
-            <button
-              v-for="tutor in recommendedTutors"
-              :key="'rec-' + tutor.id"
-              class="suggestion-card"
-              @click="openTutorModal(tutor)"
-              type="button"
-            >
-              <div class="suggestion-avatar-wrap">
-                <img
-                  v-if="hasTutorAvatar(tutor)"
-                  :src="resolveTutorAvatar(tutor.profile_picture_url || tutor.profilePictureUrl || tutor.profilePicture)"
-                  :alt="tutor.full_name || 'Tutor'"
-                  class="suggestion-avatar"
-                  @error="markTutorAvatarError(tutor)"
-                />
-                <div v-else class="suggestion-avatar suggestion-avatar-fallback" aria-hidden="true">
-                  {{ (tutor.full_name || '?')[0].toUpperCase() }}
-                </div>
-                <span v-if="tutor.is_verified" class="suggestion-verified" title="Verified">✓</span>
-              </div>
-              <div class="suggestion-info">
-                <p class="suggestion-name">{{ tutor.full_name || 'Unknown' }}</p>
-                <p class="suggestion-rating">⭐ {{ Number(tutor.rating || 0).toFixed(1) }}</p>
-                <div class="suggestion-tags">
+
+          <!-- Has matches -->
+          <template v-else-if="recommendedTutors.length > 0">
+            <div class="suggestions-header">
+              <div>
+                <h3 class="suggestions-title">✨ Suggested for You</h3>
+                <p class="suggestions-sub">
+                  Based on:
                   <span
-                    v-for="skill in (tutor.expertise || []).slice(0, 3)"
-                    :key="skill"
-                    class="suggestion-tag"
-                    :class="{ 'tag-match': isMatchedSkill(skill) }"
-                  >{{ skill }}</span>
-                </div>
+                    v-for="token in matchedSubjectTokens"
+                    :key="token"
+                    class="match-chip"
+                  >{{ token }}</span>
+                </p>
               </div>
-            </button>
+            </div>
+            <div class="suggestions-grid">
+              <button
+                v-for="tutor in recommendedTutors"
+                :key="'rec-' + tutor.id"
+                class="suggestion-card"
+                @click="openTutorModal(tutor)"
+              >
+                <div class="suggestion-avatar-wrap">
+                  <img
+                    v-if="hasTutorAvatar(tutor) && !tutorAvatarErrors[tutorAvatarKey(tutor)]"
+                    :src="resolveTutorAvatar(tutor.profile_picture_url)"
+                    :alt="tutor.full_name"
+                    class="suggestion-avatar"
+                    @error="markTutorAvatarError(tutor)"
+                  />
+                  <div v-else class="suggestion-avatar suggestion-avatar-fallback" aria-hidden="true">
+                    {{ (tutor.full_name || '?')[0].toUpperCase() }}
+                  </div>
+                  <span v-if="tutor.is_verified" class="suggestion-verified" title="Verified">✓</span>
+                </div>
+                <div class="suggestion-info">
+                  <p class="suggestion-name">{{ tutor.full_name }}</p>
+                  <p class="suggestion-rating">⭐ {{ Number(tutor.rating ?? 0).toFixed(1) }}</p>
+                  <div class="suggestion-tags">
+                    <span
+                      v-for="skill in (tutor.expertise || []).slice(0, 3)"
+                      :key="skill"
+                      class="suggestion-tag"
+                      :class="{ 'tag-match': matchedSubjectTokens.some(t => skill.toLowerCase().includes(t) || t.includes(skill.toLowerCase())) }"
+                    >{{ skill }}</span>
+                  </div>
+                  <p class="suggestion-match">
+                    {{ tutor.matchScore }} match{{ tutor.matchScore !== 1 ? 'es' : '' }}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </template>
+
+          <!-- Has subjects but no matching tutors -->
+          <div
+            v-else-if="hasTargetSubjects && !isLoadingRecommended"
+            class="suggestions-empty"
+          >
+            <p>🔍 No tutor matches your subjects yet. Try the search below.</p>
+          </div>
+
+          <!-- No subjects set -->
+          <div
+            v-else-if="hasTargetSubjects === false && !isLoadingRecommended"
+            class="suggestions-empty"
+          >
+            <p>💡 <strong>Add target subjects</strong> in your profile to get suggestions.</p>
+            <button class="chip chip-soft" @click="$router.push('/profile')">Update Profile</button>
           </div>
         </section>
 
-        <!-- ── Search & Filter toolbar ── -->
-        <section class="tutors-toolbar">
-          <div class="tutor-search-shell">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        <!-- Search -->
+        <div class="tutor-toolbar search-row">
+          <div class="tutor-search-shell" role="search">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10.5 4a6.5 6.5 0 1 0 4.14 11.5l4.18 4.18 1.41-1.41-4.18-4.18A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
             </svg>
             <input
               v-model="searchQuery"
-              type="search"
-              placeholder="Name, subject, course…"
-              aria-label="Search tutors"
+              placeholder="Search name, expertise, or course"
+              autocomplete="off"
               @input="debouncedSearch"
             />
-            <button
-              v-if="searchQuery"
-              class="icon-chip"
-              @click="searchQuery = ''; debouncedSearch()"
-              aria-label="Clear search"
-              type="button"
-            >✕</button>
+            <button class="icon-chip" type="button" aria-label="Toggle filters" @click="toggleFilters">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 5h18v2l-7 7v5l-4-2v-3L3 7V5Zm4 2 5 5 5-5H7Z" />
+              </svg>
+            </button>
           </div>
-          <button class="chip-outline" @click="toggleFilters" type="button">
-            {{ showFilters ? 'Hide Filters' : 'Filters' }}
-            <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
-          </button>
-        </section>
+        </div>
 
-        <!-- ── Filter Panel ── -->
-        <div v-if="showFilters" class="filter-panel">
-          <div class="filter-row">
-            <label class="filter-label" for="courseFilter">Course Code</label>
-            <input
-              id="courseFilter"
-              v-model="selectedCourseCode"
-              type="text"
-              placeholder="e.g. TMF3953"
-              class="filter-input"
-              @input="selectedCourseCode = selectedCourseCode.toUpperCase()"
-            />
-          </div>
-          <div class="filter-row">
-            <label class="filter-label">Skill</label>
-            <div class="skill-chips">
-              <button
-                v-for="skill in popularSkills"
-                :key="skill"
-                class="skill-chip"
-                :class="{ active: selectedSkill === skill }"
-                @click="selectedSkill = selectedSkill === skill ? '' : skill"
-                type="button"
-              >{{ skill }}</button>
-            </div>
+        <!-- Expertise chip filters -->
+        <div class="chip-row" role="group" aria-label="Filter by skill">
+          <button
+            v-for="skill in popularSkills"
+            :key="skill"
+            class="chip chip-soft"
+            :class="{ 'chip-active': selectedSkill === skill }"
+            type="button"
+            @click="selectedSkill = selectedSkill === skill ? '' : skill"
+          >{{ skill }}</button>
+        </div>
+
+        <!-- Filter panel backdrop -->
+        <div v-if="showFilters" class="filter-backdrop" @click="showFilters = false"></div>
+
+        <!-- Filter panel -->
+        <div v-if="showFilters" class="filter-panel glass-panel">
+          <div class="filter-section">
+            <h4>Course Code</h4>
+            <select v-model="selectedCourseCode" class="filter-select">
+              <option value="">All courses</option>
+              <option
+                v-for="course in availableCourseCodes"
+                :key="course"
+                :value="course"
+              >{{ course }}</option>
+            </select>
           </div>
           <div class="filter-actions">
-            <button class="chip-soft" @click="clearFilters" type="button">Clear</button>
-            <button class="chip" @click="applyFilters" type="button">Apply</button>
+            <button class="chip chip-soft" type="button" @click="clearFilters">Clear</button>
+            <button class="chip" type="button" @click="applyFilters">Apply</button>
           </div>
         </div>
 
-        <!-- ── Summary bar ── -->
-        <div v-if="!isLoading" class="summary-bar">
-          <span>{{ filteredTutors.length }} tutor{{ filteredTutors.length !== 1 ? 's' : '' }}</span>
-          <span v-if="activeFilterCount > 0" class="summary-filtered">· filtered</span>
-        </div>
-
-        <!-- ── Skeleton loader ── -->
-        <div v-if="isLoading" class="tutors-grid" aria-busy="true" aria-label="Loading tutors">
-          <div v-for="n in 6" :key="n" class="tutor-card skeleton-card">
-            <div class="skeleton skeleton-avatar"></div>
-            <div class="skeleton-body">
-              <div class="skeleton skeleton-line w60"></div>
-              <div class="skeleton skeleton-line w40"></div>
-              <div class="skeleton skeleton-line w80"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── Tutors Grid ── -->
-        <section v-else class="tutors-list-section">
-          <!-- Empty state -->
-          <div v-if="filteredTutors.length === 0" class="empty-state">
-            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <p v-if="searchQuery || selectedSkill || selectedCourseCode">
-              No tutors match your filters.
-              <button class="link-btn" @click="clearFilters" type="button">Clear filters</button>
+        <!-- Tutors list -->
+        <section class="tutors-section">
+          <div class="search-row compact">
+            <h3>Available Tutors</h3>
+            <p class="meta" v-if="filteredTutors.length">
+              {{ Math.min(visibleCount, filteredTutors.length) }} / {{ filteredTutors.length }}
             </p>
-            <p v-else>No tutors available yet.</p>
           </div>
 
-          <div v-else class="tutors-grid">
+          <div class="tutors-list">
+            <!-- Skeleton shimmer -->
+            <template v-if="isLoading">
+              <div v-for="n in 4" :key="n" class="skeleton-item"></div>
+            </template>
+
+            <!-- Empty states -->
+            <div v-else-if="filteredTutors.length === 0 && (searchQuery || selectedSkill || selectedCourseCode)" class="empty-state">
+              <p>🔍 No tutors match your filter. Try clearing it.</p>
+              <button class="chip chip-soft" @click="clearFilters">Clear filters</button>
+            </div>
+            <div v-else-if="filteredTutors.length === 0" class="empty-state">
+              <p>👥 No tutors available yet.</p>
+            </div>
+
+            <!-- Cards -->
             <button
               v-for="tutor in paginatedTutors"
               :key="tutor.id"
               class="tutor-card"
-              @click="openTutorModal(tutor)"
-              type="button"
+              @click="selectTutor(tutor)"
             >
-              <!-- Avatar -->
               <div class="tutor-avatar">
                 <img
                   v-if="hasTutorAvatar(tutor)"
-                  :src="resolveTutorAvatar(tutor.profile_picture_url || tutor.profilePictureUrl || tutor.profilePicture)"
-                  :alt="`${tutor.full_name || 'Tutor'} photo`"
+                  :src="resolveTutorAvatar(tutor.profile_picture_url)"
+                  :alt="`${tutor.full_name} profile picture`"
                   @error="markTutorAvatarError(tutor)"
                 />
                 <div v-else class="tutor-avatar-fallback" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
-                    <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z"/>
+                    <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" />
                   </svg>
                 </div>
               </div>
-
-              <!-- Info -->
               <div class="tutor-card-body">
                 <div class="tutor-card-header">
-                  <strong class="tutor-name">{{ tutor.full_name || 'Unknown Tutor' }}</strong>
-                  <span v-if="tutor.is_verified" class="badge-verified">✓ Verified</span>
+                  <strong>{{ tutor.full_name }}</strong>
+                  <span v-if="tutor.is_verified" class="badge">Verified ✓</span>
                 </div>
-                <p class="tutor-major">{{ tutor.major || 'General' }}</p>
-                <div class="tutor-stats-row">
-                  <span class="stat-pill">⭐ {{ Number(tutor.rating || 0).toFixed(1) }}</span>
-                  <span class="stat-pill">🏆 {{ tutor.total_points || 0 }} pts</span>
-                </div>
-                <div v-if="tutor.expertise && tutor.expertise.length" class="expertise-tags">
-                  <span
-                    v-for="skill in tutor.expertise.slice(0, 3)"
-                    :key="skill"
-                    class="tag"
-                  >{{ skill }}</span>
+                <div class="tutor-meta">{{ tutor.major || 'General' }}</div>
+                <div class="meta">⭐ {{ Number(tutor.rating ?? 0).toFixed(1) }} · {{ tutor.total_points ?? 0 }} pts</div>
+                <div v-if="tutor.expertise?.length" class="expertise-tags">
+                  <span v-for="skill in tutor.expertise.slice(0, 3)" :key="skill" class="tag">{{ skill }}</span>
                 </div>
               </div>
             </button>
           </div>
 
-          <!-- Load more -->
           <button
             v-if="visibleCount < filteredTutors.length"
-            class="chip load-more"
-            @click="visibleCount += pageSize"
+            class="chip chip-soft load-more"
             type="button"
-          >
-            Load more ({{ filteredTutors.length - visibleCount }} left)
-          </button>
+            @click="visibleCount += pageSize"
+          >Load more tutors</button>
         </section>
 
-        <!-- ── Tutor Modal ── -->
-        <Teleport to="body">
-          <div
-            v-if="selectedTutorData"
-            class="modal-backdrop"
-            @click.self="closeModal"
-            role="dialog"
-            aria-modal="true"
-            :aria-label="`${selectedTutorData.full_name || 'Tutor'} profile`"
-          >
-            <div class="modal-content" ref="modalContentRef">
-              <button class="modal-close" @click="closeModal" aria-label="Close" type="button">×</button>
+        <!-- Tutor modal -->
+        <div v-if="selectedTutorData" class="modal-backdrop" role="dialog" aria-modal="true" @click.self="selectedTutorData = null">
+          <div class="modal-content glass-panel">
+            <button class="modal-close" aria-label="Close" @click="selectedTutorData = null">×</button>
 
-              <!-- Profile header -->
-              <div class="tutor-profile-header">
-                <div class="profile-pic-wrap">
-                  <img
-                    v-if="hasTutorAvatar(selectedTutorData)"
-                    :src="resolveTutorAvatar(selectedTutorData.profile_picture_url || selectedTutorData.profilePictureUrl || selectedTutorData.profilePicture)"
-                    :alt="`${selectedTutorData.full_name || 'Tutor'} photo`"
-                    class="profile-pic"
-                    @error="markTutorAvatarError(selectedTutorData)"
-                  />
-                  <div v-else class="profile-pic profile-pic-fallback" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z"/>
-                    </svg>
-                  </div>
-                </div>
-                <div class="profile-meta">
-                  <h3 class="profile-name">{{ selectedTutorData.full_name || 'Unknown Tutor' }}</h3>
-                  <p class="profile-major">{{ selectedTutorData.major || 'General' }}</p>
-                  <div class="profile-badges">
-                    <span v-if="selectedTutorData.is_verified" class="badge-verified">✓ Verified</span>
-                    <span class="stat-pill">⭐ {{ Number(selectedTutorData.rating || 0).toFixed(1) }}</span>
-                    <span class="stat-pill">🏆 {{ selectedTutorData.total_points || 0 }} pts</span>
-                  </div>
-                </div>
+            <div class="tutor-profile-header">
+              <img
+                v-if="hasTutorAvatar(selectedTutorData)"
+                :src="resolveTutorAvatar(selectedTutorData.profile_picture_url)"
+                :alt="`${selectedTutorData.full_name} profile picture`"
+                class="profile-pic"
+                @error="markTutorAvatarError(selectedTutorData)"
+              />
+              <div v-else class="profile-pic profile-pic-fallback" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 12a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.42 0-8 2.46-8 5.5 0 .55.45 1 1 1h14c.55 0 1-.45 1-1 0-3.04-3.58-5.5-8-5.5Z" /></svg>
               </div>
-
-              <!-- Expertise -->
-              <div v-if="selectedTutorData.expertise?.length" class="profile-section">
-                <p class="section-label">Expertise</p>
-                <div class="expertise-tags">
-                  <span v-for="skill in selectedTutorData.expertise" :key="skill" class="tag">{{ skill }}</span>
-                </div>
-              </div>
-
-              <!-- Availability -->
-              <div v-if="selectedTutorData.availability?.length" class="profile-section">
-                <p class="section-label">Availability</p>
-                <div class="availability-list">
-                  <div
-                    v-for="(slot, idx) in selectedTutorData.availability"
-                    :key="idx"
-                    class="availability-slot"
-                  >
-                    <span class="slot-day">{{ slot.dayOfWeek || slot.day_of_week || '—' }}</span>
-                    <span class="slot-time">
-                      {{ slot.startTime || slot.start_time || '' }}
-                      {{ (slot.startTime || slot.start_time) && (slot.endTime || slot.end_time) ? '–' : '' }}
-                      {{ slot.endTime || slot.end_time || '' }}
-                    </span>
-                    <span v-if="slot.courseCode || slot.course_code" class="course-code">
-                      {{ slot.courseCode || slot.course_code }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="profile-section">
-                <p class="section-label">Availability</p>
-                <p class="muted-text">No availability set.</p>
-              </div>
-
-              <!-- Reviews -->
-              <div class="profile-section">
-                <p class="section-label">Reviews</p>
-                <div v-if="isLoadingReviews" class="reviews-loading">
-                  <div v-for="n in 2" :key="n" class="skeleton skeleton-review"></div>
-                </div>
-                <div v-else-if="tutorReviews.length === 0" class="muted-text">No reviews yet.</div>
-                <div v-else class="reviews-list">
-                  <div v-for="review in tutorReviews" :key="review.id" class="review-card">
-                    <div class="review-header">
-                      <strong>{{ review.reviewer_name || 'Anonymous' }}</strong>
-                      <span class="stars" :aria-label="`${review.rating} out of 5 stars`">
-                        {{ '★'.repeat(Math.max(0, Math.min(5, Number(review.rating) || 0))) }}{{ '☆'.repeat(5 - Math.max(0, Math.min(5, Number(review.rating) || 0))) }}
-                      </span>
-                    </div>
-                    <p class="review-meta">
-                      {{ review.reviewer_role || 'Tutee' }}
-                      <span v-if="review.created_at"> · {{ formatDateValue(review.created_at, '', undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }}</span>
-                    </p>
-                    <p class="review-comment">{{ review.comment || 'No comment left.' }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Actions -->
-              <div class="profile-actions">
-                <button class="chip-soft" @click="viewPublicProfile" type="button">View Profile</button>
-                <button
-                  v-if="canBookTutorSessions"
-                  class="chip"
-                  @click="bookTutor"
-                  type="button"
-                >Book This Tutor</button>
+              <div class="tutor-profile-info">
+                <h2>{{ selectedTutorData.full_name }}</h2>
+                <p class="role-badge">{{ selectedTutorData.major || 'Tutor' }} · Year {{ selectedTutorData.year_of_study || '?' }}</p>
+                <p class="meta">⭐ {{ Number(selectedTutorData.rating ?? 0).toFixed(1) }} · {{ selectedTutorData.total_points ?? 0 }} pts</p>
+                <span v-if="selectedTutorData.is_verified" class="badge">Verified ✓</span>
               </div>
             </div>
+
+            <div v-if="selectedTutorData.bio" class="profile-section">
+              <h4>About</h4>
+              <p>{{ selectedTutorData.bio }}</p>
+            </div>
+
+            <div v-if="selectedTutorData.expertise?.length" class="profile-section">
+              <h4>Expertise</h4>
+              <div class="expertise-list">
+                <span v-for="skill in selectedTutorData.expertise" :key="skill" class="tag">{{ skill }}</span>
+              </div>
+            </div>
+
+            <div v-if="selectedTutorData.availability?.length" class="profile-section">
+              <h4>Availability</h4>
+              <div class="availability-list">
+                <div
+                  v-for="(slot, i) in selectedTutorData.availability"
+                  :key="i"
+                  class="availability-slot"
+                >
+                  <span class="slot-main">
+                    <strong>{{ slot.dayOfWeek }}</strong>
+                    {{ slot.startTime }} – {{ slot.endTime }}
+                    <span v-if="slot.courseCode" class="course-code">{{ slot.courseCode }}</span>
+                  </span>
+                  <button
+                    v-if="canBookTutorSessions"
+                    class="slot-book-btn"
+                    type="button"
+                    @click="bookSlot(slot)"
+                  >Book →</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-section">
+              <h4>Reviews</h4>
+              <div v-if="tutorReviews.length === 0" class="empty-state small">No reviews yet.</div>
+              <div v-else class="reviews-list">
+                <div v-for="review in tutorReviews" :key="review.id" class="review-card">
+                  <div class="review-header">
+                    <strong>{{ review.reviewer_name || 'Anonymous' }}</strong>
+                    <span class="stars">{{ '★'.repeat(review.rating ?? 0) }}{{ '☆'.repeat(5 - (review.rating ?? 0)) }}</span>
+                  </div>
+                  <p class="review-meta">{{ review.reviewer_role || 'Tutee' }} · {{ formatDateValue(review.created_at, '', undefined, { month: 'short', day: 'numeric' }) }}</p>
+                  <p class="review-comment">{{ review.comment || 'No comment.' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-actions">
+              <button class="chip chip-soft" type="button" @click="viewPublicProfile">View Profile</button>
+              <button v-if="canBookTutorSessions" class="chip" type="button" @click="bookTutor">Book This Tutor</button>
+            </div>
           </div>
-        </Teleport>
+        </div>
 
       </div>
     </section>
@@ -346,54 +320,51 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, getUser } from '@/api.js'
 import { formatDateValue, normalizeTutor } from '@/utils/records.js'
 
-// ── Router & user ──
+// ── Auth ─────────────────────────────────────────────────────────────
 const router = useRouter()
 const currentUser = getUser()
 const currentUserRole = String(currentUser?.role || 'tutee').toLowerCase().trim()
 const canBookTutorSessions = currentUserRole === 'tutee' || currentUserRole === 'admin'
 
-// ── State ──
-const tutors           = ref([])
-const isLoading        = ref(true)
-const isLoadingReviews = ref(false)
-const searchQuery      = ref('')
-const selectedSkill    = ref('')
-const showFilters      = ref(false)
+// ── State ─────────────────────────────────────────────────────────────
+const tutors            = ref([])
+const isLoading         = ref(true)
+const searchQuery       = ref('')
+const selectedSkill     = ref('')
+const showFilters       = ref(false)
 const selectedCourseCode = ref('')
-const visibleCount     = ref(10)
-const pageSize         = 10
+const visibleCount      = ref(10)
+const pageSize          = 10
 const selectedTutorData = ref(null)
-const tutorReviews     = ref([])
+const tutorReviews      = ref([])
 const tutorAvatarErrors = ref({})
-const modalContentRef  = ref(null)
 
+// BUG FIX → init as null (not false) so nudge doesn't flash before load
 const recommendedTutors    = ref([])
 const matchedSubjectTokens = ref([])
-const hasTargetSubjects    = ref(false)
+const hasTargetSubjects    = ref(null)   // null = unknown, true/false after load
+const isLoadingRecommended = ref(false)
 
 const popularSkills = ['Java', 'Python', 'Database', 'Web Dev', 'C++', 'Mobile Dev']
 
-// ── Avatar helpers ──
+// ── Avatar helpers ─────────────────────────────────────────────────
 const tutorAvatarKey = (tutor) => String(tutor?.id || tutor?.full_name || '')
 
 const resolveTutorAvatar = (rawUrl) => {
-  const value = String(rawUrl || '').trim()
-  if (!value) return ''
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:')) return value
-  return value.startsWith('/') ? value : `/${value.replace(/^\/+/, '')}`
+  const v = String(rawUrl || '').trim()
+  if (!v) return ''
+  if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:')) return v
+  return v.startsWith('/') ? v : `/${v.replace(/^\/+/, '')}`
 }
 
 const hasTutorAvatar = (tutor) => {
-  if (!tutor) return false
-  const key = tutorAvatarKey(tutor)
-  if (tutorAvatarErrors.value[key]) return false
-  const raw = tutor.profile_picture_url || tutor.profilePictureUrl || tutor.profilePicture || ''
-  return !!resolveTutorAvatar(raw)
+  const raw = tutor?.profile_picture_url || tutor?.profilePictureUrl || tutor?.profilePicture || ''
+  return !!resolveTutorAvatar(raw) && !tutorAvatarErrors.value[tutorAvatarKey(tutor)]
 }
 
 const markTutorAvatarError = (tutor) => {
@@ -402,47 +373,48 @@ const markTutorAvatarError = (tutor) => {
   tutorAvatarErrors.value = { ...tutorAvatarErrors.value, [key]: true }
 }
 
-// ── Computed stats ──
+// ── Computed ───────────────────────────────────────────────────────
 const totalTutors      = computed(() => tutors.value.length)
-const highlyRatedTutors = computed(() => tutors.value.filter(t => (t.rating || 0) >= 4).length)
-const totalSessions    = computed(() => tutors.value.reduce((sum, t) => sum + (t.total_points || 0), 0))
+const highlyRatedTutors = computed(() => tutors.value.filter(t => (t.rating ?? 0) >= 4).length)
+const totalSessions    = computed(() => tutors.value.reduce((s, t) => s + (t.total_points ?? 0), 0))
 
-const activeFilterCount = computed(() => {
-  let count = 0
-  if (selectedSkill.value) count++
-  if (selectedCourseCode.value) count++
-  return count
-})
+// BUG FIX → use tutors.value not tutors (non-ref access)
+const availableCourseCodes = computed(() =>
+  Array.from(new Set(
+    tutors.value.flatMap(t =>
+      (t.availability || []).map(s => s.courseCode || s.course_code || '').filter(Boolean)
+    )
+  )).sort()
+)
 
-// ── Filtered + paginated ──
 const filteredTutors = computed(() => {
   let list = [...tutors.value]
 
   if (selectedSkill.value) {
     const sel = selectedSkill.value.toLowerCase().trim()
     list = list.filter(t =>
-      Array.isArray(t.expertise) &&
-      t.expertise.some(e => String(e || '').toLowerCase().includes(sel))
+      Array.isArray(t.expertise) && t.expertise.some(e => String(e || '').toLowerCase().includes(sel))
     )
   }
 
-  if (searchQuery.value.trim()) {
+  if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     list = list.filter(t =>
       t.full_name?.toLowerCase().includes(q) ||
       t.major?.toLowerCase().includes(q) ||
-      (Array.isArray(t.expertise) && t.expertise.some(e => String(e || '').toLowerCase().includes(q))) ||
+      (Array.isArray(t.expertise) && t.expertise.some(e => e.toLowerCase().includes(q))) ||
       (Array.isArray(t.availability) && t.availability.some(s =>
         String(s.courseCode || s.course_code || '').toLowerCase().includes(q)
       ))
     )
   }
 
-  if (selectedCourseCode.value.trim()) {
+  if (selectedCourseCode.value) {
     const sc = selectedCourseCode.value.toLowerCase().trim()
     list = list.filter(t =>
-      Array.isArray(t.availability) &&
-      t.availability.some(s => String(s.courseCode || s.course_code || '').toLowerCase().includes(sc))
+      Array.isArray(t.availability) && t.availability.some(s =>
+        String(s.courseCode || s.course_code || '').toLowerCase().includes(sc)
+      )
     )
   }
 
@@ -451,309 +423,328 @@ const filteredTutors = computed(() => {
 
 const paginatedTutors = computed(() => filteredTutors.value.slice(0, visibleCount.value))
 
-// ── Debounced search ──
-let _searchTimeout = null
-const debouncedSearch = () => {
-  clearTimeout(_searchTimeout)
-  _searchTimeout = setTimeout(() => { visibleCount.value = pageSize }, 300)
-}
+// ── Debounce search ────────────────────────────────────────────────
+const debouncedSearch = (() => {
+  let t
+  return () => { clearTimeout(t); t = setTimeout(() => { visibleCount.value = pageSize }, 300) }
+})()
 
-// ── Skill match helper (for suggestion tags) ──
-const isMatchedSkill = (skill) =>
-  matchedSubjectTokens.value.some(t => String(skill || '').toLowerCase().includes(t.toLowerCase()))
-
-// ── Load tutors ──
+// ── Load tutors ────────────────────────────────────────────────────
 const loadTutors = async () => {
   try {
     isLoading.value = true
     const qs = selectedCourseCode.value
-      ? `?courseCode=${encodeURIComponent(String(selectedCourseCode.value).toUpperCase())}`
-      : ''
+      ? `?courseCode=${encodeURIComponent(String(selectedCourseCode.value).toUpperCase())}` : ''
     const data = await api(`/tutors${qs}`)
     const normalized = (data?.tutors || []).map(normalizeTutor)
-    tutors.value = Array.from(
-      new Map(normalized.map(t => [String(t.id), t])).values()
-    )
+    tutors.value = Array.from(new Map(normalized.map(t => [String(t.id), t])).values())
     tutorAvatarErrors.value = {}
   } catch (err) {
     console.error('Failed to load tutors:', err)
-    tutors.value = []
   } finally {
     isLoading.value = false
   }
 }
 
-// ── Filter controls ──
+// BUG FIX → separate fn so profile-update event reloads BOTH tutors AND recommendations
+const loadRecommended = async () => {
+  if (currentUserRole !== 'tutee') return
+  try {
+    isLoadingRecommended.value = true
+    const resp = await api('/tutors/recommended')
+    recommendedTutors.value = resp.tutors || []
+    matchedSubjectTokens.value = resp.matchedOn || []
+    // BUG FIX → hasTargetSubjects tracks whether user SET subjects, not whether matches found
+    // Server returns empty matchedOn when target_subjects is blank → use that as signal
+    // If matchedOn is empty AND tutors is empty → user likely has no subjects
+    // Distinguish: server returns {tutors:[], matchedOn:[]} when no subjects set
+    hasTargetSubjects.value = resp.hasSubjects ?? ((resp.matchedOn?.length ?? 0) > 0 || (resp.tutors?.length ?? 0) > 0)
+  } catch {
+    recommendedTutors.value = []
+    hasTargetSubjects.value = false
+  } finally {
+    isLoadingRecommended.value = false
+  }
+}
+
+// ── Filter actions ─────────────────────────────────────────────────
 const applyFilters = () => { loadTutors(); showFilters.value = false }
 const clearFilters = () => {
   selectedCourseCode.value = ''
-  selectedSkill.value = ''
   searchQuery.value = ''
+  selectedSkill.value = ''
   visibleCount.value = pageSize
   loadTutors()
   showFilters.value = false
 }
 const toggleFilters = () => { showFilters.value = !showFilters.value }
 
-// ── Modal open/close ──
-const openTutorModal = async (tutor) => {
+// ── Select / modal ─────────────────────────────────────────────────
+const selectTutor = async (tutor) => {
   selectedTutorData.value = tutor
   tutorReviews.value = []
-  document.body.style.overflow = 'hidden'
-
-  await nextTick()
-  modalContentRef.value?.focus()
-
-  isLoadingReviews.value = true
   try {
-    const resp = await api(`/users/${tutor.id}/public/reviews`)
-    tutorReviews.value = Array.isArray(resp?.reviews) ? resp.reviews : []
-  } catch {
-    tutorReviews.value = []
-  } finally {
-    isLoadingReviews.value = false
+    const res = await api(`/users/${tutor.id}/public/reviews`)
+    tutorReviews.value = Array.isArray(res?.reviews) ? res.reviews : []
+  } catch (e) {
+    console.error('Failed to load reviews:', e)
   }
 }
 
-// Keep legacy selectTutor alias
-const selectTutor = openTutorModal
-
-const closeModal = () => {
-  selectedTutorData.value = null
-  document.body.style.overflow = ''
-}
-
-// ── Navigation ──
-const viewPublicProfile = () => {
-  if (!selectedTutorData.value?.id) return
-  router.push(`/users/${selectedTutorData.value.id}`)
-  closeModal()
-}
+// BUG FIX → openTutorModal alias so suggestion cards work too
+const openTutorModal = selectTutor
 
 const bookTutor = () => {
-  if (!selectedTutorData.value?.id) return
-  router.push({ name: 'Session', query: { tutorId: selectedTutorData.value.id } })
-  closeModal()
+  if (!selectedTutorData.value) return
+  localStorage.setItem('prefillTutorId', String(selectedTutorData.value.id))
+  router.push('/session')
 }
 
-// ── Keyboard: Escape closes modal ──
-const onKeydown = (e) => {
-  if (e.key === 'Escape' && selectedTutorData.value) closeModal()
+// ── Slot date helpers ──────────────────────────────────────────────
+const dayNameToIndex = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 }
+
+const toDateTimeLocalValue = (d) => {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// ── Lifecycle ──
-onMounted(() => {
+const getNextSlotDateTime = (dayOfWeek, startTime) => {
+  const idx = dayNameToIndex[String(dayOfWeek || '').toLowerCase()]
+  if (idx === undefined || !String(startTime || '').includes(':')) return ''
+  const [h, m] = String(startTime).split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return ''
+  const now = new Date()
+  const cand = new Date(now)
+  const delta = (idx - cand.getDay() + 7) % 7
+  cand.setDate(cand.getDate() + delta)
+  cand.setHours(h, m, 0, 0)
+  if (cand <= now) cand.setDate(cand.getDate() + 7)
+  return toDateTimeLocalValue(cand)
+}
+
+const bookSlot = (slot) => {
+  if (!selectedTutorData.value) return
+  const query = { tutorId: String(selectedTutorData.value.id) }
+  if (slot?.courseCode) query.courseCode = String(slot.courseCode).toUpperCase()
+  const next = getNextSlotDateTime(slot?.dayOfWeek, slot?.startTime)
+  if (next) query.sessionTime = next
+  selectedTutorData.value = null
+  router.push({ path: '/session', query })
+}
+
+const viewPublicProfile = () => {
+  if (!selectedTutorData.value) return
+  const id = selectedTutorData.value.id
+  selectedTutorData.value = null
+  router.push({ name: 'PublicProfile', params: { userId: id }, query: { from: 'tutors' } })
+}
+
+// ── Lifecycle ──────────────────────────────────────────────────────
+const onProfileUpdated = () => {
   loadTutors()
-  window.addEventListener('studylink-profile-updated', loadTutors)
-  window.addEventListener('keydown', onKeydown)
+  loadRecommended()  // BUG FIX → was missing; suggestions never refreshed after profile edit
+}
 
-  const loadRecommended = async () => {
-    try {
-      const resp = await api('/tutors/recommended')
-      recommendedTutors.value = Array.isArray(resp?.tutors) ? resp.tutors : []
-      matchedSubjectTokens.value = Array.isArray(resp?.matchedOn) ? resp.matchedOn : []
-      hasTargetSubjects.value = matchedSubjectTokens.value.length > 0
-    } catch {
-      recommendedTutors.value = []
-      hasTargetSubjects.value = false
-    }
-  }
-  loadRecommended()
+onMounted(() => {
+  const viewEl = document.querySelector('.view')
+  const topbar = document.querySelector('.topbar')
+  if (viewEl) viewEl.scrollTop = topbar ? topbar.offsetHeight : 80
+
+  // BUG FIX → parallel fetch
+  Promise.all([loadTutors(), loadRecommended()])
+
+  window.addEventListener('studylink-profile-updated', onProfileUpdated)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('studylink-profile-updated', loadTutors)
-  window.removeEventListener('keydown', onKeydown)
-  document.body.style.overflow = ''
+  window.removeEventListener('studylink-profile-updated', onProfileUpdated)
 })
 </script>
 
 <style scoped>
-/* ═══════════════════════════════════════
-   Page shell
-═══════════════════════════════════════ */
+/* ── Local tokens ── */
 .page-bg {
+  --_primary: #FF85BB;
+  --_primary-soft: #FFCEE3;
+  --_ink: #021A54;
+  --_muted: #6e6e73;
+  --_border: #e0e0e0;
+  --_accent-light: rgba(255, 133, 187, 0.12);
+  --_accent-strong: rgba(255, 133, 187, 0.25);
+  --_surface: rgba(255, 255, 255, 0.72);
+
   min-height: 100vh;
   background: linear-gradient(180deg, #ffffff, var(--canvas-parchment, #F5F5F5));
 }
 
 .phone-shell {
   width: 100%;
-  max-width: 100%;
-  margin: 0;
   min-height: 100vh;
   background: transparent;
 }
 
 .view {
-  padding: 20px 16px 40px;
-  overflow-y: auto;
+  padding: 20px 16px 80px;
+  overflow-x: hidden;
 }
 
-/* ═══════════════════════════════════════
-   Hero
-═══════════════════════════════════════ */
-.tutors-hero {
-  margin-bottom: 24px;
+/* ── Glass util ── */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 133, 187, 0.2);
+  border-radius: 14px;
 }
 
-.tutors-hero__kicker {
+/* ── Hero ── */
+.tutors-hero { margin-bottom: 24px; }
+
+.hero-kicker {
   margin: 0 0 6px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--primary, #FF85BB);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  color: var(--_primary);
 }
 
-.tutors-hero__copy h2 {
+.tutors-hero h2 {
   margin: 0 0 8px;
   font-size: 26px;
-  font-weight: 700;
-  color: var(--ink, #021A54);
+  font-weight: 800;
+  color: var(--_ink);
   font-family: "Josefin Sans", "Trebuchet MS", sans-serif;
-  letter-spacing: -0.01em;
 }
 
-.tutors-hero__text {
-  margin: 0;
+.hero-sub {
+  margin: 0 0 16px;
   font-size: 14px;
-  color: var(--ink-muted, #6e6e73);
+  color: var(--_muted);
   line-height: 1.5;
 }
 
-.tutors-hero__stats {
+.hero-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-top: 16px;
 }
 
 .hero-stat {
-  padding: 12px 10px;
-  background: rgba(255, 206, 227, 0.25);
-  border: 1px solid rgba(255, 133, 187, 0.2);
+  padding: 12px 8px;
+  background: var(--_accent-light);
+  border: 1px solid rgba(255, 133, 187, 0.18);
   border-radius: 12px;
   text-align: center;
-}
-
-.hero-stat__label {
-  display: block;
-  font-size: 10px;
-  color: var(--ink-muted, #6e6e73);
-  margin-bottom: 4px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .hero-stat strong {
-  display: block;
   font-size: 22px;
-  font-weight: 700;
-  color: var(--ink, #021A54);
+  font-weight: 800;
+  color: var(--_ink);
 }
 
-/* ═══════════════════════════════════════
-   Suggestions
-═══════════════════════════════════════ */
-.suggestions-section {
-  margin-bottom: 20px;
-  padding: 14px 16px;
-  background: rgba(255, 206, 227, 0.15);
-  border: 1px solid rgba(255, 133, 187, 0.22);
-  border-radius: 16px;
+.hero-stat span {
+  font-size: 11px;
+  color: var(--_muted);
+  font-weight: 500;
 }
+
+/* ── Suggestions ── */
+.suggestions-section { margin-bottom: 24px; }
 
 .suggestions-header { margin-bottom: 12px; }
 
 .suggestions-title {
   margin: 0 0 4px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--ink, #021A54);
+  color: var(--_ink);
 }
 
 .suggestions-sub {
   margin: 0;
-  font-size: 12px;
-  color: var(--ink-muted, #6e6e73);
+  font-size: 13px;
+  color: var(--_muted);
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
 }
 
 .match-chip {
+  display: inline-block;
   padding: 2px 8px;
+  background: var(--_primary-soft, #FFCEE3);
+  color: var(--_ink);
   border-radius: 999px;
-  background: var(--primary-soft, #FFCEE3);
-  color: var(--ink, #021A54);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .suggestions-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
 }
-.suggestions-grid::-webkit-scrollbar { display: none; }
 
 .suggestion-card {
-  flex-shrink: 0;
-  width: 110px;
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 133, 187, 0.22);
   border-radius: 14px;
-  padding: 12px 8px;
-  cursor: pointer;
+  padding: 14px 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
   text-align: center;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  backdrop-filter: blur(8px);
 }
+
 .suggestion-card:hover {
-  border-color: var(--primary, #FF85BB);
-  box-shadow: 0 2px 12px rgba(255, 133, 187, 0.18);
+  transform: translateY(-3px);
+  border-color: var(--_primary);
+  box-shadow: 0 6px 18px rgba(255, 133, 187, 0.2);
 }
 
 .suggestion-avatar-wrap {
   position: relative;
-  width: 48px;
-  height: 48px;
+  flex-shrink: 0;
 }
 
 .suggestion-avatar {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--primary-soft, #FFCEE3);
+  border: 2px solid rgba(255, 133, 187, 0.3);
 }
 
 .suggestion-avatar-fallback {
-  background: var(--primary-soft, #FFCEE3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  background: var(--_accent-light);
+  color: var(--_ink);
+  font-size: 20px;
   font-weight: 700;
-  color: var(--ink, #021A54);
 }
 
 .suggestion-verified {
   position: absolute;
-  bottom: 0; right: -2px;
-  background: #22c55e;
+  bottom: 0;
+  right: -2px;
+  background: #2ecc71;
   color: #fff;
   font-size: 9px;
   font-weight: 700;
-  width: 16px; height: 16px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -764,19 +755,19 @@ onUnmounted(() => {
 .suggestion-info { width: 100%; }
 
 .suggestion-name {
-  margin: 0 0 2px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink, #021A54);
+  color: var(--_ink);
+  margin: 0 0 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .suggestion-rating {
-  margin: 0 0 4px;
   font-size: 11px;
-  color: var(--ink-muted, #6e6e73);
+  color: var(--_muted);
+  margin: 0 0 4px;
 }
 
 .suggestion-tags {
@@ -784,49 +775,97 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 3px;
   justify-content: center;
+  margin-bottom: 4px;
 }
 
 .suggestion-tag {
   font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  background: rgba(255, 133, 187, 0.1);
-  color: var(--ink, #021A54);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--_accent-light);
+  color: var(--_ink);
 }
 
 .suggestion-tag.tag-match {
-  background: var(--primary-soft, #FFCEE3);
-  color: var(--ink, #021A54);
+  background: var(--_accent-strong);
+  color: var(--_ink);
   font-weight: 700;
 }
 
-/* ═══════════════════════════════════════
-   Toolbar
-═══════════════════════════════════════ */
-.tutors-toolbar {
+.suggestion-match {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--_primary);
+  margin: 0;
+}
+
+.suggestions-empty {
+  background: var(--_accent-light);
+  border: 1px dashed rgba(255, 133, 187, 0.35);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--_ink);
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
   align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ── Skeleton ── */
+.suggestions-skeleton .suggestions-header { margin-bottom: 12px; }
+.skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #f0f0f0, #e0e0e0, #f0f0f0);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-line.w-60 { width: 60%; }
+.skeleton-line.mt-4 { margin-top: 4px; }
+
+.skeleton-card {
+  height: 130px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f8f8f8, #efefef, #f8f8f8);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.skeleton-item {
+  height: 88px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f8f8f8, #efefef, #f8f8f8);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-item, .skeleton-card, .skeleton-line { animation: none; }
+}
+
+/* ── Search / toolbar ── */
+.search-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 
 .tutor-search-shell {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 10px;
-  padding: 0 12px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 12px;
+  border: 1px solid var(--_border);
+  padding: 0 10px 0 12px;
+  gap: 6px;
+  backdrop-filter: blur(8px);
 }
-.tutor-search-shell:focus-within {
-  border-color: var(--primary, #FF85BB);
-  box-shadow: 0 0 0 3px rgba(255, 133, 187, 0.15);
-}
-.tutor-search-shell svg { color: var(--ink-muted, #6e6e73); flex-shrink: 0; }
+
 .tutor-search-shell input {
   flex: 1;
   min-width: 0;
@@ -834,572 +873,368 @@ onUnmounted(() => {
   outline: none;
   padding: 10px 0;
   font-size: 14px;
-  color: var(--ink, #021A54);
   background: transparent;
+  color: var(--_ink);
 }
-.tutor-search-shell input::placeholder { color: var(--ink-muted, #6e6e73); }
+
+.search-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  fill: var(--_muted);
+}
 
 .icon-chip {
   background: none;
   border: none;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--ink-muted, #6e6e73);
-  border-radius: 999px;
-  font-size: 13px;
+  color: var(--_muted);
+  border-radius: 8px;
+  transition: background 120ms;
   flex-shrink: 0;
 }
-.icon-chip:hover { color: var(--ink, #021A54); background: var(--canvas-parchment, #F5F5F5); }
 
-.chip-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 14px;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 999px;
-  background: #ffffff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--ink, #021A54);
-  white-space: nowrap;
-  transition: border-color 120ms ease;
-  flex-shrink: 0;
+.icon-chip:hover { background: var(--_accent-light); }
+.icon-chip svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* ── Chips ── */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  padding-bottom: 4px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-.chip-outline:hover { border-color: var(--primary, #FF85BB); }
+.chip-row::-webkit-scrollbar { display: none; }
 
-.filter-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--primary, #FF85BB);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
+/* ── Filter panel ── */
+.filter-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
 }
 
-/* ═══════════════════════════════════════
-   Filter panel
-═══════════════════════════════════════ */
 .filter-panel {
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 14px;
-  padding: 16px;
+  position: relative;
+  z-index: 91;
+  padding: 14px;
   margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
-.filter-row { display: flex; flex-direction: column; gap: 6px; }
-
-.filter-label {
-  font-size: 11px;
+.filter-section h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink-muted, #6e6e73);
+  letter-spacing: 0.05em;
+  color: var(--_muted);
 }
 
-.filter-input {
+.filter-select {
+  width: 100%;
+  border: 1px solid var(--_border);
+  border-radius: 10px;
   padding: 9px 12px;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  color: var(--ink, #021A54);
-  background: var(--canvas-parchment, #F5F5F5);
-}
-.filter-input:focus { border-color: var(--primary, #FF85BB); }
-
-.skill-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.skill-chip {
-  padding: 5px 12px;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 999px;
-  background: #ffffff;
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--ink, #021A54);
-  transition: all 120ms ease;
-}
-.skill-chip:hover { border-color: var(--primary, #FF85BB); }
-.skill-chip.active {
-  background: var(--primary, #FF85BB);
-  border-color: var(--primary, #FF85BB);
-  color: #ffffff;
-  font-weight: 600;
+  font-size: 13px;
+  background: #fff;
+  color: var(--_ink);
 }
 
 .filter-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  margin-top: 12px;
 }
 
-/* ── Shared button atoms ── */
-.chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 9px 18px;
-  border-radius: 999px;
-  background: var(--primary, #FF85BB);
-  color: #ffffff;
-  border: none;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-.chip:hover { background: var(--primary-hover, #ff6da9); }
+/* ── Tutors list ── */
+.tutors-section { margin-top: 4px; }
 
-.chip-soft {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 9px 18px;
-  border-radius: 999px;
-  background: var(--canvas-parchment, #F5F5F5);
-  color: var(--ink, #021A54);
-  border: 1px solid var(--theme-border, #e0e0e0);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.chip-soft:hover { border-color: var(--primary, #FF85BB); }
-
-/* ═══════════════════════════════════════
-   Summary bar
-═══════════════════════════════════════ */
-.summary-bar {
-  font-size: 12px;
-  color: var(--ink-muted, #6e6e73);
-  margin-bottom: 10px;
-  display: flex;
-  gap: 4px;
+.search-row.compact {
+  margin-bottom: 12px;
+  flex-wrap: nowrap;
   align-items: center;
 }
-.summary-filtered { color: var(--primary, #FF85BB); font-weight: 600; }
 
-/* ═══════════════════════════════════════
-   Skeleton
-═══════════════════════════════════════ */
-.skeleton {
-  border-radius: 6px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
+.search-row.compact h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--_ink);
 }
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-.skeleton-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 14px;
-}
-.skeleton-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; }
-.skeleton-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.skeleton-line { height: 12px; }
-.w40 { width: 40%; }
-.w60 { width: 60%; }
-.w80 { width: 80%; }
-.skeleton-review { height: 60px; margin-bottom: 8px; border-radius: 10px; }
 
-/* ═══════════════════════════════════════
-   Tutors grid
-═══════════════════════════════════════ */
-.tutors-list-section { display: flex; flex-direction: column; gap: 10px; }
+.meta { font-size: 12px; color: var(--_muted); }
 
-.tutors-grid {
-  display: flex;
-  flex-direction: column;
+.tutors-list {
+  display: grid;
   gap: 10px;
+  margin-bottom: 16px;
 }
 
 .tutor-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 14px 16px;
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
+  background: rgba(255,255,255,0.85);
+  border: 1px solid var(--_border);
   border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
   cursor: pointer;
+  transition: border-color 140ms, box-shadow 140ms, transform 140ms;
   text-align: left;
-  width: 100%;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  backdrop-filter: blur(8px);
 }
+
 .tutor-card:hover {
-  border-color: var(--primary, #FF85BB);
-  box-shadow: 0 2px 16px rgba(255, 133, 187, 0.12);
+  border-color: var(--_primary);
+  box-shadow: 0 4px 14px rgba(255, 133, 187, 0.18);
+  transform: translateY(-2px);
 }
 
 .tutor-avatar {
-  width: 54px;
-  height: 54px;
+  flex-shrink: 0;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid var(--primary-soft, #FFCEE3);
+  background: var(--_accent-light);
+  border: 1px solid rgba(255,133,187,0.25);
 }
-.tutor-avatar img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-}
+
+.tutor-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
 .tutor-avatar-fallback {
-  width: 100%; height: 100%;
-  background: var(--canvas-parchment, #F5F5F5);
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  fill: var(--_primary);
 }
-.tutor-avatar-fallback svg {
-  width: 28px; height: 28px;
-  fill: var(--ink-muted, #6e6e73);
-}
+.tutor-avatar-fallback svg { width: 28px; height: 28px; fill: var(--_primary); }
 
-.tutor-card-body { flex: 1; min-width: 0; }
+.tutor-card-body { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
 .tutor-card-header {
   display: flex;
-  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 2px;
-}
-
-.tutor-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink, #021A54);
-}
-
-.badge-verified {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.tutor-major {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--ink-muted, #6e6e73);
-}
-
-.tutor-stats-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
+  align-items: center;
   flex-wrap: wrap;
 }
+.tutor-card-header strong { font-size: 14px; color: var(--_ink); }
 
-.stat-pill {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--canvas-parchment, #F5F5F5);
-  border: 1px solid var(--theme-border, #e0e0e0);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink, #021A54);
-}
+.tutor-meta { font-size: 12px; font-weight: 600; color: var(--_primary); }
 
-.expertise-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.expertise-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 
 .tag {
-  padding: 3px 9px;
+  display: inline-block;
+  background: var(--_accent-light);
+  color: var(--_ink);
   border-radius: 999px;
-  background: rgba(255, 133, 187, 0.1);
-  border: 1px solid rgba(255, 133, 187, 0.2);
+  padding: 2px 8px;
   font-size: 11px;
-  color: var(--ink, #021A54);
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* ── Empty state ── */
+.badge {
+  display: inline-block;
+  background: rgba(46,204,113,0.12);
+  color: #1a7a45;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .empty-state {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--_muted);
+  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--ink-muted, #6e6e73);
+  gap: 12px;
   font-size: 14px;
-  border: 1px dashed rgba(255, 133, 187, 0.3);
-  border-radius: 14px;
-  background: rgba(255, 206, 227, 0.06);
-}
-.empty-state svg { color: rgba(255, 133, 187, 0.5); }
-
-.link-btn {
-  background: none;
-  border: none;
-  color: var(--primary, #FF85BB);
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-  font-weight: 600;
 }
 
-/* Load more */
-.load-more {
-  align-self: center;
-  margin-top: 4px;
-}
+.empty-state.small { padding: 14px 0; font-size: 13px; }
 
-/* ═══════════════════════════════════════
-   Modal
-═══════════════════════════════════════ */
+.load-more { margin: 4px auto 0; display: block; }
+
+/* ── Modal ── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 26, 84, 0.35);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(2, 26, 84, 0.45);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  z-index: 9999;
-  padding: 0;
-}
-
-@media (min-width: 600px) {
-  .modal-backdrop {
-    align-items: center;
-    padding: 20px;
-  }
+  z-index: 1000;
+  padding: 20px;
 }
 
 .modal-content {
-  background: #ffffff;
-  border: 1px solid var(--theme-border, #e0e0e0);
-  border-radius: 20px 20px 0 0;
-  padding: 24px 20px;
-  width: 100%;
   max-width: 500px;
+  width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  padding: 24px;
   position: relative;
-  outline: none;
-}
-
-@media (min-width: 600px) {
-  .modal-content {
-    border-radius: 20px;
-    max-height: calc(100vh - 40px);
-  }
 }
 
 .modal-close {
   position: absolute;
-  top: 16px; right: 16px;
-  background: var(--canvas-parchment, #F5F5F5);
+  top: 12px;
+  right: 14px;
+  background: none;
   border: none;
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  font-size: 20px;
-  line-height: 1;
+  font-size: 26px;
   cursor: pointer;
-  color: var(--ink-muted, #6e6e73);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 120ms ease;
+  color: var(--_muted);
+  line-height: 1;
 }
-.modal-close:hover { background: var(--primary-soft, #FFCEE3); color: var(--ink, #021A54); }
 
-/* Profile header */
 .tutor-profile-header {
   display: flex;
   gap: 16px;
   margin-bottom: 20px;
-  padding-right: 36px;
-}
-
-.profile-pic-wrap {
-  flex-shrink: 0;
+  align-items: flex-start;
 }
 
 .profile-pic {
-  width: 72px; height: 72px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--primary-soft, #FFCEE3);
+  flex-shrink: 0;
+  border: 2px solid rgba(255,133,187,0.3);
 }
 
 .profile-pic-fallback {
-  background: var(--canvas-parchment, #F5F5F5);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--_accent-light);
+  border: 1px solid var(--_border);
 }
-.profile-pic-fallback svg {
-  width: 36px; height: 36px;
-  fill: var(--ink-muted, #6e6e73);
-}
+.profile-pic-fallback svg { width: 42px; height: 42px; fill: var(--_primary); }
 
-.profile-meta { flex: 1; min-width: 0; }
+.tutor-profile-info h2 { margin: 0 0 4px; font-size: 18px; font-weight: 700; color: var(--_ink); }
+.tutor-profile-info .role-badge { margin: 0 0 4px; font-size: 13px; color: var(--_muted); }
 
-.profile-name {
-  margin: 0 0 2px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ink, #021A54);
-}
-
-.profile-major {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--ink-muted, #6e6e73);
-}
-
-.profile-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-/* Profile sections */
 .profile-section {
-  margin-bottom: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--theme-border, #e0e0e0);
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--_border);
 }
+.profile-section:last-of-type { border-bottom: none; }
 
-.section-label {
-  margin: 0 0 8px;
-  font-size: 10px;
+.profile-section h4 {
+  margin: 0 0 10px;
+  font-size: 11px;
   font-weight: 700;
+  color: var(--_muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-muted, #6e6e73);
+  letter-spacing: 0.06em;
 }
 
-.muted-text {
-  font-size: 13px;
-  color: var(--ink-muted, #6e6e73);
-  margin: 0;
-}
+.profile-section p { margin: 0; font-size: 13px; color: var(--_ink); line-height: 1.6; }
 
-/* Availability */
-.availability-list { display: flex; flex-direction: column; gap: 6px; }
+.expertise-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.availability-list { display: flex; flex-direction: column; gap: 8px; }
 
 .availability-slot {
   display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: var(--canvas-parchment, #F5F5F5);
-  border-radius: 8px;
-  font-size: 13px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 9px 10px;
+  background: var(--_accent-light);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.slot-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.slot-day {
-  font-weight: 700;
-  color: var(--ink, #021A54);
-  min-width: 80px;
-}
-
-.slot-time { color: var(--ink-muted, #6e6e73); }
+.availability-slot strong { color: var(--_ink); font-weight: 700; min-width: 60px; }
 
 .course-code {
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: rgba(255, 133, 187, 0.12);
-  color: var(--ink, #021A54);
+  background: #fff;
+  padding: 2px 7px;
+  border-radius: 5px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--_ink);
+  border: 1px solid var(--_border);
 }
 
-/* Reviews */
+.slot-book-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--_primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms;
+}
+.slot-book-btn:hover { background: #ff6da9; }
+
 .reviews-list { display: flex; flex-direction: column; gap: 10px; }
 
 .review-card {
-  padding: 12px 14px;
-  background: var(--canvas-parchment, #F5F5F5);
+  background: var(--_accent-light);
   border-radius: 10px;
-  border: 1px solid var(--theme-border, #e0e0e0);
+  padding: 10px 12px;
 }
 
 .review-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 2px;
+  align-items: center;
+  margin-bottom: 4px;
 }
-.review-header strong {
-  font-size: 13px;
-  color: var(--ink, #021A54);
-}
+.review-header strong { font-size: 13px; color: var(--_ink); }
 
-.stars {
-  font-size: 13px;
-  color: #f59e0b;
-  letter-spacing: 1px;
-}
+.stars { font-size: 12px; color: #f5a623; letter-spacing: 1px; }
 
-.review-meta {
-  margin: 0 0 6px;
-  font-size: 11px;
-  color: var(--ink-muted, #6e6e73);
-}
+.review-meta { font-size: 11px; color: var(--_muted); margin: 0 0 4px; }
+.review-comment { font-size: 13px; color: var(--_ink); margin: 0; line-height: 1.5; }
 
-.review-comment {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink, #021A54);
-  line-height: 1.5;
-}
-
-.reviews-loading { display: flex; flex-direction: column; gap: 8px; }
-
-/* Profile actions */
 .profile-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  padding-top: 16px;
-  border-top: 1px solid var(--theme-border, #e0e0e0);
-}
-.profile-actions .chip,
-.profile-actions .chip-soft {
-  flex: 1;
-  min-width: 120px;
+  padding-top: 4px;
 }
 
-/* ═══════════════════════════════════════
-   Responsive
-═══════════════════════════════════════ */
-@media (max-width: 400px) {
-  .tutors-hero__stats { grid-template-columns: 1fr 1fr; }
-  .tutor-card-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .hero-stats { grid-template-columns: repeat(3, 1fr); }
+  .suggestions-grid { grid-template-columns: repeat(3, 1fr); }
   .tutor-profile-header { flex-direction: column; align-items: center; text-align: center; }
-  .profile-badges { justify-content: center; }
+  .profile-actions { flex-direction: column; }
+  .modal-content { padding: 16px; }
+}
+
+@media (max-width: 380px) {
+  .hero-stats { grid-template-columns: 1fr 1fr; }
+  .suggestions-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
