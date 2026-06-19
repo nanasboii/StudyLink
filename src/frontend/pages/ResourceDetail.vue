@@ -734,6 +734,7 @@ onUnmounted(() => {
 }
 
 /* ── REVIEW FORM ──────────────────────────────────── */
+.rd-review-card { }
 
 .rd-section-title {
   margin: 0 0 12px;
