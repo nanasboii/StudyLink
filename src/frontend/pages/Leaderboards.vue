@@ -1,136 +1,181 @@
 ﻿<template>
   <main class="leaderboard-page">
-    <div class="view">
-      <!-- Header -->
-      <div class="page-header card">
-        <div>
-          <p class="page-kicker">Rankings</p>
-          <h2>{{ leaderboardRankingLabel }}</h2>
-          <p class="page-subtext">Updated live · {{ lastFetchedAt || '—' }}</p>
-        </div>
-        <div class="header-right">
-          <div class="update-pulse" aria-live="polite">
-            <span class="pulse-dot" aria-hidden="true"></span>
-            <span>Live</span>
+    <section class="phone-shell">
+      <div class="lb-content">
+
+        <!-- ── Header ── -->
+        <div class="card page-header-card">
+          <div class="header-left">
+            <p class="page-kicker">Rankings</p>
+            <h2>{{ leaderboardRankingLabel }}</h2>
+            <p class="page-subtext">Live standings · Updated every 60 seconds.</p>
           </div>
-          <button class="chip-strong" @click="refreshLeaderboard" :aria-busy="isLoading" :disabled="isLoading">
-            {{ isLoading ? 'Refreshing…' : '↺ Refresh' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Error -->
-      <p v-if="errorMessage" class="error-msg" role="alert" aria-live="assertive">{{ errorMessage }}</p>
-
-      <!-- My Rank banner -->
-      <div v-if="currentUserRank && !isLoading" class="my-rank-banner card" aria-label="Your current rank">
-        <div class="my-rank-info">
-          <span class="my-rank-label">Your Rank</span>
-          <span class="my-rank-number">#{{ currentUserRank }}</span>
-        </div>
-        <div class="my-rank-pts">
-          <span class="my-rank-label">Points</span>
-          <span class="my-rank-pts-val">{{ currentUserPoints.toLocaleString() }}</span>
-        </div>
-        <button class="chip-soft" @click="scrollToSelf">Find me</button>
-      </div>
-
-      <!-- Boards + Sort -->
-      <div class="card controls-card">
-        <div class="board-tabs" role="tablist" aria-label="Leaderboard filter">
-          <button
-            v-for="tab in boards"
-            :key="tab.key"
-            class="board-tab"
-            :class="{ active: activeBoard === tab.key }"
-            role="tab"
-            :aria-selected="activeBoard === tab.key"
-            @click="activeBoard = tab.key"
-          >{{ tab.label }}</button>
-        </div>
-        <div class="sort-row">
-          <label class="sort-label" for="lb-sort">Sort by</label>
-          <select id="lb-sort" class="sort-select" v-model="sortBy" aria-label="Sort leaderboard">
-            <option value="points">Points</option>
-            <option value="rating">Rating</option>
-            <option value="reviews">Reviews</option>
-          </select>
-          <div class="search-wrap">
-            <input v-model="searchQuery" class="search-input" placeholder="Search users…" aria-label="Search leaderboard"/>
+          <div class="header-right">
+            <div v-if="lastFetchedAt" class="last-updated" aria-live="polite">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              Updated {{ lastFetchedAt }}
+            </div>
+            <button
+              class="btn-refresh"
+              type="button"
+              @click="refreshLeaderboard"
+              :disabled="isLoading"
+              aria-label="Refresh leaderboard"
+            >
+              <span class="btn-refresh-icon" aria-hidden="true">🔄</span>
+              {{ isLoading ? 'Loading…' : 'Refresh' }}
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Skeleton loading -->
-      <div v-if="isLoading" class="card skeleton-list" aria-busy="true" aria-label="Loading leaderboard">
-        <div v-for="i in 8" :key="i" class="skeleton-row">
-          <div class="skel-rank"></div>
-          <div class="skel-avatar"></div>
-          <div class="skel-info">
-            <div class="skel-name"></div>
-            <div class="skel-sub"></div>
-          </div>
-          <div class="skel-pts"></div>
-        </div>
-      </div>
-
-      <!-- List -->
-      <div v-else-if="filteredLeaderboard.length" class="card leaderboard-list" role="list" aria-label="Leaderboard">
+        <!-- ── Error ── -->
         <div
-          v-for="(entry, index) in filteredLeaderboard"
-          :key="entry.id"
-          class="lb-row"
-          :class="{ 'is-self': String(entry.id) === String(userId) }"
-          role="listitem"
-          @click="goToProfile(entry.id)"
-          :aria-label="`Rank ${index + 1}: ${entry.fullName}, ${entry.totalPoints} points`"
-          tabindex="0"
-          @keydown.enter="goToProfile(entry.id)"
+          v-if="errorMessage"
+          class="error-banner"
+          role="alert"
+          aria-live="assertive"
         >
-          <!-- Rank -->
-          <div class="lb-rank" :style="{ color: getRankColor(index) }" aria-hidden="true">
-            <span v-if="index === 0">🥇</span>
-            <span v-else-if="index === 1">🥈</span>
-            <span v-else-if="index === 2">🥉</span>
-            <span v-else>{{ index + 1 }}</span>
-          </div>
+          ⚠️ {{ errorMessage }}
+        </div>
 
-          <!-- Avatar -->
-          <div class="lb-avatar" aria-hidden="true">
-            <img
-              v-if="hasProfilePicture(entry)"
-              :src="resolveProfilePictureUrl(entry.profilePictureUrl)"
-              :alt="entry.fullName"
-              @error="handleAvatarError(entry)"
-            />
-            <span v-else>{{ (entry.fullName || '?')[0].toUpperCase() }}</span>
+        <!-- ── My Rank Banner ── -->
+        <div
+          v-if="currentUserRank && !isLoading"
+          class="card my-rank-banner"
+          aria-label="Your current rank"
+        >
+          <div class="my-rank-info">
+            <span class="my-rank-label">Your Rank</span>
+            <span class="my-rank-number">#{{ currentUserRank }}</span>
           </div>
-
-          <!-- Info -->
-          <div class="lb-info">
-            <p class="lb-name" v-html="highlightSearch(entry.fullName)"></p>
-            <p class="lb-meta">
-              <span class="role-chip" :class="entry.role">{{ roleLabel(entry.role) }}</span>
-              <span>· ⭐ {{ entry.ratingFormatted }}</span>
-              <span>· {{ entry.reviewsReceived }} reviews</span>
-            </p>
+          <div class="my-rank-pts">
+            <span class="my-rank-label">Points</span>
+            <span class="my-rank-pts-val">{{ currentUserPoints.toLocaleString() }}</span>
           </div>
+          <button class="btn-find-me" type="button" @click="scrollToSelf">Find me</button>
+        </div>
 
-          <!-- Points -->
-          <div class="lb-points-col">
-            <span class="lb-points">{{ entry.totalPoints.toLocaleString() }}</span>
-            <span class="lb-pts-label">pts</span>
+        <!-- ── Controls ── -->
+        <div class="card controls-card">
+          <div class="board-tabs" role="tablist" aria-label="Leaderboard filter">
+            <button
+              v-for="tab in boards"
+              :key="tab.key"
+              class="board-tab"
+              :class="{ active: activeBoard === tab.key }"
+              role="tab"
+              :aria-selected="activeBoard === tab.key"
+              type="button"
+              @click="activeBoard = tab.key"
+            >{{ tab.label }}</button>
+          </div>
+          <div class="sort-row">
+            <label class="sort-label" for="lb-sort">Sort by</label>
+            <select id="lb-sort" class="sort-select" v-model="sortBy" aria-label="Sort leaderboard">
+              <option value="points">Points</option>
+              <option value="rating">Rating</option>
+              <option value="reviews">Reviews</option>
+            </select>
+            <div class="search-wrap">
+              <input
+                v-model="searchQuery"
+                class="search-input"
+                placeholder="Search users…"
+                aria-label="Search leaderboard"
+              />
+              <button
+                v-if="searchQuery"
+                class="search-clear"
+                type="button"
+                @click="searchQuery = ''"
+                aria-label="Clear search"
+              >✕</button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Empty -->
-      <div v-else class="card empty-state" aria-live="polite">
-        <p class="empty-icon" aria-hidden="true">🏆</p>
-        <p>{{ searchQuery ? 'No users match your search.' : 'No data yet.' }}</p>
-        <button v-if="searchQuery" class="chip-soft" @click="searchQuery = ''">Clear search</button>
+        <!-- ── Skeleton ── -->
+        <div
+          v-if="isLoading"
+          class="card skeleton-list"
+          aria-busy="true"
+          aria-label="Loading leaderboard"
+        >
+          <div v-for="i in 8" :key="i" class="skeleton-row">
+            <div class="skel skel-rank"></div>
+            <div class="skel skel-avatar"></div>
+            <div class="skel-info">
+              <div class="skel skel-name"></div>
+              <div class="skel skel-sub"></div>
+            </div>
+            <div class="skel skel-pts"></div>
+          </div>
+        </div>
+
+        <!-- ── List ── -->
+        <div
+          v-else-if="filteredLeaderboard.length"
+          class="card leaderboard-list"
+          role="list"
+          aria-label="Leaderboard"
+        >
+          <div
+            v-for="(entry, index) in filteredLeaderboard"
+            :key="entry.id"
+            class="lb-row"
+            :class="{ 'is-self': String(entry.id) === String(userId) }"
+            role="listitem"
+            tabindex="0"
+            @click="goToProfile(entry.id)"
+            @keydown.enter="goToProfile(entry.id)"
+            :aria-label="`Rank ${index + 1}: ${entry.fullName}, ${entry.totalPoints} points`"
+          >
+            <!-- Rank -->
+            <div class="lb-rank" :style="{ color: getRankColor(index) }" aria-hidden="true">
+              <span v-if="index === 0">🥇</span>
+              <span v-else-if="index === 1">🥈</span>
+              <span v-else-if="index === 2">🥉</span>
+              <span v-else>{{ index + 1 }}</span>
+            </div>
+
+            <!-- Avatar -->
+            <div class="lb-avatar" aria-hidden="true">
+              <img
+                v-if="hasProfilePicture(entry)"
+                :src="resolveProfilePictureUrl(entry.profilePictureUrl)"
+                :alt="entry.fullName"
+                @error="handleAvatarError(entry)"
+              />
+              <span v-else>{{ (entry.fullName || '?')[0].toUpperCase() }}</span>
+            </div>
+
+            <!-- Info -->
+            <div class="lb-info">
+              <p class="lb-name" v-html="highlightSearch(entry.fullName)"></p>
+              <p class="lb-meta">
+                <span class="role-chip" :class="entry.role">{{ roleLabel(entry.role) }}</span>
+                <span>· ⭐ {{ entry.ratingFormatted }}</span>
+                <span>· {{ entry.reviewsReceived }} reviews</span>
+              </p>
+            </div>
+
+            <!-- Points -->
+            <div class="lb-points-col">
+              <span class="lb-points">{{ entry.totalPoints.toLocaleString() }}</span>
+              <span class="lb-pts-label">pts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Empty ── -->
+        <div v-else class="card empty-state" role="status" aria-live="polite">
+          <p class="empty-icon" aria-hidden="true">🏆</p>
+          <p class="empty-text">{{ searchQuery ? 'No users match your search.' : 'No data yet.' }}</p>
+          <button v-if="searchQuery" class="btn-find-me" type="button" @click="searchQuery = ''">Clear search</button>
+        </div>
+
       </div>
-    </div>
+    </section>
   </main>
 </template>
 
@@ -158,7 +203,6 @@ const boards = [
   { key: 'tutee',   label: 'Tutees'  },
 ]
 
-// FIX: safe avatar URL resolution
 const resolveProfilePictureUrl = (url) => {
   if (!url) return ''
   const s = String(url).trim()
@@ -185,20 +229,19 @@ const highlightSearch = (name) => {
   return name.replace(regex, '<mark class="highlight-pink">$1</mark>')
 }
 
-// FIX: normalize once — no template crashes from .toFixed on undefined
 const normalizedLeaderboard = computed(() =>
-  (leaderboardState.value || []).map(entry => {
-    const ratingNum = Number(entry.rating || 0)
+  (leaderboardState.value ?? []).map(entry => {
+    const ratingNum = Number(entry.rating ?? 0)
     return {
-      id:               entry.id,
-      fullName:         String(entry.fullName || 'Unknown User'),
-      role:             String(entry.role || 'tutee'),
-      profilePictureUrl: entry.profilePictureUrl || entry.profile_picture_url || '',
-      totalAchievements: Number(entry.totalAchievements || 0),
-      totalPoints:      Number(entry.totalPoints || entry.points || 0),
-      ratingRaw:        ratingNum,
-      ratingFormatted:  ratingNum.toFixed(2),
-      reviewsReceived:  Number(entry.reviewsReceived || entry.reviewCount || 0),
+      id:                entry.id,
+      fullName:          String(entry.fullName ?? 'Unknown User'),
+      role:              String(entry.role ?? 'tutee'),
+      profilePictureUrl: entry.profilePictureUrl ?? entry.profile_picture_url ?? '',
+      totalAchievements: Number(entry.totalAchievements ?? 0),
+      totalPoints:       Number(entry.totalPoints ?? entry.points ?? 0),
+      ratingRaw:         ratingNum,
+      ratingFormatted:   ratingNum.toFixed(2),
+      reviewsReceived:   Number(entry.reviewsReceived ?? entry.reviewCount ?? 0),
     }
   })
 )
@@ -213,8 +256,8 @@ const filteredLeaderboard = computed(() => {
     list = list.filter(e => e.fullName.toLowerCase().includes(q))
   }
   list.sort((a, b) => {
-    if (sortBy.value === 'points')  return b.totalPoints    - a.totalPoints
-    if (sortBy.value === 'rating')  return b.ratingRaw      - a.ratingRaw
+    if (sortBy.value === 'points')  return b.totalPoints     - a.totalPoints
+    if (sortBy.value === 'rating')  return b.ratingRaw       - a.ratingRaw
     if (sortBy.value === 'reviews') return b.reviewsReceived - a.reviewsReceived
     return 0
   })
@@ -239,11 +282,11 @@ const leaderboardRankingLabel = computed(() => {
 
 const getRankColor = (index) => {
   const colors = ['#FFD700', '#C0C0C0', '#CD7F32']
-  return index < 3 ? colors[index] : '#6e6e73'
+  return index < 3 ? colors[index] : 'var(--ink-muted)'
 }
 
 const roleLabel = (role) => {
-  const v = String(role || 'tutee').toLowerCase()
+  const v = String(role ?? 'tutee').toLowerCase()
   return v === 'admin' ? 'ADMIN' : v === 'tutor' ? 'TUTOR' : 'TUTEE'
 }
 
@@ -256,15 +299,16 @@ const scrollToSelf = () => {
 }
 
 const refreshLeaderboard = async () => {
+  if (isLoading.value) return
   isLoading.value    = true
   errorMessage.value = ''
   try {
     const resp = await api('/leaderboard')
-    leaderboardState.value = resp?.leaderboard || []
+    leaderboardState.value = Array.isArray(resp?.leaderboard) ? resp.leaderboard : []
     avatarLoadErrors.value = {}
-    lastFetchedAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    lastFetchedAt.value = new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
   } catch (err) {
-    errorMessage.value = 'Failed to load leaderboard. Try refreshing.'
+    errorMessage.value = err?.message ?? 'Failed to load leaderboard. Try refreshing.'
   } finally {
     isLoading.value = false
   }
@@ -283,230 +327,499 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ── Local token overrides ── */
 .leaderboard-page {
+  --ink: #021A54;
+  --ink-muted: rgba(2, 26, 84, 0.65);
+  --primary: #FF85BB;
+  --primary-soft: #FFCEE3;
+  --canvas: #ffffff;
+  --canvas-parchment: #F5F5F5;
+  --hairline: #e0e0e0;
+  --radius-card: 16px;
+  --radius-pill: 999px;
+}
+
+/* ── Layout ── */
+.leaderboard-page {
+  background: var(--canvas-parchment);
   min-height: 100vh;
-  background: #F5F5F5;
-  color: #021A54;
 }
-.view { padding: 20px 16px 80px; max-width: 768px; margin: 0 auto }
 
-/* Glass Card */
+.phone-shell {
+  width: 100%;
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.lb-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Card Base ── */
 .card {
-  background: rgba(255,255,255,0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 2px solid #021A54;
-  border-radius: 16px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   padding: 20px;
-  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(2, 26, 84, 0.05);
 }
 
-/* Header */
-.page-header {
+/* ── Page Header ── */
+.page-header-card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 16px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, #ffffff 60%, var(--primary-soft) 100%);
+  border: 1px solid var(--primary-soft);
 }
+
 .page-kicker {
-  font-size: 11px;
+  font-size: 0.75rem;
   font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #FF85BB;
-  margin: 0 0 4px;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 0 0 6px;
 }
-.page-header h2 {
-  margin: 0 0 4px;
-  font-size: clamp(1.4rem, 3vw, 2rem);
+
+.page-header-card h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 800;
-  color: #021A54;
+  color: var(--ink);
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
 }
-.page-subtext { margin: 0; font-size: 12px; color: #6e6e73; font-weight: 600 }
-.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px }
-.update-pulse { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6e6e73 }
+
+.page-subtext {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  font-weight: 500;
+  margin: 0;
+}
+
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.last-updated {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
 .pulse-dot {
-  width: 8px; height: 8px; background: #34c759; border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  background: #34c759;
+  border-radius: 50%;
+  flex-shrink: 0;
   animation: pulse 2s infinite;
 }
+
 @keyframes pulse {
-  0%  { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52,199,89,0.7) }
-  70% { transform: scale(1);    box-shadow: 0 0 0 6px rgba(52,199,89,0) }
-  100%{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52,199,89,0)   }
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); }
+  70%  { transform: scale(1);    box-shadow: 0 0 0 6px rgba(52, 199, 89, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 199, 89, 0);  }
 }
 
-.chip-strong {
-  background: #FF85BB;
-  color: #021A54;
-  border: 2px solid #021A54;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
+/* ── Refresh Button ── */
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary);
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
   font-weight: 800;
   cursor: pointer;
-  transition: background 120ms, transform 120ms;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
-.chip-strong:hover { background: #ff6da9 }
-.chip-strong:active { transform: scale(0.95) }
-.chip-strong:disabled { opacity: 0.6; cursor: not-allowed }
 
-.chip-soft {
-  background: #F5F5F5;
-  color: #021A54;
-  border: 1.5px solid #FFCEE3;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
+.btn-refresh:hover:not(:disabled) { opacity: 0.88; }
+.btn-refresh:active { transform: scale(0.96); }
+.btn-refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-refresh-icon { font-size: 0.95rem; }
+
+/* ── Error Banner ── */
+.error-banner {
+  background: rgba(255, 133, 187, 0.15);
+  border: 1.5px solid var(--primary);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.9rem;
   font-weight: 700;
-  cursor: pointer;
-  transition: background 120ms;
+  color: var(--ink);
 }
-.chip-soft:hover { background: #FFCEE3 }
 
-/* My rank banner */
+/* ── My Rank Banner ── */
 .my-rank-banner {
   display: flex;
   align-items: center;
-  gap: 20px;
-  background: rgba(255,133,187,0.08);
-  border-color: #FF85BB;
+  gap: 24px;
+  background: rgba(255, 133, 187, 0.07);
+  border-color: var(--primary);
+  flex-wrap: wrap;
 }
-.my-rank-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #FF85BB; display: block }
-.my-rank-number { font-size: 28px; font-weight: 800; color: #021A54 }
-.my-rank-pts { margin-left: auto }
-.my-rank-pts-val { font-size: 20px; font-weight: 800; color: #021A54 }
 
-/* Controls */
-.controls-card { display: flex; flex-direction: column; gap: 12px }
-.board-tabs { display: flex; gap: 8px; flex-wrap: wrap }
-.board-tab {
-  padding: 7px 16px;
-  border: 1.5px solid #FFCEE3;
-  border-radius: 8px;
-  background: #F5F5F5;
-  color: #021A54;
-  font-size: 13px;
+.my-rank-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+  margin-bottom: 2px;
+}
+
+.my-rank-number {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.my-rank-pts { margin-left: auto; }
+
+.my-rank-pts-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.btn-find-me {
+  background: var(--canvas-parchment);
+  color: var(--ink);
+  border: 1.5px solid var(--primary-soft);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 120ms;
+  transition: background 120ms ease;
+  white-space: nowrap;
 }
-.board-tab.active { background: #FF85BB; border-color: #021A54; color: #021A54 }
-.board-tab:hover:not(.active) { border-color: #FF85BB }
+.btn-find-me:hover { background: var(--primary-soft); }
 
-.sort-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
-.sort-label { font-size: 12px; font-weight: 700; color: #6e6e73; white-space: nowrap }
-.sort-select {
-  border: 1.5px solid #FFCEE3;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #021A54;
-  background: #fff;
-  cursor: pointer;
+/* ── Controls Card ── */
+.controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-.search-wrap { flex: 1; min-width: 160px }
+
+.board-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.board-tab {
+  padding: 7px 18px;
+  border: 1.5px solid var(--primary-soft);
+  border-radius: 10px;
+  background: var(--canvas-parchment);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.board-tab:hover:not(.active) { border-color: var(--primary); }
+.board-tab.active {
+  background: var(--primary);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sort-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.sort-select {
+  border: 1.5px solid var(--primary-soft);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+.sort-select:focus { border-color: var(--primary); }
+
+.search-wrap {
+  flex: 1;
+  min-width: 140px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .search-input {
   width: 100%;
-  border: 1.5px solid #FFCEE3;
+  border: 1.5px solid var(--primary-soft);
   border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 13px;
-  color: #021A54;
-  background: #fff;
-  box-sizing: border-box;
-  transition: border-color 150ms;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 32px 6px 10px;
+  outline: none;
+  transition: border-color 120ms ease;
 }
-.search-input:focus { outline: none; border-color: #FF85BB; box-shadow: 0 0 0 3px rgba(255,133,187,0.15) }
+.search-input:focus { border-color: var(--primary); }
+.search-input::placeholder { color: var(--ink-muted); }
 
-/* Skeleton */
-.skeleton-list { display: flex; flex-direction: column; gap: 12px }
-.skeleton-row { display: flex; align-items: center; gap: 12px; animation: shimmer 1.4s infinite }
-.skel-rank    { width: 30px; height: 20px; border-radius: 4px; background: #e0e0e0 }
-.skel-avatar  { width: 40px; height: 40px; border-radius: 50%; background: #e0e0e0; flex-shrink: 0 }
-.skel-info    { flex: 1; display: flex; flex-direction: column; gap: 6px }
-.skel-name    { height: 14px; border-radius: 4px; background: #e0e0e0; width: 60% }
-.skel-sub     { height: 10px; border-radius: 4px; background: #ebebeb; width: 40% }
-.skel-pts     { width: 50px; height: 20px; border-radius: 4px; background: #e0e0e0 }
+.search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.search-clear:hover { color: var(--ink); }
+
+/* ── Skeleton List ── */
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 206, 227, 0.4) 50%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.skel-rank   { width: 28px; height: 20px; flex-shrink: 0; }
+.skel-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.skel-info   { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.skel-name   { height: 14px; width: 60%; }
+.skel-sub    { height: 12px; width: 40%; }
+.skel-pts    { width: 48px; height: 20px; flex-shrink: 0; }
+
 @keyframes shimmer {
-  0%  { opacity: 1   }
-  50% { opacity: 0.5 }
-  100%{ opacity: 1   }
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
-/* List rows */
-.leaderboard-list { display: flex; flex-direction: column; gap: 2px; padding: 4px }
+@media (prefers-reduced-motion: reduce) {
+  .skel        { animation: none; }
+  .pulse-dot   { animation: none; }
+}
+
+/* ── Leaderboard List ── */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .lb-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 10px;
-  border-radius: 10px;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--hairline);
   cursor: pointer;
-  transition: background 120ms;
+  transition: background 120ms ease;
 }
-.lb-row:hover { background: #F5F5F5 }
+
+.lb-row:last-child { border-bottom: none; }
+.lb-row:hover { background: rgba(255, 133, 187, 0.05); }
+.lb-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
 .lb-row.is-self {
-  background: rgba(255,133,187,0.12);
-  outline: 2px solid #FF85BB;
+  background: rgba(255, 206, 227, 0.25);
 }
 
-.lb-rank { width: 32px; text-align: center; font-size: 16px; font-weight: 800; flex-shrink: 0 }
+/* Rank */
+.lb-rank {
+  font-size: 1rem;
+  font-weight: 800;
+  width: 28px;
+  flex-shrink: 0;
+  text-align: center;
+}
 
+/* Avatar */
 .lb-avatar {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: #FFCEE3; border: 2px solid #021A54;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 15px; color: #021A54;
-  overflow: hidden; flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  border: 1.5px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--ink);
+  overflow: hidden;
+  flex-shrink: 0;
 }
-.lb-avatar img { width: 100%; height: 100%; object-fit: cover }
 
-.lb-info { flex: 1; min-width: 0 }
-.lb-name { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #021A54; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.lb-meta { margin: 0; font-size: 11px; color: #6e6e73; display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
-:deep(.highlight-pink) { background: #FFCEE3; border-radius: 2px; padding: 0 2px }
+.lb-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Info */
+.lb-info { flex: 1; min-width: 0; }
+
+.lb-name {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-meta {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+:deep(.highlight-pink) {
+  background: var(--primary-soft);
+  border-radius: 2px;
+  padding: 0 2px;
+}
 
 .role-chip {
-  font-size: 9px;
+  font-size: 0.68rem;
   font-weight: 800;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: #FFCEE3;
-  color: #021A54;
+  background: var(--primary-soft);
+  color: var(--ink);
 }
-.role-chip.tutor { background: #021A54; color: #FFCEE3 }
-.role-chip.admin { background: #FF85BB; color: #021A54 }
+.role-chip.tutor { background: var(--ink); color: var(--primary-soft); }
+.role-chip.admin { background: var(--primary); color: var(--ink); }
 
-.lb-points-col { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0 }
-.lb-points { font-size: 16px; font-weight: 800; color: #021A54 }
-.lb-pts-label { font-size: 10px; color: #FF85BB; font-weight: 700; text-transform: uppercase }
+/* Points */
+.lb-points-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
 
-/* Empty */
-.empty-state { text-align: center; padding: 40px 20px }
-.empty-icon { font-size: 3rem; margin: 0 0 12px }
+.lb-points {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.1;
+}
 
-/* Error */
-.error-msg {
-  padding: 12px 16px;
-  background: rgba(255,133,187,0.12);
-  border: 2px solid #FF85BB;
-  border-radius: 12px;
-  color: #021A54;
+.lb-pts-label {
+  font-size: 0.68rem;
   font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary);
 }
 
-@media (max-width: 480px) {
-  .lb-meta { display: none }
-  .my-rank-banner { flex-wrap: wrap }
+/* ── Empty State ── */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .pulse-dot { animation: none }
-  .skeleton-row { animation: none }
+
+.empty-icon {
+  font-size: 2.4rem;
+  margin: 0 0 12px;
+}
+
+.empty-text {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin: 0 0 16px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .phone-shell { padding: 16px 12px 40px; }
+
+  .page-header-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header-right {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .btn-refresh {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .lb-meta { display: none; }
+  .my-rank-banner { flex-wrap: wrap; }
 }
 </style>
