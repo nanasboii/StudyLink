@@ -389,7 +389,13 @@ const loadSessions = async () => {
     const resp = await api('/bookings')
     sessionList.value = Array.isArray(resp?.bookings) ? resp.bookings : []
   } catch (err) {
-    message.value = `Error: ${err?.message ?? 'Failed to load sessions.'}`
+    // 404 just means no bookings exist yet — treat as empty, not an error
+    const status = err?.status ?? err?.statusCode ?? 0
+    if (status === 404) {
+      sessionList.value = []
+    } else {
+      message.value = `Error: ${err?.message ?? 'Failed to load sessions.'}`
+    }
   } finally {
     isLoading.value = false
   }
@@ -535,6 +541,19 @@ watch(() => route.query, () => { applyBookingPrefill() })
 
 <style scoped>
 /* ── Local token overrides ── */
+/* Declare on :root so values win over base.css defaults (incl. inside Teleport portals) */
+:root {
+  --ink: #021A54;
+  --ink-muted: rgba(2, 26, 84, 0.65);
+  --primary: #FF85BB;
+  --primary-soft: #FFCEE3;
+  --canvas: #ffffff;
+  --canvas-parchment: #F5F5F5;
+  --hairline: #e0e0e0;
+  --radius-card: 16px;
+  --radius-pill: 999px;
+}
+
 .session-page {
   --ink: #021A54;
   --ink-muted: rgba(2, 26, 84, 0.65);
