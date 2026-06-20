@@ -511,6 +511,8 @@ function sanitizePublicTutor(row) {
     rating: Number(row.rating || 0),
     reviewsReceived: Number(row.reviews_received || 0),
     totalAchievements: Number(row.total_achievements || 0),
+    loginStreak: Number(row.login_streak || 0),
+    lastLoginAt: row.last_login_at || null,
     availability: Array.isArray(row.availability) ? row.availability : []
   };
 }
@@ -882,9 +884,9 @@ function requireAuth(req, res, next) {
 
   if (!token) {
     const acceptsHtml = (req.headers.accept || '').includes('text/html');
-  if (acceptsHtml) {
-    return sendClientApp(res);
-  }
+    if (acceptsHtml) {
+      return sendClientApp(res);
+    }
     return res.status(401).json({ message: 'Missing bearer token.' });
   }
 
@@ -1851,8 +1853,19 @@ app.get('/me/login-history', requireAuth, async (req, res) => {
     let currentStreak = Number(user.loginStreak || 0);
 
     let streakPointsAwarded = 0;
-
-    if (previousLoginDate !== today) {
+ 
+    // Re-fetch last_login_at from DB to prevent double-award if called
+    // multiple times in one session (req.auth.user uses login-time snapshot).
+    const { rows: freshUser } = await pool.query(
+      'SELECT last_login_at, login_streak FROM users WHERE id = $1',
+      [user.id]
+    );
+    const freshLoginAt = freshUser[0]?.last_login_at ? new Date(freshUser[0].last_login_at) : null;
+    const freshLoginDate = freshLoginAt && !Number.isNaN(freshLoginAt.getTime())
+      ? dateKeyInTimeZone(freshLoginAt)
+      : '';
+ 
+    if (freshLoginDate !== today) {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayDate = dateKeyInTimeZone(yesterday);
@@ -2590,6 +2603,7 @@ app.get('/bookings/inbox', requireAuth, async (req, res) => {
 
 app.post('/bookings/:id/decision', requireAuth, requireRole('tutor'), async (req, res) => {
   const bookingId = Number(req.params.id);
+  if (!bookingId) return res.status(400).json({ message: 'Invalid booking ID.' });
   const { decision } = req.body;
 
   if (!['accepted', 'rejected'].includes(decision)) {
@@ -2639,6 +2653,7 @@ app.post('/bookings/:id/decision', requireAuth, requireRole('tutor'), async (req
 
 app.post('/bookings/:id/complete', requireAuth, requireRole('tutor'), async (req, res) => {
   const bookingId = Number(req.params.id);
+  if (!bookingId) return res.status(400).json({ message: 'Invalid booking ID.' });
   const client = await pool.connect();
 
   try {
@@ -2682,6 +2697,7 @@ app.post('/bookings/:id/complete', requireAuth, requireRole('tutor'), async (req
 
 app.post('/bookings/:id/review', requireAuth, async (req, res) => {
   const bookingId = Number(req.params.id);
+  if (!bookingId) return res.status(400).json({ message: 'Invalid booking ID.' });
   const { rating, comment } = req.body;
 
   if (!rating || Number(rating) < 1 || Number(rating) > 5) {
@@ -2719,17 +2735,11 @@ app.post('/bookings/:id/review', requireAuth, async (req, res) => {
     const reviewedUserId =
       req.auth.user.role === 'tutor' ? booking.tutee_id : booking.tutor_id;
 
-    if (!['tutor', 'tutee'].includes(req.auth.user.role)) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Only tutors and tutees can submit reviews.' });
-    }
-
     await client.query(
       `INSERT INTO booking_reviews (booking_id, reviewer_id, rating, comment)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (booking_id, reviewer_id)
-       DO UPDATE SET reviewer_id = EXCLUDED.reviewer_id,
-                     rating = EXCLUDED.rating,
+       DO UPDATE SET rating = EXCLUDED.rating,
                      comment = EXCLUDED.comment`,
       [bookingId, req.auth.user.id, rating, comment || null]
     );
@@ -2750,7 +2760,8 @@ app.post('/bookings/:id/review', requireAuth, async (req, res) => {
 
 app.get('/bookings/:id/reviews', requireAuth, async (req, res) => {
   const bookingId = Number(req.params.id);
-
+  if (!bookingId) return res.status(400).json({ message: 'Invalid booking ID.' });
+ 
   try {
     const bookingResult = await pool.query(
       `SELECT *
@@ -2807,7 +2818,8 @@ app.get('/users/me/submitted-reviews', requireAuth, async (req, res) => {
 
 app.post('/bookings/:id/cancel', requireAuth, async (req, res) => {
   const bookingId = Number(req.params.id);
-
+  if (!bookingId) return res.status(400).json({ message: 'Invalid booking ID.' });
+ 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -4810,7 +4822,9 @@ app.get('/quizzes', requireAuth, async (req, res) => {
     let paramIndex = 2;
 
     if (myOnly) {
-      conditions.push(`q.creator_id = $1`);
+      conditions.push(`q.creator_id = $${paramIndex}`);
+      params.push(req.auth.user.id);
+      paramIndex++;
     } else {
       conditions.push(`q.is_published = TRUE`);
     }
@@ -5128,13 +5142,12 @@ app.post('/quizzes/:id/attempt', requireAuth, async (req, res) => {
     // Award learning points (scaled by performance)
     const earnedPoints = Math.round((correctCount / Math.max(totalQuestions, 1)) * 5);
     if (earnedPoints > 0) {
-      await client.query(
-        `UPDATE users SET total_points = total_points + $1 WHERE id = $2`,
-        [earnedPoints, req.auth.user.id]
-      );
-      await client.query(
-        `INSERT INTO user_points_log (user_id, points, reason) VALUES ($1, $2, $3)`,
-        [req.auth.user.id, earnedPoints, `Quiz completed: ${correctCount}/${totalQuestions} correct`]
+      // Use awardPoints() so grantBadges() is called and badge unlocks are triggered.
+      await awardPoints(
+        client,
+        req.auth.user.id,
+        earnedPoints,
+        `Quiz completed: \${correctCount}/\${totalQuestions} correct`
       );
     }
 
