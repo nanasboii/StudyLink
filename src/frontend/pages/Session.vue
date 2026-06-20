@@ -386,12 +386,11 @@ const applyBookingPrefill = () => {
 const loadSessions = async () => {
   isLoading.value = true
   try {
-    const resp = await api('/bookings')
+    const resp = await api('/bookings', 'GET', undefined, { silent: true })
     sessionList.value = Array.isArray(resp?.bookings) ? resp.bookings : []
   } catch (err) {
-    // 404 just means no bookings exist yet — treat as empty, not an error
-    const status = err?.status ?? err?.statusCode ?? 0
-    if (status === 404) {
+    // 404 = no bookings yet → silent empty state (toast already suppressed)
+    if (err?.status === 404) {
       sessionList.value = []
     } else {
       message.value = `Error: ${err?.message ?? 'Failed to load sessions.'}`
