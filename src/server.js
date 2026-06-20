@@ -839,7 +839,12 @@ async function recalculateUserRating(client, userId) {
 }
 
 async function awardPoints(client, userId, points, reason) {
-  if (!points) {
+  if (points == null || points < 0) {
+    return;
+  }
+  // Allow 0-point calls to still trigger grantBadges (badge-milestone checks).
+  if (points === 0) {
+    await grantBadges(client, userId);
     return;
   }
 
