@@ -220,7 +220,14 @@
             <div v-for="rev in recentReviews" :key="rev.id" class="review-entry">
               <div class="review-top">
                 <div class="review-avatar" aria-hidden="true">
-                  {{ (rev.tutor_name || rev.tutorName || '?')[0].toUpperCase() }}
+                  <img
+                    v-if="rev.tutor_profile_picture_url && !reviewAvatarErrors[rev.id]"
+                    :src="resolveReviewAvatar(rev.tutor_profile_picture_url)"
+                    :alt="rev.tutor_name || rev.tutorName || 'Tutor'"
+                    class="review-avatar-img"
+                    @error="reviewAvatarErrors[rev.id] = true"
+                  />
+                  <span v-else>{{ (rev.tutor_name || rev.tutorName || '?').charAt(0).toUpperCase() }}</span>
                 </div>
                 <div class="review-meta-block">
                   <strong class="review-name">{{ rev.tutor_name || rev.tutorName || 'Tutor' }}</strong>
@@ -262,6 +269,15 @@ const bookingsError          = ref('')
 const reviewsError           = ref('')
 const reviewsEndpointMissing = ref(false)
 let messageTimer             = null
+
+const reviewAvatarErrors     = ref({})
+ 
+const resolveReviewAvatar = (rawUrl) => {
+  const v = String(rawUrl || '').trim()
+  if (!v) return ''
+  if (v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:')) return v
+  return v.startsWith('/') ? v : `/${v}`
+}
 
 // ─── Computed ──────────────────────────────────────────────
 const canSubmit = computed(() =>
@@ -869,6 +885,14 @@ onUnmounted(() => { if (messageTimer) clearTimeout(messageTimer) })
   font-size: 1rem;
   font-weight: 800;
   flex-shrink: 0;
+  overflow: hidden;   /* clips <img> to circle */
+}
+ 
+.review-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .review-meta-block { flex: 1; min-width: 0; }
