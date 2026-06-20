@@ -386,10 +386,16 @@ const applyBookingPrefill = () => {
 const loadSessions = async () => {
   isLoading.value = true
   try {
-    const resp = await api('/bookings', 'GET', undefined, { silent: true })
-    sessionList.value = Array.isArray(resp?.bookings) ? resp.bookings : []
+    const resp = await api('/bookings/inbox', 'GET', undefined, { silent: true })
+    sessionList.value = (resp?.bookings ?? []).map(item => ({
+      id:          item.id,
+      status:      item.status      ?? 'pending',
+      tutorName:   item.tutor_name  ?? item.tutorName  ?? '',
+      tuteeName:   item.tutee_name  ?? item.tuteeName  ?? '',
+      sessionTime: item.session_time ?? item.sessionTime ?? '',
+      courseCode:  item.course_code  ?? item.courseCode  ?? '',
+    }))
   } catch (err) {
-    // 404 = no bookings yet → silent empty state (toast already suppressed)
     if (err?.status === 404) {
       sessionList.value = []
     } else {
