@@ -204,7 +204,7 @@ const relativeTime = (dateValue) => {
   return new Date(dateValue).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })
 }
 
-const emitChange = () => window.dispatchEvent(new Event('studylink-notifications-changed'))
+const emitChange = () => window.dispatchEvent(new Event('studylink-notifications-read'))
 
 const loadNotifications = async (soft = false) => {
   if (soft) isRefreshing.value = true
