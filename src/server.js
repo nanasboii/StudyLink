@@ -1061,6 +1061,30 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 
       ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS spotlight_until TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_exclusive_badge BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS spotlight_until TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_exclusive_badge BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS spotlight_until TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_exclusive_badge BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS spotlight_until TIMESTAMP;
+
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_exclusive_badge BOOLEAN NOT NULL DEFAULT FALSE;
+
+      ALTER TABLE users
         ADD COLUMN IF NOT EXISTS profile_picture BYTEA;
 
       ALTER TABLE users
@@ -1352,8 +1376,8 @@ async function initializeDatabase() {
            ('RESOURCE_PACK', 'Resource Pack Access', 'Get early access to a curated bundle of premium study materials for your enrolled courses.', 250, '📦'),
            ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking any tutor for 7 days.', 400, '⚡'),
            ('FREE_SESSION', 'Free Tutoring Session', 'Redeem for one free 1-hour peer tutoring session with any verified tutor.', 600, '📚'),
-           ('STUDY_KIT', 'StudyLink Study Kit', 'Receive a physical study kit — branded notebook, premium pen, highlighters, and exclusive stickers. Collect at Student Affairs.', 1500, '🎒'),
-           ('MERIT_CERTIFICATE', 'Academic Merit Certificate', 'Receive an official StudyLink Academic Merit Certificate recognizing your contributions. Co-signed by Faculty of Computer Science.', 3000, '📜'),
+           ('STUDY_KIT', 'StudyLink Study Kit', 'Unlock an exclusive digital study kit — curated study templates, note-taking packs, and a StudyLink digital sticker collection, delivered to your email. Collect at Student Affairs.', 1500, '🎒'),
+           ('MERIT_CERTIFICATE', 'Academic Merit Certificate', 'Receive an official StudyLink Academic Merit Certificate recognizing your outstanding contributions and peer-support activity on the platform.', 3000, '📜'),
            ('TNG_VOUCHER', 'RM10 Touch ''n Go eWallet', 'Receive RM10 credit loaded directly into your Touch ''n Go eWallet. Verification of TnG account required upon redemption.', 5000, '💳')
        ),
        updated AS (
@@ -4491,11 +4515,56 @@ app.post('/redeem/:rewardId', requireAuth, async (req, res) => {
       [req.auth.user.id, -reward.points_cost, 'redemption']
     );
 
-    await createNotification(client, req.auth.user.id, `You redeemed "${reward.name}" for ${reward.points_cost} points.`);
+    // ── Reward-specific side-effects ─────────────────────────────────────
+    const rewardCode = String(reward.code || '').toUpperCase();
+    let effectMessage = null;
+
+    switch (rewardCode) {
+      case 'PROFILE_SPOTLIGHT': {
+        await client.query(
+          `UPDATE users
+            SET spotlight_until = GREATEST(COALESCE(spotlight_until, NOW()), NOW()) + INTERVAL '3 days'
+            WHERE id = $1`,
+          [req.auth.user.id]
+        );
+        effectMessage = 'Your profile will be spotlighted for 3 days! 🌟';
+        break;
+      }
+      case 'CUSTOM_BADGE': {
+        await client.query(
+          `UPDATE users SET has_exclusive_badge = TRUE WHERE id = $1`,
+          [req.auth.user.id]
+        );
+        effectMessage = 'Exclusive badge unlocked on your profile! 🏅';
+        break;
+      }
+      case 'PRIORITY_BOOKING': {
+        await client.query(
+          `UPDATE users
+            SET priority_booking_until = GREATEST(COALESCE(priority_booking_until, NOW()), NOW()) + INTERVAL '7 days'
+            WHERE id = $1`,
+          [req.auth.user.id]
+        ).catch(() => {});
+        effectMessage = 'Priority booking active for 7 days! ⚡';
+        break;
+      }
+      default:
+        break;
+    }
+
+    await createNotification(
+      client,
+      req.auth.user.id,
+      effectMessage
+        ? `You redeemed "${reward.name}" for ${reward.points_cost} points. ${effectMessage}`
+        : `You redeemed "${reward.name}" for ${reward.points_cost} points.`
+    );
 
     await client.query('COMMIT');
     return res.json({
-      message: `Successfully redeemed "${reward.name}"!`,
+      message: effectMessage
+        ? `Successfully redeemed "${reward.name}"! ${effectMessage}`
+        : `Successfully redeemed "${reward.name}"!`,
       pointsSpent: reward.points_cost,
       balanceAfter: currentPoints - reward.points_cost
     });
