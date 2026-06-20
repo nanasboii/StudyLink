@@ -4984,14 +4984,7 @@ app.post('/quizzes', requireAuth, requireRole('tutor', 'admin'), async (req, res
     }
 
     // Award points for creating a quiz
-    await client.query(
-      `UPDATE users SET total_points = total_points + 10 WHERE id = $1`,
-      [req.auth.user.id]
-    );
-    await client.query(
-      `INSERT INTO user_points_log (user_id, points, reason) VALUES ($1, 10, 'Created a quiz')`,
-      [req.auth.user.id]
-    );
+    await awardPoints(client, req.auth.user.id, 10, 'Created a quiz');
 
     await client.query('COMMIT');
     return res.json({ quizId, message: 'Quiz created successfully!' });
