@@ -363,23 +363,23 @@ const handleProfilePictureSelected = async (e) => {
   uploadingProfilePicture.value = true
   try {
     const form = new FormData()
-    form.append('image', file) 
+    form.append('image', file)
     const resp = await api('/uploads/profile-picture', 'POST', form)
-    const normalized = normalizeUserProfile(resp.user || profileData.value)
-    profileData.value = normalized
-    originalProfileData.value = { ...normalized }
 
-    const uploadedUrl = resp.fileUrl || ''
-    pendingAvatarServerUrl.value = normalizeAssetUrl(uploadedUrl)
-    const ready = await waitForImageAvailability(pendingAvatarServerUrl.value)
+    const uploadedUrl = normalizeAssetUrl(resp.fileUrl || '')
+    if (!uploadedUrl) throw new Error('No file URL returned from server.')
+
+    pendingAvatarServerUrl.value = uploadedUrl
+    const ready = await waitForImageAvailability(uploadedUrl)
     if (ready) {
+      // Patch profileData with the new picture URL BEFORE clearing the preview
+      profileData.value.profilePicture = uploadedUrl
+      originalProfileData.value.profilePicture = uploadedUrl
       clearPendingAvatarPreview()
       avatarVersion.value = Date.now()
     }
 
     avatarLoadFailed.value = false
-    const token = getToken()
-    if (token && resp.user) setSession(token, resp.user)
     setMessage('Profile picture updated!')
   } catch (err) {
     clearPendingAvatarPreview()

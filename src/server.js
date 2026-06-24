@@ -492,7 +492,9 @@ function sanitizeUser(row) {
     targetSubjects: row.target_subjects,
     expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
-    profilePictureUrl: row.profile_picture_url,
+    profilePictureUrl: row.profile_picture 
+  ? `/profile-picture/${row.id}` 
+  : (row.profile_picture_url || null),
     isVerified: row.is_verified,
     rating: Number(row.rating || 0),
     totalPoints: Number(row.total_points || 0),
