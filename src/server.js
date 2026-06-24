@@ -447,6 +447,13 @@ const resourceUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 25 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    if (allowedResourceMimeTypes.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Unsupported file type. Allowed: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, TXT, PNG, JPEG, GIF, MP3, WAV, MP4, MOV, ZIP.'));
   }
 });
 
@@ -2974,7 +2981,7 @@ app.post(
         }
         return res.status(400).json({ message: error.message });
       }
-      console.log('[UPLOAD] File received:', req.file ? req.file.filename : 'no file (link only)');
+      console.log('[UPLOAD] File received:', req.file ? req.file.originalname : 'no file (link only)');
       return next();
     });
   },
@@ -2984,54 +2991,49 @@ app.post(
     const title = String(req.body.title || '').trim();
     const resourceType = String(req.body.resourceType || '').trim();
     const resourceLink = String(req.body.resourceLink || '').trim();
-
+ 
     console.log('[UPLOAD] Form data:', { courseCode, title, resourceType, hasFile: !!req.file, hasLink: !!resourceLink });
-
+ 
+    // Nothing has been written to storage yet, so there is nothing to clean up.
     if (!title || !resourceType) {
-      if (req.file) {
-        try {
-          await fs.promises.unlink(req.file.path);
-        } catch (cleanupError) {
-          if (cleanupError.code !== 'ENOENT') {
-            console.error('Resource upload cleanup failed:', cleanupError.message);
-          }
-        }
-      }
-
       return res.status(400).json({ message: 'title and resourceType are required.' });
     }
-
+ 
     let resourceUrl = resourceLink || null;
-
+ 
+    // Track the actual artifact we create so we can roll it back on DB failure.
+    let writtenLocalPath = null;          // local-disk fallback
+    let uploadedSupabaseFileName = null;  // Supabase object key
+ 
     if (req.file) {
       if (supabase) {
         const userId = req.auth?.user?.id || 'unknown';
         const extension = path.extname(req.file.originalname || '').toLowerCase();
         const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-        const safeName = `resource-${userId}-${unique}${extension}`
+        const fileName = `resource-${userId}-${unique}${extension}`
           .replace(/[^a-zA-Z0-9._-]/g, '-')
           .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '');              // collapse multiple dashes
-        const fileName = safeName;
-
+          .replace(/^-|-$/g, '');
+ 
         const { error: uploadError } = await supabase.storage
           .from('resources')
           .upload(fileName, req.file.buffer, {
             contentType: req.file.mimetype,
             upsert: false
           });
-
+ 
         if (uploadError) {
           return res.status(500).json({ message: `Storage upload failed: ${uploadError.message}` });
         }
-
+ 
         const { data: publicUrlData } = supabase.storage
           .from('resources')
           .getPublicUrl(fileName);
-
+ 
         resourceUrl = publicUrlData.publicUrl;
+        uploadedSupabaseFileName = fileName;
       } else {
-        // Fallback: save to local disk if Supabase is not configured
+        // Fallback: save to local disk if Supabase is not configured.
         const userId = req.auth?.user?.id || 'unknown';
         const extension = path.extname(req.file.originalname || '').toLowerCase();
         const unique = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -3039,25 +3041,26 @@ app.post(
         const destPath = path.join(resourceUploadDir, fileName);
         await fs.promises.writeFile(destPath, req.file.buffer);
         resourceUrl = `/uploads/resources/${fileName}`;
+        writtenLocalPath = destPath;
       }
     }
-
+ 
     if (!resourceUrl) {
       return res.status(400).json({ message: 'Upload a file or paste a resource link.' });
     }
-
+ 
     const metadata = {
       uploadKind: req.file ? 'file' : 'link',
       originalName: req.file ? req.file.originalname : null,
       fileName: req.file ? path.basename(resourceUrl) : null,
       externalLink: !req.file ? resourceUrl : null,
     };
-
+ 
     const client = await pool.connect();
     try {
       console.log('[UPLOAD] Starting database transaction');
       await client.query('BEGIN');
-
+ 
       const { rows } = await client.query(
         `INSERT INTO resources
          (course_code, contributor_id, title, resource_type, file_url, metadata)
@@ -3065,25 +3068,35 @@ app.post(
          RETURNING *`,
         [courseCode || null, req.auth.user.id, title, resourceType, resourceUrl, metadata]
       );
-
+ 
       console.log('[UPLOAD] Resource inserted, id:', rows[0].id);
       await awardPoints(client, req.auth.user.id, 15, 'Uploaded resource');
-
+ 
       await client.query('COMMIT');
       console.log('[UPLOAD] Transaction committed successfully');
       return res.status(201).json({ resource: rows[0] });
     } catch (error) {
       console.error('[UPLOAD] Error:', error.message);
       await client.query('ROLLBACK');
-      if (req.file) {
+ 
+      // Roll back the stored artifact (correct target, not req.file.path).
+      if (writtenLocalPath) {
         try {
-          await fs.promises.unlink(req.file.path);
+          await fs.promises.unlink(writtenLocalPath);
         } catch (cleanupError) {
           if (cleanupError.code !== 'ENOENT') {
             console.error('Resource upload cleanup failed:', cleanupError.message);
           }
         }
       }
+      if (uploadedSupabaseFileName && supabase) {
+        try {
+          await supabase.storage.from('resources').remove([uploadedSupabaseFileName]);
+        } catch (cleanupError) {
+          console.error('Supabase upload cleanup failed:', cleanupError.message);
+        }
+      }
+ 
       return res.status(500).json({ message: error.message });
     } finally {
       client.release();
