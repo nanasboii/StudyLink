@@ -1068,9 +1068,6 @@ async function initializeDatabase() {
         ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 
       ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS spotlight_until TIMESTAMP;
-
-      ALTER TABLE users
         ADD COLUMN IF NOT EXISTS has_exclusive_badge BOOLEAN NOT NULL DEFAULT FALSE;
 
       ALTER TABLE users
@@ -2927,7 +2924,7 @@ app.post('/bookings/:id/cancel', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/resources', requireAuth, async (req, res) => {
+app.post('/resources', requireAuth, requireRole('tutor', 'admin'), async (req, res) => {
   const { courseCode, title, resourceType, fileUrl, metadata } = req.body;
 
   if (!title || !resourceType || !fileUrl) {
@@ -2971,6 +2968,7 @@ app.post(
   '/resources/upload',
   uploadRateLimiter,
   requireAuth,
+  requireRole('tutor', 'admin'),
   (req, res, next) => {
     console.log('[UPLOAD] Multer processing file upload');
     resourceUpload.single('resourceFile')(req, res, (error) => {
@@ -5183,6 +5181,15 @@ app.post('/quizzes/:id/attempt', requireAuth, async (req, res) => {
     }
 
     await client.query('BEGIN');
+
+    const quizRow = await client.query(
+      `SELECT id FROM quizzes WHERE id = $1 AND is_published = TRUE`,
+      [quizId]
+    );
+    if (!quizRow.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Quiz not found or not published.' });
+    }
 
     // Increment play count
     await client.query('UPDATE quizzes SET play_count = play_count + 1 WHERE id = $1', [quizId]);
