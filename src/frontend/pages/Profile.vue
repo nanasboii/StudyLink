@@ -363,13 +363,13 @@ const handleProfilePictureSelected = async (e) => {
   uploadingProfilePicture.value = true
   try {
     const form = new FormData()
-    form.append('profilePicture', file)
-    const resp = await api('/me/profile/picture', 'POST', form)
+    form.append('image', file) 
+    const resp = await api('/uploads/profile-picture', 'POST', form)
     const normalized = normalizeUserProfile(resp.user || profileData.value)
     profileData.value = normalized
     originalProfileData.value = { ...normalized }
 
-    const uploadedUrl = resp.profilePictureUrl || resp.url || normalized.profilePicture || ''
+    const uploadedUrl = resp.fileUrl || ''
     pendingAvatarServerUrl.value = normalizeAssetUrl(uploadedUrl)
     const ready = await waitForImageAvailability(pendingAvatarServerUrl.value)
     if (ready) {
