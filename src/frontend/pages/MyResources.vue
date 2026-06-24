@@ -261,7 +261,7 @@ const filteredResources = computed(() => {
 const loadResources = async () => {
   isLoading.value = true
   try {
-    const data = await api('/my-resources')
+    const data = await api('/resources/mine')   // was: api('/my-resources')
     resources.value = Array.isArray(data?.resources) ? data.resources : []
   } catch (err) {
     setMessage(err?.message || 'Failed to load resources.', 'error')
