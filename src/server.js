@@ -514,7 +514,9 @@ function sanitizePublicTutor(row) {
     targetSubjects: row.target_subjects,
     expertise: Array.isArray(row.expertise) ? row.expertise : [],
     bio: row.bio,
-    profilePictureUrl: row.profile_picture_url,
+    profilePictureUrl: row.profile_picture
+      ? `/profile-picture/${row.id}`
+      : (row.profile_picture_url || null),
     isVerified: row.is_verified,
     totalPoints: Number(row.total_points || 0),
     rating: Number(row.rating || 0),
@@ -531,7 +533,9 @@ function sanitizeLeaderboardEntry(row) {
     id: row.id,
     fullName: row.full_name,
     role: row.role,
-    profilePictureUrl: row.profile_picture_url,
+    profilePictureUrl: row.profile_picture
+      ? `/profile-picture/${row.id}`
+      : (row.profile_picture_url || null),
     totalPoints: Number(row.total_points || 0),
     isVerified: Boolean(row.is_verified),
     rating: Number(row.rating || 0),
@@ -4661,33 +4665,37 @@ app.get('/conversations', requireAuth, async (req, res) => {
 
     const { rows } = await pool.query(
       `SELECT
-         c.id,
-         c.is_support,
-         c.updated_at,
-         (
-           SELECT json_build_object('id', u.id, 'fullName', u.full_name, 'role', u.role, 'profilePicture', u.profile_picture_url)
-           FROM conversation_participants cp2
-           JOIN users u ON u.id = cp2.user_id
-           WHERE cp2.conversation_id = c.id AND cp2.user_id <> $1
-           LIMIT 1
-         ) AS other_user,
-         (
-           SELECT m.content FROM chat_messages m
-           WHERE m.conversation_id = c.id
-           ORDER BY m.created_at DESC LIMIT 1
-         ) AS last_message,
-         (
-           SELECT COUNT(*) FROM chat_messages m
-           WHERE m.conversation_id = c.id
-             AND m.sender_id <> $1
-             AND m.created_at > COALESCE(
-               (SELECT cp3.last_read_at FROM conversation_participants cp3
+        c.id,
+        c.is_support,
+        c.updated_at,
+        (
+          SELECT json_build_object('id', u.id, 'fullName', u.full_name, 'role', u.role, 'profilePicture',
+            CASE WHEN u.profile_picture IS NOT NULL
+              THEN '/profile-picture/' || u.id::text
+              ELSE u.profile_picture_url
+            END)
+          FROM conversation_participants cp2
+          JOIN users u ON u.id = cp2.user_id
+          WHERE cp2.conversation_id = c.id AND cp2.user_id <> $1
+          LIMIT 1
+        ) AS other_user,
+        (
+          SELECT m.content FROM chat_messages m
+          WHERE m.conversation_id = c.id
+          ORDER BY m.created_at DESC LIMIT 1
+        ) AS last_message,
+        (
+          SELECT COUNT(*) FROM chat_messages m
+          WHERE m.conversation_id = c.id
+            AND m.sender_id <> $1
+            AND m.created_at > COALESCE(
+              (SELECT cp3.last_read_at FROM conversation_participants cp3
                 WHERE cp3.conversation_id = c.id AND cp3.user_id = $1), '1970-01-01'
-             )
-         ) AS unread_count
-       FROM conversations c
-       JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
-       ORDER BY c.updated_at DESC`,
+            )
+        ) AS unread_count
+      FROM conversations c
+      JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
+      ORDER BY c.updated_at DESC`,
       [req.auth.user.id]
     );
     return res.json({ conversations: rows });
@@ -4873,13 +4881,17 @@ app.get('/users/search', requireAuth, async (req, res) => {
   if (q.length < 2) return res.json({ users: [] });
   try {
     const { rows } = await pool.query(
-      `SELECT id, full_name, role, profile_picture_url
-       FROM users
-       WHERE id <> $1
-         AND role <> 'admin'
-         AND (full_name ILIKE $2 OR email ILIKE $2)
-       ORDER BY full_name ASC
-       LIMIT 10`,
+      `SELECT id, full_name, role,
+        CASE WHEN profile_picture IS NOT NULL
+          THEN '/profile-picture/' || id::text
+          ELSE profile_picture_url
+        END AS profile_picture_url
+      FROM users
+      WHERE id <> $1
+        AND role <> 'admin'
+        AND (full_name ILIKE $2 OR email ILIKE $2)
+      ORDER BY full_name ASC
+      LIMIT 10`,
       [req.auth.user.id, `%${q}%`]
     );
     return res.json({ users: rows });
@@ -5284,15 +5296,19 @@ app.get('/quizzes/:id/leaderboard', requireAuth, async (req, res) => {
   try {
     const quizId = Number(req.params.id);
     const { rows } = await pool.query(
-      `SELECT qa.user_id, u.full_name, u.profile_picture_url,
-              MAX(qa.score) AS best_score, MAX(qa.total_points) AS total_points,
-              COUNT(qa.id) AS attempts,
-              MIN(qa.time_taken_seconds) AS fastest_time
-       FROM quiz_attempts qa JOIN users u ON u.id = qa.user_id
-       WHERE qa.quiz_id = $1
-       GROUP BY qa.user_id, u.full_name, u.profile_picture_url
-       ORDER BY best_score DESC, fastest_time ASC
-       LIMIT 50`,
+      `SELECT qa.user_id, u.full_name,
+        CASE WHEN u.profile_picture IS NOT NULL
+          THEN '/profile-picture/' || u.id::text
+          ELSE u.profile_picture_url
+        END AS profile_picture_url,
+        MAX(qa.score) AS best_score, MAX(qa.total_points) AS total_points,
+        COUNT(qa.id) AS attempts,
+        MIN(qa.time_taken_seconds) AS fastest_time
+      FROM quiz_attempts qa JOIN users u ON u.id = qa.user_id
+      WHERE qa.quiz_id = $1
+      GROUP BY qa.user_id, u.full_name, u.profile_picture_url, u.profile_picture, u.id
+      ORDER BY best_score DESC, fastest_time ASC
+      LIMIT 50`,
       [quizId]
     );
     return res.json({ leaderboard: rows });
