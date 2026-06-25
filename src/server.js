@@ -1386,7 +1386,7 @@ async function initializeDatabase() {
            ('RESOURCE_PACK', 'Resource Pack Access', 'Get early access to a curated bundle of premium study materials for your enrolled courses.', 250, '📦'),
            ('PRIORITY_BOOKING', 'Priority Booking', 'Skip the queue — get priority placement when booking any tutor for 7 days.', 400, '⚡'),
            ('FREE_SESSION', 'Free Tutoring Session', 'Redeem for one free 1-hour peer tutoring session with any verified tutor.', 600, '📚'),
-           ('STUDY_KIT', 'StudyLink Study Kit', 'Unlock an exclusive digital study kit — curated study templates, note-taking packs, and a StudyLink digital sticker collection, delivered to your email. Collect at Student Affairs.', 1500, '🎒'),
+           ('STUDY_KIT', 'StudyLink Premium Week', 'Unlock one week of premium features — priority tutor matching, session reminders, and an exclusive profile frame. Applied automatically to your account.', 1500, '⭐'),
            ('MERIT_CERTIFICATE', 'Academic Merit Certificate', 'Receive an official StudyLink Academic Merit Certificate recognizing your outstanding contributions and peer-support activity on the platform.', 3000, '📜'),
            ('TNG_VOUCHER', 'RM10 Touch ''n Go eWallet', 'Receive RM10 credit loaded directly into your Touch ''n Go eWallet. Verification of TnG account required upon redemption.', 5000, '💳')
        ),
