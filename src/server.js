@@ -4794,7 +4794,11 @@ app.get('/conversations/:id/messages', requireAuth, async (req, res) => {
 
     const { rows } = await pool.query(
       `SELECT m.id, m.content, m.created_at,
-              json_build_object('id', u.id, 'fullName', u.full_name, 'profilePicture', u.profile_picture_url) AS sender
+              json_build_object('id', u.id, 'fullName', u.full_name, 'profilePicture',
+                CASE WHEN u.profile_picture IS NOT NULL 
+                  THEN '/profile-picture/' || u.id::text 
+                  ELSE u.profile_picture_url 
+                END)
        FROM chat_messages m
        JOIN users u ON u.id = m.sender_id
        WHERE m.conversation_id = $1
