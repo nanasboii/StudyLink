@@ -44,13 +44,17 @@ A full-stack peer tutoring and academic resource platform for UNIMAS students. S
 ```
 studylink/
 ├── src/
-│   ├── server.js              # Express API server
-│   ├── seed.js                # Database seed script
-│   ├── uploads/               # User-uploaded files (mounted volume)
+│   ├── server.js                    # Express API server
+│   ├── seed.js                      # Database seed script
+│   ├── seed-quizzes.js              # Seed script for sample quizzes
+│   ├── migrate-profile-pictures.js  # One-off migration: filesystem -> DB (BYTEA)
+│   ├── migrate-quizzes.js           # One-off migration for quiz schema changes
+│   ├── uploads/                     # User-uploaded files (mounted volume; legacy assets only)
 │   └── frontend/
 │       ├── main.js
 │       ├── App.vue
 │       ├── api.js             # Shared fetch utility
+│       ├── records.js         # Data normalisation helpers
 │       ├── router/index.js
 │       ├── routes.js
 │       ├── push.js            # Service worker / push registration
@@ -64,8 +68,10 @@ studylink/
 │   └── security-scan.mjs
 ├── tests/
 │   └── critical-flows.integration.test.mjs
+├── studylink_backup.sql       # Full schema + data dump (28 tables)
 ├── docker-compose.yml
 ├── Dockerfile
+├── railway.json                # Railway deployment config
 ├── vite.config.js
 └── package.json
 ```
@@ -126,11 +132,38 @@ Services started:
 | App | http://localhost:3001 |
 | pgAdmin | http://localhost:5050 |
 
-### 5. Seed the database
+### 5. Restore the database
+
+The full schema and sample data can be restored from the included dump:
+
+```bash
+# Copy the dump into the running Postgres container, then restore
+docker exec -i studylink-postgres psql -U studylink -d studylink < studylink_backup.sql
+```
+
+> PowerShell users: the `<` redirect operator is not supported. Use:
+> ```powershell
+> Get-Content studylink_backup.sql | docker exec -i studylink-postgres psql -U studylink -d studylink
+> ```
+
+Alternatively, seed fresh sample data instead of restoring the dump:
 
 ```bash
 npm run seed
+node src/seed-quizzes.js
 ```
+
+`npm run seed` creates two test accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| Tutee | tutee@example.com | password123 |
+| Tutor | tutor@example.com | password123 |
+
+> No admin account is seeded automatically. Promote a user to `admin` directly in the database, e.g.
+> ```sql
+> UPDATE users SET role = 'admin' WHERE email = 'tutee@example.com';
+> ```
 
 ---
 
@@ -146,6 +179,11 @@ npm run seed
 | `npm run test:flows` | Run critical-flow integration tests |
 | `npm run security:scan` | Run security scan across all files |
 | `npm run security:scan:staged` | Run security scan on staged files only |
+| `node src/seed-quizzes.js` | Seed sample quizzes |
+| `node src/migrate-profile-pictures.js` | One-off: migrate legacy filesystem profile pictures into the `profile_picture` DB column |
+| `node src/migrate-quizzes.js` | One-off: migrate legacy quiz records to the current schema |
+
+> The `migrate-*.js` scripts are retained for examiner reproducibility and are not part of the normal run path — the current schema (via `studylink_backup.sql`) already reflects their end state.
 
 ---
 
@@ -204,6 +242,16 @@ See `theme-reference.md` for the full CSS variable reference.
 | `tutee` | Student seeking tutoring and resources |
 | `tutor` | Verified peer tutor who can upload resources and accept bookings |
 | `admin` | Platform administrator with full management access |
+
+---
+
+## File Storage
+
+| Asset type | Storage |
+|---|---|
+| Profile pictures | Stored as binary data (`BYTEA`) in the `users` table, served via `GET /profile-picture/:userId` |
+| Resources (notes, papers, slides) | Stored via Supabase storage / mounted `uploads/` volume |
+| Legacy profile pictures | Older filesystem-based pictures (`/uploads/profile-pictures/...`) remain readable through a backward-compatible route, but new uploads always write to the database |
 
 ---
 
